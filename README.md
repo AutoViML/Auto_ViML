@@ -25,10 +25,10 @@ Automated Variant Interpretable Machine Learning project. Created by Ram Seshadr
 
 1. Finally, call Auto_ViML using the train, test dataframes and the name of the target variable in data frame. That's all.
 
-Auto_ViML(train, target, test='',sample_submission='',modeltype='Classification',
+    <code>Auto_ViML(train, target, test='',sample_submission='',modeltype='Classification',
             scoring_parameter='logloss', Boosting_Flag=None,
             Add_Poly=0, Stacking_Flag=False, Binning_Flag=False,
-              Imbalanced_Flag=False, verbose=0)
+              Imbalanced_Flag=False, verbose=0)</code>
               
 Hope this helps. You don't need any special Libraries other than whatever is in your Anaconda Python Distribution. 
 

@@ -1,5 +1,5 @@
 # Auto_ViML
-Automated Variant Interpretable Machine Learning project. Created by Ram Seshadri. Permission Granted by Request.
+Automated Variant Interpretable Machine Learning project. Created by Ram Seshadri. Permission Granted Upon Request.
 
     ####   Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML) ######
     # Auto_ViML was designed for building a High Performance Interpretable Model With Fewest Vars. 

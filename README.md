@@ -19,7 +19,7 @@ Automated Variant Interpretable Machine Learning project. Created by Ram Seshadr
 1. Copy or download this Auto_ViML.py file to any directory. 
 1. In the same directory, open a Jupyter Notebook and use this line to import the .py file:
 
-from Auto_ViML import Auto_ViML
+    from Auto_ViML import Auto_ViML
 
 1. Then use Pandas to import a CSV or other data file into a dataframe and split it into Train and Test data frames. Notice that Auto_ViML uses DataFrames as inputs. Do not send in Numpy Arrays since it will give an error.
 

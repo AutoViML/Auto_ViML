@@ -1175,7 +1175,7 @@ def Auto_ViML(train, target, test='',sample_submission='',modeltype='Classificat
             print('No important features found. Using all input features...')
             important_features = copy.deepcopy(saved_important_features) 
             #important_features = copy.deepcopy(red_preds)
-        #### This is where we divide train and test into Train and CV Test Sets #################
+        #### This is Second time: divide train and test into Train and Test Sets #################
         ### The next 2 lines are crucial: if X and y are dataframes, then next 2 should be df's
         ###   They should not be df.values since they will become numpy arrays and XGB will error.
         trainm = train[important_features+[each_target]]
@@ -1198,8 +1198,9 @@ def Auto_ViML(train, target, test='',sample_submission='',modeltype='Classificat
             else:
                 try:
                     if Boosting_Flag:
-                            model.fit(X_train, y_train, early_stopping_rounds=5,
-                                eval_metric=eval_metric,eval_set=eval_set,verbose=verbose)
+                        ### Since second time we don't have X_cv, we remove it
+                            model.fit(X_train, y_train, 
+                                eval_metric=eval_metric,verbose=verbose)
                     else:
                             model.fit(X_train, y_train)
                 except:
@@ -1208,8 +1209,8 @@ def Auto_ViML(train, target, test='',sample_submission='',modeltype='Classificat
         else:
             try:
                 if Boosting_Flag:
-                        model.fit(X_train, y_train, early_stopping_rounds=5,
-                            eval_metric=eval_metric,eval_set=eval_set,verbose=verbose)
+                        model.fit(X_train, y_train, 
+                            eval_metric=eval_metric,verbose=verbose)
                 else:
                         model.fit(X_train, y_train)
             except:

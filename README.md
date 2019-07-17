@@ -1,5 +1,20 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" type="text/css" href="/+static/base.vsKBklzePi_Td7VvkjGVKw.cache.css"/><link rel="stylesheet" type="text/css" href="/+static/doc.DKuU4ej5LMTa95NGDTR2Pw.cache.css"/><link rel="stylesheet" type="text/css" href="/+static/prettify/prettify.pZ5FqzM6cPxAflH0va2Ucw.cache.css"/><!-- default customHeadTagPart --></head><body class="Site"><header class="Site-header "><div class="Header"><div class="Header-title"></div></div></header><div class="Site-content Site-Content--markdown"><div class="Container"><div class="doc"><h1><a class="h" name="Auto_ViML" href="#Auto_ViML"><span></span></a><a class="h" name="auto_viml" href="#auto_viml"><span></span></a>Auto_ViML</h1>
     #########################################################################################################
+    #Copyright 2019 Google LLC                                                                        #######
+    #                                                                                                 #######
+    #Licensed under the Apache License, Version 2.0 (the "License");                                  #######
+    #you may not use this file except in compliance with the License.                                 #######
+    #You may obtain a copy of the License at                                                          #######
+    #                                                                                                 #######
+    #    https://www.apache.org/licenses/LICENSE-2.0                                                  #######
+    #                                                                                                 #######
+    #Unless required by applicable law or agreed to in writing, software                              #######
+    #distributed under the License is distributed on an "AS IS" BASIS,                                #######
+    #WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.                         #######
+    #See the License for the specific language governing permissions and                              #######
+    #limitations under the License.                                                                   #######
+    #########################################################################################################
+    #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
     ######                               Version 0.56                                               #########

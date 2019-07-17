@@ -74,7 +74,10 @@ def find_rare_class(classes, verbose=0):
         print(' Class  -> Counts -> Percent')
         for cls in counts.keys():
             print("%6s: % 7d  ->  % 5.1f%%" % (cls, counts[cls], counts[cls]/total*100))
-    return int(pd.Series(counts).idxmin())
+    if type(pd.Series(counts).idxmin())==str: 
+        return pd.Series(counts).idxmin()
+    else:
+        return int(pd.Series(counts).idxmin())
 #####################################################################################
 def accu(results, y_cv):
     return (results==y_cv).astype(int).sum(axis=0)/(y_cv.shape[0])
@@ -291,7 +294,7 @@ def Auto_ViML(train, target, test='',sample_submission='',modeltype='Classificat
     mldict = lambda: defaultdict(mldict)
     label_dict = mldict()
     first_time = True
-    print('Dataset Requires a %s Type Solution' %model_label)
+    print('Train (Size: %d,%d) has %s with target: %s' %(train.shape[0],train.shape[1],model_label,target))
     for each_target in target:
         c_params = dict()
         r_params = dict()
@@ -611,7 +614,7 @@ def Auto_ViML(train, target, test='',sample_submission='',modeltype='Classificat
             else:
                 xgbm = ExtraTreesRegressor(
                                 **{
-                                'bootstrap': True, 'n_jobs': -1, 'warm_start': True,
+                                'bootstrap': True, 'n_jobs': -1, 'warm_start': False,
                                 'random_state':seed,'min_samples_leaf':2,
                                 'max_features': "sqrt"
                                 }) 
@@ -686,11 +689,11 @@ def Auto_ViML(train, target, test='',sample_submission='',modeltype='Classificat
                 elif Boosting_Flag is None:
                     #### I have set the Verbose to be False here since it produces too much output ###
                     xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,
-                                             warm_start=True, max_iter=max_iter)
+                                             warm_start=False, max_iter=max_iter)
                 else:
                     xgbm = ExtraTreesClassifier(
                                 **{
-                                'bootstrap': True, 'n_jobs': -1, 'warm_start': True,
+                                'bootstrap': True, 'n_jobs': -1, 'warm_start': False,
                                 'random_state':seed,'min_samples_leaf':2,'oob_score':True,
                                 'max_features': "sqrt"
                                 }) 
@@ -797,7 +800,7 @@ def Auto_ViML(train, target, test='',sample_submission='',modeltype='Classificat
                                     "criterion":['gini','entropy'],
                                     #'class_weight':[None,'balanced']
                                                 }
-                    xgbm = ExtraTreesClassifier(bootstrap=True, oob_score=True,warm_start=True,
+                    xgbm = ExtraTreesClassifier(bootstrap=True, oob_score=True,warm_start=False,
                                             n_estimators=100,max_depth=3,
                                             min_samples_leaf=2,max_features='auto',
                                           random_state=seed,n_jobs=-1)
@@ -872,8 +875,9 @@ def Auto_ViML(train, target, test='',sample_submission='',modeltype='Classificat
             else:
                 try:
                     if Boosting_Flag:
+                        #### Set the Verbose to 0 since we don't want too much output ##
                             model.fit(X_train, y_train, early_stopping_rounds=5,
-                                eval_metric=eval_metric,eval_set=eval_set,verbose=verbose)
+                                eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                     else:
                             model.fit(X_train, y_train)
                     best_score = model.best_score_
@@ -883,8 +887,9 @@ def Auto_ViML(train, target, test='',sample_submission='',modeltype='Classificat
         else:
             try:
                 if Boosting_Flag:
+                        #### Set the Verbose to 0 since we don't want too much output ##
                         model.fit(X_train, y_train, early_stopping_rounds=5,
-                            eval_metric=eval_metric,eval_set=eval_set,verbose=verbose)
+                            eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                 else:
                         model.fit(X_train, y_train)
                 best_score = model.best_score_
@@ -2314,7 +2319,8 @@ def Draw_ROC_MC_ML(y_test, y_proba, target, model_name, verbose=0):
         classes = list(range(len(np.unique(y_test))))                                             
         n_classes = len(classes)
         if n_classes == 2:
-            rare_class = find_rare_class(y_test)
+            ### Always set rare_class to 1 when there are only 2 classes for drawing ROC Curve!
+            rare_class = 1
         y_test = label_binarize(y_test, classes)
         try:
             if n_classes > 2:

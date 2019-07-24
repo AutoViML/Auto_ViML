@@ -100,7 +100,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             estimators.append(('Boosting',model8, metrics4))
         estimators_list = [(tuples[0],tuples[1]) for tuples in estimators]
         estimator_names = [tuples[0] for tuples in estimators]
-        if verbose == 1:
+        if verbose >= 2:
             print('QuickML_Ensembling Model results:')
             print('    %s = %0.4f \n    %s = %0.4f\n    %s = %0.4f \n    %s = %0.4f' %(estimator_names[0], metrics1,
                     estimator_names[1], metrics2, estimator_names[2], metrics3, estimator_names[3], metrics4))
@@ -171,13 +171,13 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
         estimators_list = [(tuples[0],tuples[1]) for tuples in estimators]
         estimator_names = [tuples[0] for tuples in estimators]
         if not isinstance(y_test, str):
-            if verbose == 1:
+            if verbose >= 2:
                 print('QuickML_Ensembling Model results:')
                 print('    %s = %0.4f \n    %s = %0.4f\n    %s = %0.4f \n    %s = %0.4f' %(estimator_names[0], metrics1,
                         estimator_names[1], metrics2, estimator_names[2], metrics3, estimator_names[3], metrics4))
         else:
-            if verbose == 1:
-                print('QuickML_Ensembling completed:')
+            if verbose >= 1:
+                print('QuickML_Ensembling completed.')
     stacks = np.c_[results1,results2,results3,results4]
     if verbose == 1:
         print('    Time taken for Ensembling: %0.1f seconds' %(time.time()-start_time))

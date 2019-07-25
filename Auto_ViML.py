@@ -12,7 +12,12 @@
 #WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #See the License for the specific language governing permissions and
 #limitations under the License.
-################################################################################
+#########################################################################################################
+####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
+####                                Developed by Ramadurai Seshadri                                ######
+######                               Version 0.57                                               #########
+#####   Fixed rare_class finding and ROC charts, added one more target encoding Dated: July 25, 2019 ####
+#########################################################################################################
 import pandas as pd
 import numpy as np
 import time
@@ -83,6 +88,7 @@ from custom_scores import gini_log_loss, gini_recall, gini_weighted_recall
 from custom_scores import gini_samples_recall, gini_macro_recall, gini_micro_recall
 
 ##################################################################################
+from collections import Counter
 def find_rare_class(classes, verbose=0):
     ######### Print the % count of each class in a Target variable  #####
     """
@@ -90,7 +96,7 @@ def find_rare_class(classes, verbose=0):
     It returns the name of the Rare class (the one with the minimum class member count).
     This can also be helpful in using it as pos_label in Binary and Multi Class problems.
     """
-    counts = Counter(classes)
+    counts = OrderedDict(Counter(classes))
     total = sum(counts.values())
     if verbose >= 1:
         print(' Class  -> Counts -> Percent')
@@ -345,7 +351,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
         c_params = dict()
         r_params = dict()
         ###### Now set the Model Parameters here ####
-        modeltype = analyze_problem_type(train, each_target,verbose)
+        try:
+            modeltype = analyze_problem_type(train, each_target,verbose)
+        except:
+            print('Cannot find Target variable in data set. Please check input and try again')
+            return
         if modeltype == 'Regression':
             scv = KFold(n_splits=n_splits, random_state=seed)
             eval_metric = 'rmse'
@@ -378,7 +388,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                 eval_metric="logloss"
                 objective = 'binary:logistic'
             ### Do Label Encoding when the Target Classes in each Label are Strings or Multi Class ###
-            if type(orig_train[each_target].values[0])==str or  max_class_length > 2:
+            if type(orig_train[each_target].values[0])==str or str(orig_train[each_target].dtype)=='category' or sorted(np.unique(orig_train[each_target].values))[0] != 0:
                 ### if the class is a string or if it has more than 2 classes, then use Factorizer!
                 label_dict[each_target]['values'] = orig_train[each_target].values                
                 #### Factorizer is the easiest way to convert target in train and predictions in test
@@ -392,8 +402,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                 label_dict[each_target]['transformer'] = dict([(v,k) for (k,v) in dict_targ_all.items()])
                 label_dict[each_target]['classes'] = copy.deepcopy(train_targ_categs)
                 label_dict[each_target]['class_nums'] = list(dict_targ_all.values())
-                print('String or Multi Class target %s transformed to numeric.' %each_target)
-            elif max_class_length==2 or max_class_length:
+                print('String or Multi Class target: %s transformed as follows: %s' %(each_target,dict_targ_all))
+            else:            
                 ### Since the each_target here is already numeric, you don't have to modify it
                 rare_class = find_rare_class(orig_train[each_target].values)
                 label_dict[each_target]['values'] = orig_train[each_target].values
@@ -904,7 +914,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                                         }
                     #### I have set the Verbose to be False here since it produces too much output ###
                     xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,
-                                              max_iter=max_iter, warm_start=True,
+                                              max_iter=max_iter, warm_start=False,
                                               )
                 else:
                     if hyper_param == 'GS':
@@ -1008,7 +1018,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                     print('Training Imbalanced Data set...')
                     #### The d_model is the downsampled model Trained on downsampled data sets. ####
                     d_model = downsampling_with_model_training(X_train,y_train,model,Boosting_Flag, eval_metric,
-                                           modeltype,no_training=False,verbose=verbose)
+                                           modeltype,no_training=False, 
+                                           minority_class=rare_class, verbose=verbose)
                     if not isinstance(d_model, str):
                         #### If d_model succeeds, it will be used to get the best score and can become model again ## 
                         best_score = d_model.best_score_
@@ -1354,7 +1365,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                 try:
                     print('Training Imbalanced Data set...')
                     d_model = downsampling_with_model_training(X_train,y_train,model,Boosting_Flag, eval_metric,
-                                           modeltype,no_training=False,verbose=verbose)
+                                           modeltype,no_training=False, 
+                                      minority_class=rare_class,verbose=verbose)
                     if not isinstance(d_model, str):
                         #### If d_model succeeds,copy it so it can become a regular model again ## 
                         model = copy.deepcopy(d_model)
@@ -2443,7 +2455,7 @@ from matplotlib.pylab import rcParams
 figsize = (10, 6)
 rcParams['figure.figsize'] = figsize
 ##################################################################################
-def Draw_ROC_MC_ML(y_test, y_proba, target, model_name, verbose=0):
+def Draw_ROC_MC_ML(y_true, y_proba, target, model_name, verbose=0):
     y_proba = y_proba[:]
     y_pred = y_proba[:]
     fpr = dict()
@@ -2453,12 +2465,12 @@ def Draw_ROC_MC_ML(y_test, y_proba, target, model_name, verbose=0):
     if isinstance(target,str):
         target = [target]
     for targ in target:
-        classes = list(range(len(np.unique(y_test))))                                             
+        classes = list(range(len(np.unique(y_true))))                                             
         n_classes = len(classes)
         if n_classes == 2:
             ### Always set rare_class to 1 when there are only 2 classes for drawing ROC Curve!
             rare_class = 1
-        #y_test = label_binarize(y_test, classes)
+        y_test = label_binarize(y_true, classes)
         try:
             if n_classes > 2:
                 if y_test.shape[1] == y_proba.shape[0]:
@@ -2545,7 +2557,8 @@ def Draw_ROC_MC_ML(y_test, y_proba, target, model_name, verbose=0):
             ax.set_title('ROC Curve for label: %s' %targ)
             plt.legend(labels,loc="lower right")
             plt.show();
-##############################################################################
+
+###################################################################################
 def split_data_new(trainfile, testfile, target,sep, modeltype='Regression', randomstate=0):
     """
     Split your file or data frame into 2 or 3 splits. Stratified by Class automatically.
@@ -2740,7 +2753,7 @@ from sklearn.exceptions import DataConversionWarning
 warnings.filterwarnings(action='ignore', category=DataConversionWarning)
 ####################################################################################
 def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,modeltype,
-                                     no_training=False, verbose=0):
+                                     no_training=False,minority_class=1, verbose=0):
     """
     #########    DOWNSAMPLING OF MAJORITY CLASS AND TRAINING IN SMALL BATCH SIZES  ###############
     #### One of the worst things you can do with imbalanced classes is to train all at once!
@@ -2754,8 +2767,6 @@ def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,m
     df_target = y_df.name
     train_preds = [x for x in list(df) if x not in [df_target]]
     ccounts = Counter(y_df)   # Get class counts
-    classes = [cls for cls in ccounts.keys()]
-    minority_class = find_rare_class(y_df)
     print("Downsampling Majority Class since Imbalanced_Flag is set to True")
     # Identify minority and majority classes
     # Get indices of each class
@@ -2764,7 +2775,8 @@ def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,m
     df_pos = df[y_df==minority_class]
     df_neg = df[y_df!=minority_class]
     n_minority = ccounts[minority_class]
-    rare_pct = y_df[y_df==minority_class].shape[0]/y_df.shape[0]
+    rare_pct = n_minority/y_df.shape[0]
+    print('Pct of Rare Class in data = %0.0f%%' %(rare_pct*100))
     if rare_pct <= 0.05:
         #### Remember that if you increase the denominator, you get small batch sizes and too many iter
         ###  Small batch sizes do not give good results and with Class_Weights they give terrible results.
@@ -2775,13 +2787,13 @@ def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,m
         else:
             n_iter = 20
         batch_size = n_minority*n_iter
-        print('Imbalanced Data Set shape = %s' %(df.shape,))
+        print('Rare class Pct < 5%%, hence selecting at least %d iterations for training...' %n_iter)
     else:
-        print('This is not an Imbalanced data set. Data Set shape = %s' %(df.shape,))
         n_iter = 2
+        print('Rare class Pct > 5%%, hence selecting at least %d iterations for training...' %n_iter)
         batch_size = n_minority*n_iter
     print('  Rare Class rows in data set = %d' %n_minority)
-    print('  Maximum Training Iterations = %d' %int(df.shape[0]/batch_size))
+    print('  Maximum number of Training Iterations = %d' %int(df.shape[0]/batch_size))
     if batch_size > df.shape[0]:
         majority_egs_idx = df_pos.index
         train_batch = df_neg.iloc[:batch_size].append(df_pos)
@@ -2804,7 +2816,7 @@ def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,m
             model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
                         eval_metric=eval_metric,eval_set=eval_set,verbose=False)
         else:
-                model.fit(train_batch[train_preds],train_batch[df_target])
+            model.fit(train_batch[train_preds],train_batch[df_target])
         downsampled_list.append(train_batch)
         print('All downsampling steps completed')
     else:

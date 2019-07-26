@@ -1559,7 +1559,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                     testm[new_col] = pd.Series(y_pred).map(transformer).values
                     new_cols.append(new_col)
                     if not isinstance(sample_submission, str):
-                        sample_submission[each_target] = pd.Series(y_pred.values).map(transformer).values
+                        try:
+                            sample_submission[each_target] = pd.Series(y_pred.values).map(transformer).values
+                        except:
+                            sample_submission[each_target] = pd.Series(y_pred).map(transformer).values
             ##  Write the test and submission files to disk ###
             if not isinstance(testm, str):
                 try:

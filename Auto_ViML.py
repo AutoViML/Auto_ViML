@@ -1053,11 +1053,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
         else:
             try:
                 if Boosting_Flag:
-                        #### Set the Verbose to 0 since we don't want too much output ##
-                        model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
+                    #### Set the Verbose to 0 since we don't want too much output ##
+                    model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
                             eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                 else:
-                        model.fit(X_train, y_train)
+                    pdb.set_trace()
+                    model.fit(X_train, y_train)
                 best_score = model.best_score_
             except:
                 print('Training regular model is Erroring: Check if your Input Data is in correct Format...')
@@ -1410,7 +1411,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
             except:
                 print('Training model second time is Erroring: Check if Input is correct...')
                 return
-        ##   TRAINING OF MODELS COMPLETED. NOW GET METRICS on CV DATA ################
+        ##   TRAINING OF MODELS COMPLETED. NOW START PREDICTIONS ON TEST DATA   ################
         #### new_cols is to keep track of new prediction columns we are creating #####
         new_cols = []
         if not isinstance(orig_test, str):
@@ -1504,10 +1505,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                             new_col = 'Class_proba_'+each_class
                             testm[new_col] = y_proba[:,count]
                             new_cols.append(new_col)
-                    new_col = each_target+'_Ensembled_predictions'
                     if not Stacking_Flag:
+                        new_col = each_target+'_Ensembled_predictions'
                         testm[new_col] = y_pred.values
                     else:
+                        new_col = each_target+'_Stacked_predictions'
                         testm[new_col] = y_pred
                     new_cols.append(new_col)
                 else:
@@ -1553,9 +1555,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                             y_pred = (subm[cols].mean(axis=1)>=0.5).astype(int)
                         else:
                             y_pred = (subm[cols].mean(axis=1)).astype(int)
-                    print('########################################################')
-                    print('Completed Ensemble predictions on held out data')
-                    new_col = each_target+'_Ensembled_predictions'
+                        print('########################################################')
+                        print('Completed Ensemble predictions on held out data')
+                        new_col = each_target+'_Ensembled_predictions'
+                    else:
+                        print('########################################################')
+                        print('Completed Stacked predictions on held out data')
+                        new_col = each_target+'_Stacked_predictions'
                     testm[new_col] = pd.Series(y_pred).map(transformer).values
                     new_cols.append(new_col)
                     if not isinstance(sample_submission, str):
@@ -2779,7 +2785,7 @@ def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,m
     df_neg = df[y_df!=minority_class]
     n_minority = ccounts[minority_class]
     rare_pct = n_minority/y_df.shape[0]
-    print('Pct of Rare Class in data = %0.0f%%' %(rare_pct*100))
+    print('    Pct of Rare Class in data = %0.2f%%' %(rare_pct*100))
     if rare_pct <= 0.05:
         #### Remember that if you increase the denominator, you get small batch sizes and too many iter
         ###  Small batch sizes do not give good results and with Class_Weights they give terrible results.
@@ -2790,7 +2796,7 @@ def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,m
         else:
             n_iter = 20
         batch_size = n_minority*n_iter
-        print('Rare class Pct < 5%%, hence selecting at least %d iterations for training...' %n_iter)
+        print('Rare class Pct < 5%%, hence max iterations for training...')
     else:
         n_iter = 2
         print('Rare class Pct > 5%%, hence selecting at least %d iterations for training...' %n_iter)
@@ -2921,7 +2927,7 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
         print('Average precision-recall score: {0:0.2f}'.format(
               average_precision))
         f_scores = multi_f1(y_test,classifier.predict(X_test))
-        print('Weighted F1 score, averaged over all classes: {0:0.2f}'
+        print('Macro F1 score, averaged over all classes: {0:0.2f}'
               .format(f_scores.mean()))
         ###############################################################################
         # Plot the Precision-Recall curve
@@ -3002,7 +3008,7 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
 
         plt.figure(figsize=figsize)
         f_scores = multi_f1(y_test,classifier.predict(X_test))
-        print('Weighted F1 score, averaged over all classes: {0:0.2f}'
+        print('Macro F1 score, averaged over all classes: {0:0.2f}'
               .format(f_scores.mean()))
         lines = []
         labels = []

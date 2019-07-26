@@ -4,8 +4,8 @@ from sklearn.metrics import confusion_matrix, mean_squared_error
 from sklearn import metrics
 from sklearn import model_selection, metrics   #Additional sklearn functions
 from sklearn.metrics import accuracy_score,f1_score,roc_auc_score,log_loss
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import mean_squared_error,median_absolute_error,mean_absolute_error
+from sklearn.metrics import classification_report, confusion_matrix,mean_squared_log_error
 from sklearn.metrics import precision_recall_curve
 from sklearn.model_selection import cross_val_score, StratifiedKFold, KFold
 from sklearn.metrics import make_scorer

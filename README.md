@@ -1,11 +1,11 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" type="text/css" href="/+static/base.vsKBklzePi_Td7VvkjGVKw.cache.css"/><link rel="stylesheet" type="text/css" href="/+static/doc.DKuU4ej5LMTa95NGDTR2Pw.cache.css"/><link rel="stylesheet" type="text/css" href="/+static/prettify/prettify.pZ5FqzM6cPxAflH0va2Ucw.cache.css"/><!-- default customHeadTagPart --></head><body class="Site"><header class="Site-header "><div class="Header"><div class="Header-title"></div></div></header><div class="Site-content Site-Content--markdown"><div class="Container"><div class="doc"><h1><a class="h" name="Auto_ViML" href="#Auto_ViML"><span></span></a><a class="h" name="auto_viml" href="#auto_viml"><span></span></a>Auto_ViML</h1><h2>Automatically Build Variant Interpretable ML models fast!</h2>
+        #########################################################################################################
+    #############       This is not an Officially Supported Google Product!         #########################
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.57                                               #########
-    #####   Fixed rare_class finding and ROC charts, added one more target encoding Dated: July 25, 2019 ####
-    #########################################################################################################
-    #############       This is not an Officially Supported Google Product!         #########################
+    ######                               Version 0.58                                               #########
+    #####   Added a new argument: feature_reduction which can be set True or False: July 28, 2019   #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -40,6 +40,9 @@
     ####   scoring_parameter: if you want your own scoring parameter such as "f1" give it here. If not, #####
     ####       it will assume the appropriate scoring param for the problem and it will build the model.#####
     ####   hyper_param: Tuning options are GridSearch ('GS') and RandomizedSearch ('RS'). Default is 'GS'.###
+    ####   feature_reduction: Default = 'True' but it can be set to False if you don't want automatic    ####
+    ####         feature_reduction since in Image data sets like digits and MNIST, you get better       #####
+    ####         results when you don't reduce features automatically. You can always try both and see. #####
     ####   Boosting Flag: you have 3 possible choices (default is False):                               #####
     ####    None = This will build a Linear Model                                                       #####
     ####    False = This will build a Random Forest or Extra Trees model (also known as Bagging)        #####

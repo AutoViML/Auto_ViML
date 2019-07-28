@@ -15,8 +15,8 @@
 #########################################################################################################
 ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
 ####                                Developed by Ramadurai Seshadri                                ######
-######                               Version 0.57                                               #########
-#####   Fixed rare_class finding and ROC charts, added one more target encoding Dated: July 25, 2019 ####
+######                               Version 0.58                                               #########
+#####   Added a new argument: feature_reduction which can be set True or False: July 28, 2019   #########
 #########################################################################################################
 import pandas as pd
 import numpy as np
@@ -178,13 +178,18 @@ def analyze_problem_type(train, targ,verbose=0):
         model_class = 'Regression'
     return model_class
 #############################################################################################################
-def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
+def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feature_reduction=True,
             scoring_parameter='logloss', Boosting_Flag=None, KMeans_Featurizer=False,
             Add_Poly=0, Stacking_Flag=False, Binning_Flag=False,
               Imbalanced_Flag=False, verbose=0):
     """
     #########################################################################################################
     #############       This is not an Officially Supported Google Product!         #########################
+    #########################################################################################################
+    ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
+    ####                                Developed by Ramadurai Seshadri                                ######
+    ######                               Version 0.58                                               #########
+    #####   Added a new argument: feature_reduction which can be set True or False: July 28, 2019   #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -199,10 +204,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
     #WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.                         #######
     #See the License for the specific language governing permissions and                              #######
     #limitations under the License.                                                                   #######
-    #########################################################################################################
-    ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
-    ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.56                                               #########
     #########################################################################################################
     ####   Auto_ViML was designed for building a High Performance Interpretable Model With Fewest Vars.   ###
     ####   The "V" in Auto_ViML stands for Variant because it tries Multiple Models and Multiple Features ###
@@ -223,6 +224,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
     ####   scoring_parameter: if you want your own scoring parameter such as "f1" give it here. If not, #####
     ####       it will assume the appropriate scoring param for the problem and it will build the model.#####
     ####   hyper_param: Tuning options are GridSearch ('GS') and RandomizedSearch ('RS'). Default is 'GS'.###
+    ####   feature_reduction: Default = 'True' but it can be set to False if you don't want automatic    ####
+    ####         feature_reduction since in Image data sets like digits and MNIST, you get better       #####
+    ####         results when you don't reduce features automatically. You can always try both and see. #####
     ####   Boosting Flag: you have 3 possible choices (default is False):                               #####
     ####    None = This will build a Linear Model                                                       #####
     ####    False = This will build a Random Forest or Extra Trees model (also known as Bagging)        #####
@@ -505,7 +509,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
     ### Make sure you remove variables that are highly correlated within data set first
     numvars = var_df['continuous_vars']
     rem_vars = left_subtract(preds,numvars)
-    if len(numvars) > 0:
+    if len(numvars) > 0 and feature_reduction:
         numvars = remove_variables_using_fast_correlation(start_train,numvars,corr_limit,verbose)  
     ### Reduced Preds are now free of correlated variables and hence can be used for Poly adds
     red_preds = rem_vars + numvars
@@ -559,9 +563,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
             ### if there are no Polynomial vars, then all numeric variables are selected
             train_sel = copy.deepcopy(numvars)
         #########     SELECT IMPORTANT FEATURES HERE   #############################
-        important_features,num_vars = find_top_features_xgb(train,red_preds,train_sel,
+        if feature_reduction:
+            important_features,num_vars = find_top_features_xgb(train,red_preds,train_sel,
                                                          each_target,
                                                      modeltype,corr_limit,verbose)
+        else:
+            important_features = copy.deepcopy(red_preds)
+            num_vars = copy.deepcopy(numvars)
         #####################################################################################
         if len(important_features) == 0:
             print('No important features found. Using all input features...')
@@ -828,7 +836,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                     samples_precision_scorer = make_scorer(gini_samples_precision, 
                                                            greater_is_better=True, needs_proba=True)
                     scorer = samples_precision_scorer
-                elif scoring_parameter == 'weighted_precision':
+                elif scoring_parameter == 'weighted_precision' or scoring_parameter == 'weighted-precision':
                     weighted_precision_scorer = make_scorer(gini_weighted_precision,
                                                             greater_is_better=True, needs_proba=True)
                     scorer = weighted_precision_scorer
@@ -844,7 +852,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                 elif scoring_parameter == 'samples_recall':
                     samples_recall_scorer = make_scorer(gini_samples_recall, greater_is_better=True, needs_proba=True)
                     scorer = samples_recall_scorer
-                elif scoring_parameter == 'weighted_recall':
+                elif scoring_parameter == 'weighted_recall' or scoring_parameter == 'weighted-recall':
                     weighted_recall_scorer = make_scorer(gini_weighted_recall, 
                                                          greater_is_better=True, needs_proba=True)
                     scorer = weighted_recall_scorer
@@ -860,7 +868,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                     samples_f1_scorer = make_scorer(gini_samples_f1, 
                                                     greater_is_better=True, needs_proba=True)
                     scorer = samples_f1_scorer
-                elif scoring_parameter == 'weighted_f1':
+                elif scoring_parameter == 'weighted_f1' or scoring_parameter == 'weighted-f1':
                     weighted_f1_scorer = make_scorer(gini_weighted_f1, 
                                                      greater_is_better=True, needs_proba=True)
                     scorer = weighted_f1_scorer
@@ -1241,8 +1249,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
             else:
                 rmsle_calculated_f = accu(y_cv.values,y_pred.values)
                 print('After multiple models, Ensemble Model Results:')
-                if model_name == 'Forests':
-                    print('    OOB Score = %0.3f' %model.oob_score_)
                 minority_class = find_rare_class(y_cv)
                 rare_pct = y_cv[y_cv==minority_class].shape[0]/y_cv.shape[0]
                 if len(classes) == 2 and rare_pct <= 0.05:
@@ -1344,8 +1350,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
             #addcol = remove_variables_using_fast_correlation(train,addcol,corr_limit,verbose)
             important_features += addcol
         #####################################################################################################
-        #########     SELECT IMPORTANT FEATURES FROM THE NEWLY ADDED FEATURES   #############################
-        important_features,num_vars = find_top_features_xgb(train,important_features,num_vars,
+        if feature_reduction:
+            #########     SELECT IMPORTANT FEATURES FROM THE NEWLY ADDED FEATURES   #############################
+            important_features,num_vars = find_top_features_xgb(train,important_features,num_vars,
                                                          each_target,
                                                      modeltype,corr_limit,verbose)
         #####################################################################################

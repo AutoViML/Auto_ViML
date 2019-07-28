@@ -1065,7 +1065,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
                             eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                 else:
-                    pdb.set_trace()
                     model.fit(X_train, y_train)
                 best_score = model.best_score_
             except:

@@ -4,8 +4,8 @@
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.58                                               #########
-    #####   Added a new argument: feature_reduction which can be set True or False: July 28, 2019   #########
+    ######                               Version 0.59                                               #########
+    #####   Added more hyper params for better accuracy, reduced valn. data set size to 10-15%  Aug 1,2019 ##
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######

@@ -15,8 +15,8 @@
 #########################################################################################################
 ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
 ####                                Developed by Ramadurai Seshadri                                ######
-######                               Version 0.58                                               #########
-#####   Added a new argument: feature_reduction which can be set True or False: July 28, 2019   #########
+######                               Version 0.59                                               #########
+#####   Added more hyper params for better accuracy, reduced valn. data set size to 10-15%  Aug 1,2019 ##
 #########################################################################################################
 import pandas as pd
 import numpy as np
@@ -188,8 +188,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.58                                               #########
-    #####   Added a new argument: feature_reduction which can be set True or False: July 28, 2019   #########
+    ######                               Version 0.59                                               #########
+    #####   Added more hyper params for better accuracy, reduced valn. data set size to 10-15%  Aug 1,2019 ##
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -296,20 +296,20 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         ### if data dimension exceeds 1 million, then reduce no of params
         no_iter=30
         early_stopping = 5
-        test_size = 0.2
-        max_iter = 1000
-        max_estims = 350
+        test_size = 0.15
+        max_iter = 4000
+        max_estims = 400
     else:
         if orig_train.shape[0] <= 1000:
             no_iter=20
             test_size = 0.1
-            max_iter = 1000
-            max_estims = 250
-        else:
-            no_iter=30
-            test_size = 0.2
             max_iter = 2000
             max_estims = 300
+        else:
+            no_iter=30
+            test_size = 0.1
+            max_iter = 3000
+            max_estims = 350
         early_stopping = 4
     ################## This is where the code begins ########################
     if Boosting_Flag:
@@ -598,7 +598,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                                    ],train[each_target][:train_num],train[each_target][train_num:]
         if KMeans_Featurizer:
             print('    Adding 1 Feature using KMeans_Featurizer...')
-            X_train, X_cv = Transform_KM_Features(X_train, y_train, X_cv)
+            if modeltype != 'Regression':
+                ### If it is Classification, you can specify the number of clusters same as classes
+                X_train, X_cv = Transform_KM_Features(X_train, y_train, X_cv, len(classes))
+            else:
+                ### If it is Regression, you don't have to specify the number of clusters
+                X_train, X_cv = Transform_KM_Features(X_train, y_train, X_cv)
             #### Since this is returning the each_target in X_train, we need to drop it here ###
             X_train.drop(each_target,axis=1,inplace=True)
         important_features = [x for x in list(X_train) if x not in [each_target]]
@@ -661,25 +666,25 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             if hyper_param == 'GS':
                 r_params = { 
                         "Forests": {
-                                "n_estimators" : [100, max_estims],  
-                                "max_depth": [3, 5, 10], 
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                "max_depth": [2, 5, 10], 
                                 "criterion" : ['mse','mae'],
                                 },
                         "Linear": {
                             'alpha': np.logspace(-3,3), 
                                 },
                         "XGBoost": {
-                                'max_depth': [2,4,8],
+                                'max_depth': [2,5,10],
                                 'gamma': [0,1,2,4,8,16,32],
-                                "n_estimators" : [100, max_estims],  
-                                'learning_rate': [0.10, 0.30, 0.5]
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
                                 },
                         }
             else:
                 r_params = { 
                         "Forests": {
-                                "n_estimators" : np.linspace(100, max_estims, 6, dtype = "int"),  
-                                "max_depth": [3, 5, 10], 
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                "max_depth": [2, 5, 10], 
                                 #"min_samples_leaf": np.linspace(2, 50, 20, dtype = "int"),  
                                 "criterion" : ['mse','mae'],
                                 },
@@ -687,10 +692,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             'alpha': np.logspace(-3,3), 
                                 },
                         "XGBoost": {
-                                'max_depth': [2,4,8],
+                                'max_depth': [2,5,10],
                                 'gamma': [0,1,2,4,8,16,32],
-                                'n_estimators': list(np.linspace(100,max_estims,6).astype(int)),
-                                'learning_rate': [0.05,0.10,0.20, 0.30,0.4,0.5]
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
                                 },
                         }
             if Boosting_Flag:
@@ -713,31 +718,30 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             # Create regularization hyperparameter distribution with 50 C values ####
             if hyper_param == 'GS':
                 c_params['XGBoost'] = {
-                                            'max_depth': [2,4,10],
-                                            'gamma': [0,1,2,4,8,16],
-                                            'learning_rate': [0.10,0.20, 0.30],
-                                             'n_estimators': [100, max_estims]
+                                            'max_depth': [2,5,10],
+                                            'gamma': [0,1,2,4,8,16,32],
+                                'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
+                                    "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
                                     }
                 c_params['Linear'] = {
-                            'C': [0.01,0.05,0.01,0.5,1,5,10,50,100],
+                                'C': np.linspace(0.01,1000,50),
                                 'solver' :[ 'saga'],#'newton-cg', 'lbfgs', 'liblinear',
                                 'class_weight':[None,'balanced'],
                                     }
                 c_params["Forests"] = {
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets 
-                                    'n_estimators': [100, max_estims],
-                                    "max_depth": [3, 5, 10], 
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                    "max_depth": [2, 5, 10], 
                                     "criterion":['gini','entropy'],
                                             }
             else:
-                learning_rate = np.linspace(0.01,0.5)
                 c_params['XGBoost'] = {
-                                                'learning_rate': learning_rate, 
-                                                'max_depth': [2,4,8],
+                                                'max_depth': [2,5,10],
+                                                'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
                                                 'gamma': [0,1,2,4,8,16,32],
-                                                'n_estimators': list(np.linspace(100,max_estims,6).astype(int)),
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
                                     }
-                C = np.linspace(0.01,100)
+                C = np.linspace(0.01,1000,50)
                 c_params['Linear'] = {
                             'C': C, 
                                 'solver' :[ 'saga'],#'newton-cg', 'lbfgs', 'liblinear',
@@ -745,8 +749,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                     }
                 c_params["Forests"] = {
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets 
-                                    "n_estimators" : np.linspace(50,max_estims, 6, dtype = "int"),  
-                                    "max_depth": [3, 5, 10], 
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                    "max_depth": [2, 5, 10], 
                                     #"min_samples_leaf": np.linspace(2, 50, 20, dtype = "int"),  
                                     "criterion":['gini','entropy'],
                                     #'max_features': ['log', "sqrt"] ,
@@ -888,18 +892,17 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     # Create regularization hyperparameter distribution using uniform distribution
                     if hyper_param == 'GS':
                         c_params['XGBoost'] = {
-                                            'max_depth': [2,4,10],
-                                            'gamma': [0,1,2,4,8,16],
-                                            'learning_rate': [0.10,0.20, 0.30],
-                                             'n_estimators': [100, max_estims]
+                                            'max_depth': [2,5,10],
+                                            'gamma': [0,1,2,4,8,16,32],
+                                        'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
                                     }
                     else:
-                        learning_rate = np.linspace(0.1,0.5)
                         c_params['XGBoost'] = {
-                                                'learning_rate': learning_rate, 
-                                                'max_depth': [2,4,8],
+                                            'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
+                                                'max_depth': [2,5,10],
                                                 'gamma': [0,1,2,4,8,16,32],
-                                                'n_estimators': list(np.linspace(100,max_estims,6).astype(int)),
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
                                     }
                     xgbm = XGBClassifier(seed=seed,n_jobs=-1, random_state=seed,subsample=subsample,
                                          colsample_bytree=col_sub_sample,
@@ -908,13 +911,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 elif Boosting_Flag is None:
                     if hyper_param == 'GS':
                         c_params['Linear'] = {
-                            'C': [0.01,0.05,0.01,0.5,1,5,10,50,100],
+                            'C': np.linspace(0.01,1000,50),
                             'solver' :[ 'newton-cg'],# 'lbfgs', 'liblinear',
                             'multi_class': ['ovr','multinomial'],
                                     }
                     else:
                         # Create regularization hyperparameter distribution with 50 C values ####
-                        C = np.linspace(0.01,100)
+                        C = np.linspace(0.01,1000,50)
                         c_params['Linear'] = {
                                             'C': C, 
                                             'solver' :['newton-cg'],# 'lbfgs', 'saga'],
@@ -928,14 +931,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     if hyper_param == 'GS':
                         c_params["Forests"] = {
                         ##### I have selected these to avoid Overfitting which is a problem for small data sets 
-                                    'n_estimators': [100,max_estims],
-                                    "max_depth": [3, 5, 10], 
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                    "max_depth": [2, 5, 10], 
                                     "criterion":['gini','entropy'],
                                             }
                     c_params["Forests"] = {
                     #####   I have set these to avoid OverFitting which is a problem for small data sets ###
-                                    "n_estimators" : np.linspace(100, max_estims, 6, dtype = "int"),  
-                                    "max_depth": [3, 5, 10], 
+                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                    "max_depth": [2, 5, 10], 
                                     #"min_samples_leaf": np.linspace(2, 50, 20, dtype = "int"),  
                                     "criterion":['gini','entropy'],
                                     #'class_weight':[None,'balanced']
@@ -1005,19 +1008,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         else:
             if hyper_param == 'GS':
                 if Boosting_Flag:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/3000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/12000.))
                 elif Boosting_Flag is None:
                     #### A Linear model is usually the fastest ###########
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/7000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/30000.))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/5000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/20000.))
             else:
                 if Boosting_Flag:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/3000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/13000.))
                 elif Boosting_Flag is None:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/6000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/30000.))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/4000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/20000.))
         ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
         ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
         if modeltype != 'Regression':
@@ -1050,10 +1053,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 try:
                     if Boosting_Flag:
                         #### Set the Verbose to 0 since we don't want too much output ##
-                            model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
+                        model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
                                 eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                     else:
-                            model.fit(X_train, y_train)
+                        model.fit(X_train, y_train)
                     best_score = model.best_score_
                 except:
                     print('Training regular model first time is Erroring: Check if your Input is correct...')
@@ -1314,9 +1317,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         if KMeans_Featurizer:
             print('    Adding 1 Feature using KMeans_Featurizer...')
             if isinstance(test, str):
-                train, _ = Transform_KM_Features(train[important_features], train[each_target], train[important_features])
+                if modeltype != 'Regression':
+                    train, _ = Transform_KM_Features(train[important_features], train[each_target], train[important_features], len(classes))
+                else:
+                    train, _ = Transform_KM_Features(train[important_features], train[each_target], train[important_features])
             else:            
-                train, test = Transform_KM_Features(train[important_features], train[each_target], test[important_features])
+                if modeltype != 'Regression':
+                    train, test = Transform_KM_Features(train[important_features], train[each_target], test[important_features], len(classes))
+                else:            
+                    train, test = Transform_KM_Features(train[important_features], train[each_target], test[important_features])
         important_features = [x for x in list(train) if x not in [each_target]]
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:

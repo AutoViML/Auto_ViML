@@ -114,13 +114,14 @@ import operator
 import pdb
 import copy
 from sklearn.model_selection import train_test_split
-def Transform_KM_Features(training_data, training_labels, test_data):
+def Transform_KM_Features(training_data, training_labels, test_data, km_max=0):
     seed = 99
     preds = list(training_data)
     target = training_labels.name
     train_index =  training_data.index
     test_index =  test_data.index
-    km_max = int(np.log10(training_data.shape[0])+0.49)
+    if km_max == 0:
+        km_max = int(np.log10(training_data.shape[0])+0.49)
     if km_max <= 2:
         k_max = 2
     else:

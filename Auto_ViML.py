@@ -2785,6 +2785,7 @@ def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,m
     ####  along with batches of neg-class and get the model to differentiate between 2 classes.
     #########    MAKE SURE YOU TUNE THE DEFAULTS GIVEN HERE!  ###############
     """
+    early_stopping = 5
     df = X_df.join(y_df)
     model = copy.deepcopy(model)
     downsampled_list = []

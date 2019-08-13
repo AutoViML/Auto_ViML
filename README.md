@@ -1,4 +1,5 @@
-﻿<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" type="text/css" href="/+static/base.vsKBklzePi_Td7VvkjGVKw.cache.css"/><link rel="stylesheet" type="text/css" href="/+static/doc.DKuU4ej5LMTa95NGDTR2Pw.cache.css"/><link rel="stylesheet" type="text/css" href="/+static/prettify/prettify.pZ5FqzM6cPxAflH0va2Ucw.cache.css"/><!-- default customHeadTagPart --></head><body class="Site"><header class="Site-header "><div class="Header"><div class="Header-title"></div></div></header><div class="Site-content Site-Content--markdown"><div class="Container"><div class="doc"><h1><a class="h" name="Auto_ViML" href="#Auto_ViML"><span></span></a><a class="h" name="auto_viml" href="#auto_viml"><span></span></a>Auto_ViML</h1><h2>Automatically Build Variant Interpretable ML models fast!</h2>
+﻿#Auto_ViML
+
     #########################################################################################################
     #############       This is not an Officially Supported Google Product!         #########################
     #########################################################################################################
@@ -88,6 +89,32 @@
     ####   This is Not Meant for Production Problems. It produces great models but it is not Perfect!  ######
     ######################### HELP OTHERS! PLEASE CONTRIBUTE! OPEN A PULL REQUEST! ##########################
     #########################################################################################################
- <h1><a class="h" name="DOWNLOAD-INSTALLATION" href="#DOWNLOAD-INSTALLATION"><span></span></a><a class="h" name="download-installation" href="#download-installation"><span></span></a>DOWNLOAD / INSTALLATION</h1><ol><li>Copy or download this entire directory of files to any local directory using git clone or any download methods.</li></ol><h1><a class="h" name="RUN-AUTOViML" href="#RUN-AUTOViML"><span></span></a><a class="h" name="run-autoviml" href="#run-autoviml"><span></span></a>RUN AUTO_ViML</h1><ol start="2"><li><p>In the same directory, open a Jupyter Notebook and use this line to import the .py file: <br><code>from autoviml.Auto_ViML import Auto_ViML</code></p></li><li><p>Load a data set (any CSV or text file) into a Pandas dataframe and split it into Train and Test dataframes. If you don't have a test dataframe, you can simple assign the test variable below to '' (empty string):</p></li></ol><p>Finally, call Auto_ViML using the train, test dataframes and the name of the target variable in data frame. That's all.<br><p><code>model, features, trainm, testm = Auto_ViML(train, target, test, sample_submission,hyper_param='GS',feature_reduction=False,
+
+_Prerequsites_:
+* [Anaconda](https://docs.anaconda.com/anaconda/install/)
+
+To clone the AutoViz, create a new environment, and install required dependencies:
+
+To install from PyPi:
+
+```bash
+conda create -n <your_env_name> python=3.7 anaconda
+conda activate <your_env_name> # ON WINDOWS: `source activate <your_env_name>` 
+pip install autoviml
+```
+
+To install from source:
+
+```bash
+cd <AutoViz_Dest>
+git clone git@github.com:AutoViML/Auto_ViML.git 
+# or download and unzip https://github.com/AutoViML/Auto_ViML/archive/master.zip
+conda create -n <your_env_name> python=3.7 anaconda
+conda activate <your_env_name> # ON WINDOWS: `source activate <your_env_name>` 
+cd Auto_ViML
+pip install -r requirements.txt
+```
+ <h1><a class="h" name="DOWNLOAD-INSTALLATION" href="#DOWNLOAD-INSTALLATION"><span></span></a><a class="h" name="download-installation" href="#download-installation"><span></span></a>DOWNLOAD / INSTALLATION</h1><ol>
+ <li>Copy or download this entire directory of files to any local directory using git clone or any download methods.</li></ol><h1><a class="h" name="RUN-AUTOViML" href="#RUN-AUTOViML"><span></span></a><a class="h" name="run-autoviml" href="#run-autoviml"><span></span></a>RUN AUTO_ViML</h1><ol start="2"><li><p>In the same directory, open a Jupyter Notebook and use this line to import the .py file: <br><code>from autoviml.Auto_ViML import Auto_ViML</code></p></li><li><p>Load a data set (any CSV or text file) into a Pandas dataframe and split it into Train and Test dataframes. If you don't have a test dataframe, you can simple assign the test variable below to '' (empty string):</p></li></ol><p>Finally, call Auto_ViML using the train, test dataframes and the name of the target variable in data frame. That's all.<br><p><code>model, features, trainm, testm = Auto_ViML(train, target, test, sample_submission,hyper_param='GS',feature_reduction=False,
                                    scoring_parameter='weighted-f1', Boosting_Flag=False, Binning_Flag=False,
                                    Add_Poly=False, Stacking_Flag=False,Imbalanced_Flag=False, verbose=0)                                   </code>      </p><h1><a class="h" name="DISCLAIMER" href="#DISCLAIMER"><span></span></a><a class="h" name="disclaimer" href="#disclaimer"><span></span></a>DISCLAIMER</h1><p>“This is not an official Google product”.</p><h1><a class="h" name="LICENSE" href="#LICENSE"><span></span></a><a class="h" name="license" href="#license"><span></span></a>LICENSE</h1><p>Licensed under the Apache License, Version 2.0 (the &ldquo;License&rdquo;).</p></div></div></div><!-- default customFooter --><footer class="Site-footer"><div class="Footer"><span class="Footer-poweredBy">Powered by <a href="https://gerrit.googlesource.com/gitiles/">Gitiles</a>| <a href="https://policies.google.com/privacy">Privacy</a></span><div class="Footer-links"></div></div></footer></body></html>

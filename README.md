@@ -94,7 +94,7 @@
 _Prerequsites_:
 * [Anaconda](https://docs.anaconda.com/anaconda/install/)
 
-To clone the AutoViz, create a new environment, and install required dependencies:
+To clone the Auto_ViML, it is better to create a new environment, and install required dependencies:
 
 To install from PyPi:
 
@@ -107,7 +107,7 @@ pip install autoviml
 To install from source:
 
 ```bash
-cd <AutoVIML_Dest>
+cd <AutoVIML_Destination>
 git clone git@github.com:AutoViML/Auto_ViML.git 
 # or download and unzip https://github.com/AutoViML/Auto_ViML/archive/master.zip
 conda create -n <your_env_name> python=3.7 anaconda

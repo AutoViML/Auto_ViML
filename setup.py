@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-16") as fh:
 
 setuptools.setup(
     name="autoviml",
-    version="0.0.1",
+    version="0.0.2",
     author="Ram Seshadri",
     # author_email="author@example.com",
     description="Automatically Build Variant Interpretable ML models fast!",

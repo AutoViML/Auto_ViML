@@ -1,0 +1,8 @@
+.ipynb_checkpoints/
+__pycache__/
+.idea/
+dist/
+autoviz.egg-info/
+autoviml.egg-info/
+build/
+diagnosis/

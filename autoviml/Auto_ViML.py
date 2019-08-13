@@ -18,77 +18,41 @@
 ######                               Version 0.57                                               #########
 #####   Fixed rare_class finding and ROC charts, added one more target encoding Dated: July 25, 2019 ####
 #########################################################################################################
-import pandas as pd
-import numpy as np
-import time
-import math
-from sklearn import model_selection
-from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.model_selection import KFold, train_test_split, GridSearchCV
-from sklearn.metrics import confusion_matrix, mean_squared_error
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
-from collections import OrderedDict
 
 import warnings
 warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
 warnings.filterwarnings(action='ignore', category=DataConversionWarning)
 
-from sklearn import metrics
-import xgboost as xgb
-from xgboost.sklearn import XGBClassifier
-from xgboost.sklearn import XGBRegressor
-from sklearn.multiclass import OneVsRestClassifier
-from sklearn.linear_model import LinearRegression, Lasso, Ridge, LassoCV
-from sklearn import model_selection, metrics   #Additional sklearn functions
-from sklearn.model_selection import GridSearchCV   #Performing grid search
-from sklearn.model_selection import train_test_split, KFold
-from sklearn.model_selection import cross_val_predict
-from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, TimeSeriesSplit
-from sklearn.metrics import accuracy_score,f1_score,roc_auc_score,log_loss
+from sklearn.linear_model import LassoCV
+from sklearn.model_selection import StratifiedShuffleSplit
 import matplotlib.pylab as plt
 get_ipython().magic(u'matplotlib inline')
 from matplotlib.pylab import rcParams
 rcParams['figure.figsize'] = 10, 6
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import KFold,ShuffleSplit
 from sklearn.metrics import classification_report, confusion_matrix
-import pdb
 from functools import reduce
-from collections import defaultdict
-from sklearn.preprocessing import MinMaxScaler, StandardScaler,LabelEncoder,MaxAbsScaler
-from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
-import copy
-from sklearn.metrics import precision_recall_curve
-from sklearn.model_selection import cross_val_score, StratifiedKFold, KFold
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import make_scorer
-from sklearn.metrics import accuracy_score   
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import f1_score
-from sklearn.metrics import log_loss
+from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_score
-from sklearn.metrics import recall_score
 from sklearn.metrics import roc_auc_score
-from collections import Counter
-from Transform_KM_Features import Transform_KM_Features
+from autoviml.Transform_KM_Features import Transform_KM_Features
 from sklearn.model_selection import RandomizedSearchCV
 
-from custom_scores import accu, rmse, gini, gini_sklearn, gini_meae
-from custom_scores import gini_msle, gini_mae, gini_mse, gini_rmse
-from custom_scores import gini_accuracy, gini_bal_accuracy, gini_roc
+from autoviml.custom_scores import accu, rmse, gini_sklearn, gini_meae
+from autoviml.custom_scores import gini_msle, gini_mae, gini_mse, gini_rmse
+from autoviml.custom_scores import gini_accuracy, gini_bal_accuracy, gini_roc
 
-from custom_scores import gini_precision, gini_average_precision, gini_weighted_precision
-from custom_scores import gini_macro_precision, gini_micro_precision
-from custom_scores import gini_samples_precision, gini_f1, gini_weighted_f1
-from custom_scores import gini_macro_f1, gini_micro_f1, gini_samples_f1
-from custom_scores import gini_log_loss, gini_recall, gini_weighted_recall
-from custom_scores import gini_samples_recall, gini_macro_recall, gini_micro_recall
+from autoviml.custom_scores import gini_precision, gini_average_precision, gini_weighted_precision
+from autoviml.custom_scores import gini_macro_precision, gini_micro_precision
+from autoviml.custom_scores import gini_samples_precision, gini_f1, gini_weighted_f1
+from autoviml.custom_scores import gini_macro_f1, gini_micro_f1, gini_samples_f1
+from autoviml.custom_scores import gini_log_loss, gini_recall, gini_weighted_recall
+from autoviml.custom_scores import gini_samples_recall, gini_macro_recall, gini_micro_recall
 
 ##################################################################################
-from collections import Counter
 def find_rare_class(classes, verbose=0):
     ######### Print the % count of each class in a Target variable  #####
     """
@@ -597,7 +561,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:
             #### In order to join, you need X_train to be a Pandas Series here ##
-            from QuickML_Stacking import QuickML_Stacking
+            from autoviml.QuickML_Stacking import QuickML_Stacking
             print('CAUTION: Stacking can produce Highly Overfit models on Training Data...')
             ### In order to avoid overfitting, we are going to learn from a small sample of data 
             ### That is why we are using X_cv to train on and using it to predict on X_train!
@@ -1136,7 +1100,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                     cols = []
                     subm = pd.DataFrame()
                     #### This is for Ensembling  Only #####
-                    from QuickML_Ensembling import QuickML_Ensembling
+                    from autoviml.QuickML_Ensembling import QuickML_Ensembling
                     models_list, cv_ensembles = QuickML_Ensembling(X_train, y_train, X_cv, y_cv,
                                               modeltype=modeltype, Boosting_Flag=Boosting_Flag,
                                                scoring='', verbose=verbose)
@@ -1167,7 +1131,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                     cols = []
                     subm = pd.DataFrame()
                     #### This is for Ensembling  Only #####
-                    from QuickML_Ensembling import QuickML_Ensembling
+                    from autoviml.QuickML_Ensembling import QuickML_Ensembling
                     if len(classes) == 2:
                         models_list, cv_ensembles = QuickML_Ensembling(X_train, y_train, X_cv, y_cv,
                                                   modeltype='Binary_Classification', Boosting_Flag=Boosting_Flag,
@@ -1316,7 +1280,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:
             #### In order to join, you need X_train to be a Pandas Series here ##
-            from QuickML_Stacking import QuickML_Stacking
+            from autoviml.QuickML_Stacking import QuickML_Stacking
             print('CAUTION: Stacking can produce Highly Overfit models on Training Data...')
             ### In order to avoid overfitting, we are going to learn from a small sample of data 
             ### That is why we are using X_cv to train on and using it to predict on X_train!
@@ -1330,7 +1294,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
             if not isinstance(orig_test, str):
                 ### In order to avoid overfitting, we are going to learn from a small sample of data 
                 ### That is why we are using X_train to train on and using it to predict on X_test
-                from QuickML_Stacking import QuickML_Stacking
+                from autoviml.QuickML_Stacking import QuickML_Stacking
                 _, stacks2 = QuickML_Stacking(train[important_features],train[each_target],test[important_features],
                           modeltype, Boosting_Flag, scoring_parameter,verbose)
                 ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
@@ -1429,7 +1393,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                         subm = pd.DataFrame()
                         #### This is for Ensembling  Only #####
                         #### In Test data verbose is set to zero since no results can be obtained!
-                        from QuickML_Ensembling import QuickML_Ensembling
+                        from autoviml.QuickML_Ensembling import QuickML_Ensembling
                         models_list, ensembles = QuickML_Ensembling(X_train, y_train, X_test, '',
                                                   modeltype=modeltype, Boosting_Flag=Boosting_Flag,
                                                    scoring='', verbose=0)
@@ -1471,7 +1435,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                     if not Stacking_Flag:
                         subm = pd.DataFrame()
                        #### This is for Ensembling  Only #####
-                        from QuickML_Ensembling import QuickML_Ensembling
+                        from autoviml.QuickML_Ensembling import QuickML_Ensembling
                         #### In Test data verbose is set to zero since no results can be obtained!
                         if len(classes) == 2:
                             models_list, ensembles = QuickML_Ensembling(X_train, y_train, X_test, '',
@@ -1531,7 +1495,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS',
                     if not Stacking_Flag:
                         subm = pd.DataFrame()
                         #### This is for Ensembling  Only #####
-                        from QuickML_Ensembling import QuickML_Ensembling
+                        from autoviml.QuickML_Ensembling import QuickML_Ensembling
                         if len(classes) == 2:
                             models_list, ensembles = QuickML_Ensembling(X_train, y_train, X_test, '',
                                                       modeltype='Binary_Classification', Boosting_Flag=Boosting_Flag,
@@ -1682,15 +1646,10 @@ def plot_SHAP_values(m,X,Boosting_Flag=False):
         shap.summary_plot(shap_values, X, plot_type="bar")
 
 ################      Find top features using XGB     ###################
-from sklearn.model_selection import KFold
-from sklearn.model_selection import GridSearchCV
-import xgboost as xgb
 from xgboost.sklearn import XGBClassifier
 from xgboost.sklearn import XGBRegressor
-from sklearn.multioutput import MultiOutputClassifier
-import copy
-from sklearn.multiclass import OneVsRestClassifier
-from collections import OrderedDict
+
+
 def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbose=0):
     """
     This is a fast utility that uses XGB to find top features. You
@@ -1805,7 +1764,6 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     numvars = [x for x in numvars if x in important_features]
     return important_features, numvars
 ###############################################
-import copy
 def basket_recall(label, pred):
     """
     This tests the recall of a given basket of items in a label by the second basket, pred.
@@ -1836,7 +1794,6 @@ def basket_recall(label, pred):
         jacc_arr = float(intersection / union)
     return jacc_arr
 #################################################
-import pdb
 def jaccard_singlelabel(label, pred):
     """
     This compares 2 baskets (could be lists or arrays): label and pred, and finds common items
@@ -1895,7 +1852,6 @@ def jaccard_multilabel(label, pred):
     except:
         return 0
 ################################################################################
-import matplotlib.pyplot as plt
 def plot_RS_params(cv_results, score, mname):
     """
     ####### This plots the GridSearchCV Results sent in ############
@@ -2150,8 +2106,6 @@ def classify_columns(df_preds, verbose=0):
         print('    Missing columns = %s' %set(list(train))-set(flat_list))
     return sum_all_cols
 #################################################################################
-from collections import Counter
-import time
 from collections import OrderedDict
 def remove_variables_using_fast_correlation(df,numvars,corr_limit = 0.70,verbose=0):
     """
@@ -2252,24 +2206,13 @@ def find_corr_vars(correlation_dataframe,corr_limit = 0.70):
     rem_col_list = left_subtract(list(correlation_dataframe),list(OrderedDict.fromkeys(flat_corr_pair_list)))
     return corr_pair_count_dict, rem_col_list, corr_list, correlated_pair_dict
 ################################################################################
-from sklearn.preprocessing import StandardScaler
-from scipy import stats
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.linear_model import Lasso, LassoLarsCV, Ridge, RidgeCV
-from sklearn import metrics
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import Lasso
 from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import cross_val_score
-from sklearn import metrics
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import Pipeline
-from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import cross_val_score
 import re
-import copy
+
 
 def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly=2,md='',
                          scaling=True, fit_flag=False, verbose=0):
@@ -2399,11 +2342,9 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         return finalvars, lm_p, New_XP, md, final_x_vars
 
 ## Import sklearn
-from sklearn import feature_selection, linear_model
-import pandas as pd
-import numpy as np
 from sklearn.model_selection import cross_val_score,KFold, StratifiedKFold
-import pdb
+
+
 def print_model_metrics(modeltype,reg,X,y,fit_flag=False,verbose=1):
     ### If fit_flag is set to True, then you must return a fitted model ###
     ###   Else you must return the cv_scores.mean only ####
@@ -2452,13 +2393,9 @@ def select_best_variables(md, reg, df,names,n_orig_features,Add_Poly,verbose=0):
     #finalvars_index = [df[df['Interaction Variable Names']==x].index[0] for x in finalvars]
     return finalvars##############################################################################################
 from sklearn.metrics import roc_curve, auc
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import label_binarize
 from scipy import interp
-from itertools import cycle
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+
 get_ipython().magic(u'matplotlib inline')
 from matplotlib.pylab import rcParams
 figsize = (10, 6)
@@ -2750,9 +2687,6 @@ def write_file_to_folder(df, each_target, base_filename, verbose=1):
 # This performs Down Sampling of Majority Class to a 90/10 or 80/20 ratio 
 ###  depending on rare_class percentage. If the rare class is less than 5%, 
 ###   it uses 90/10 to improve the training and 80/20 otherwise.
-import itertools
-import numbers
-import numpy as np
 from collections import Counter
 import time
 ########################################
@@ -2886,10 +2820,8 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 from sklearn.metrics import f1_score
 import copy
-from sklearn.metrics import precision_recall_curve
 import matplotlib.pyplot as plt
 from inspect import signature
-from sklearn.metrics import average_precision_score
 import pdb
 from sklearn.preprocessing import label_binarize
 from sklearn.metrics import precision_recall_curve
@@ -3041,7 +2973,6 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
         plt.legend(lines, labels, loc='lower left', prop=dict(size=10))
         plt.show();
 ######################################################################################
-from sklearn.metrics import mean_squared_error,mean_absolute_error
 def print_regression_model_stats(actuals, predicted, title='Model'):
     """
     This program prints and returns MAE, RMSE, MAPE.

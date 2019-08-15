@@ -45,6 +45,8 @@
     ####   feature_reduction: Default = 'True' but it can be set to False if you don't want automatic    ####
     ####         feature_reduction since in Image data sets like digits and MNIST, you get better       #####
     ####         results when you don't reduce features automatically. You can always try both and see. #####
+    ####   KMeans_Featurizer = True: Adds a cluster label to features based on KMeans. Use for Linear.  #####
+    ####         False (default) = For Random Forests or XGB models, leave it False since it may overfit.####
     ####   Boosting Flag: you have 3 possible choices (default is False):                               #####
     ####    None = This will build a Linear Model                                                       #####
     ####    False = This will build a Random Forest or Extra Trees model (also known as Bagging)        #####

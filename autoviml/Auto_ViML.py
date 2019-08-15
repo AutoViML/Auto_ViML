@@ -15,7 +15,7 @@
 #########################################################################################################
 ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
 ####                                Developed by Ramadurai Seshadri                                ######
-######                               Version 0.59                                               #########
+######                               Version 0.60                                               #########
 #####   Added more hyper params for better accuracy, reduced valn. data set size to 10-15%  Aug 1,2019 ##
 #########################################################################################################
 from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
@@ -152,7 +152,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.59                                               #########
+    ######                               Version 0.60                                               #########
     #####   Added more hyper params for better accuracy, reduced valn. data set size to 10-15%  Aug 1,2019 ##
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
@@ -191,6 +191,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     ####   feature_reduction: Default = 'True' but it can be set to False if you don't want automatic    ####
     ####         feature_reduction since in Image data sets like digits and MNIST, you get better       #####
     ####         results when you don't reduce features automatically. You can always try both and see. #####
+    ####   KMeans_Featurizer = True: Adds a cluster label to features based on KMeans. Use for Linear.  #####
+    ####         False (default) = For Random Forests or XGB models, leave it False since it may overfit.####
     ####   Boosting Flag: you have 3 possible choices (default is False):                               #####
     ####    None = This will build a Linear Model                                                       #####
     ####    False = This will build a Random Forest or Extra Trees model (also known as Bagging)        #####
@@ -972,19 +974,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         else:
             if hyper_param == 'GS':
                 if Boosting_Flag:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/12000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/40000.))
                 elif Boosting_Flag is None:
                     #### A Linear model is usually the fastest ###########
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/30000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/20000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
             else:
                 if Boosting_Flag:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/13000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/40000.))
                 elif Boosting_Flag is None:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/30000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/20000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
         ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
         ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
         if modeltype != 'Regression':
@@ -1583,11 +1585,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 print('Error: Not able to write train modified file to disk. Skipping...')
         else:
             ##### If there is no Test file, then do a final prediction on Train itself ###
+            testm = trainm[red_preds]
+            X_test = copy.deepcopy(testm)
             if modeltype == 'Regression':
-                y_pred = model.predict(trainm[red_preds].values)
+                y_pred = model.predict(X_test)
                 trainm[each_target+'_predictions'] = y_pred
             else:
-                y_proba = model.predict_proba(trainm[red_preds].values)
+                y_proba = model.predict_proba(X_test)
+                #y_proba = model.predict_proba(trainm[red_preds].values)
                 if type(label_dict[each_target]['transformer']) == str:
                     ### if there is no transformer, then leave the predicted classes as is
                     y_pred = y_proba.argmax(axis=1)
@@ -2742,15 +2747,14 @@ def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,m
         #### Instead keep the denominator small such as 10 and do not use any class_weights at all!
         if n_minority < 100:
         ### If the number of rare samples is very tiny, then boost the training rows x 200 so we can balance it
-            n_iter = 200
-        else:
             n_iter = 20
-        batch_size = n_minority*n_iter
+        else:
+            n_iter = 10
         print('Rare class Pct < 5%%, hence max iterations for training...')
     else:
         n_iter = 2
         print('Rare class Pct > 5%%, hence selecting at least %d iterations for training...' %n_iter)
-        batch_size = n_minority*n_iter
+    batch_size = int(df.shape[0]/n_iter)
     print('  Rare Class rows in data set = %d' %n_minority)
     print('  Maximum number of Training Iterations = %d' %int(df.shape[0]/batch_size))
     if batch_size > df.shape[0]:

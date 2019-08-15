@@ -16,7 +16,7 @@
 ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
 ####                                Developed by Ramadurai Seshadri                                ######
 ######                               Version 0.60                                               #########
-#####   Added more hyper params for better accuracy, reduced valn. data set size to 10-15%  Aug 1,2019 ##
+#####   Added bug fix and improved downsampling method.  Aug 14,2019                            #########
 #########################################################################################################
 from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
 
@@ -153,7 +153,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
     ######                               Version 0.60                                               #########
-    #####   Added more hyper params for better accuracy, reduced valn. data set size to 10-15%  Aug 1,2019 ##
+    #####   Added bug fix and improved downsampling method.  Aug 14,2019                            #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######

@@ -255,6 +255,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     poly_degree = 2  ### this create 2-degree polynomial variables in Add_Poly. Increase if you want more degrees
     booster = 'gbtree'   ### this is the booster for XGBoost. The other option is "Linear". 
     n_splits = 5  ### This controls the number of splits for Cross Validation. Increasing will take longer time.
+    matplotlib_flag = True #(default) This is for drawing SHAP values. If this is False, initJS is used.
     early_stopping = 4 #### Early stopping rounds for XGBoost ######
     ##########   This is where some more default parameters are set up ######
     data_dimension = orig_train.shape[0]*orig_train.shape[1]  ### number of cells in the entire data set .
@@ -966,27 +967,27 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         print()
         if modeltype == 'Regression':
             if Boosting_Flag:
-                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/27000.))
+                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/20000.))
             elif Boosting_Flag is None:
-                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/4000.))
+                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
             else:
-                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/6000.))
+                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/40000.))
         else:
             if hyper_param == 'GS':
                 if Boosting_Flag:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/40000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/30000.))
                 elif Boosting_Flag is None:
                     #### A Linear model is usually the fastest ###########
                     print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/40000.))
             else:
                 if Boosting_Flag:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/40000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/30000.))
                 elif Boosting_Flag is None:
                     print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/40000.))
         ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
         ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
         if modeltype != 'Regression':
@@ -1261,10 +1262,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     SHAP_model.fit(X_train[:10000],y_train[:10000])
                     #### This is to make sure that SHAP values plotting doesn't take too long ############
                     plot_SHAP_values(SHAP_model,
-                                     pd.DataFrame(X_train[:10000].T,columns=important_features),Boosting_Flag)
+                                     pd.DataFrame(X_train[:10000].T,columns=important_features),
+                                     Boosting_Flag, matplotlib_flag)
                     print('Plotting SHAP (first 10,000) values to explain the output of model')
                 else:
-                    plot_SHAP_values(model,pd.DataFrame(X_train,columns=important_features),Boosting_Flag)
+                    plot_SHAP_values(model,pd.DataFrame(X_train,columns=important_features),
+                                     Boosting_Flag, matplotlib_flag)
                     print('Plotting SHAP (SHapley Additive exPlanations) values to explain the output of model')
             except:
                 height_size = 5
@@ -1652,10 +1655,11 @@ def left_subtract(l1,l2):
             lst.append(i)
     return lst
 ################################################################################
-def plot_SHAP_values(m,X,Boosting_Flag=False):
+def plot_SHAP_values(m,X,Boosting_Flag=False,matplotlib_flag=False):
     import shap
     # load JS visualization code to notebook
-    shap.initjs()
+    if not matplotlib_flag:
+        shap.initjs()
     # explain the model's predictions using SHAP values
     explainer = shap.TreeExplainer(m)
     shap_values = explainer.shap_values(X)

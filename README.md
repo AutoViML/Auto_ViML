@@ -1,4 +1,4 @@
-﻿# Auto_ViML
+# Auto_ViML
 
 ## Automatically Build Variant Interpretable ML models fast!
     #########################################################################################################
@@ -6,8 +6,8 @@
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.60                                               #########
-    #####   Updated bug fix and downsampling improved.   Aug 14,2019                                  #######
+    ######                               Version 0.61                                               #########
+    #####   Improved downsampling method for Imbalanced data.  Aug 17,2019                          #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######

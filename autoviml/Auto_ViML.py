@@ -15,8 +15,8 @@
 #########################################################################################################
 ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
 ####                                Developed by Ramadurai Seshadri                                ######
-######                               Version 0.60                                               #########
-#####   Added bug fix and improved downsampling method.  Aug 14,2019                            #########
+######                               Version 0.61                                               #########
+#####   Improved downsampling method for Imbalanced data.  Aug 17,2019                          #########
 #########################################################################################################
 from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
 
@@ -152,8 +152,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.60                                               #########
-    #####   Added bug fix and improved downsampling method.  Aug 14,2019                            #########
+    ######                               Version 0.61                                               #########
+    #####   Improved downsampling method for Imbalanced data.  Aug 17,2019                          #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -692,7 +692,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                     }
                 c_params['Linear'] = {
                                 'C': np.linspace(0.01,1000,50),
-                                'solver' :[ 'saga'],#'newton-cg', 'lbfgs', 'liblinear',
+                                'solver' :[ 'lbfgs' ],#'saga',, 'liblinear','newton-cg'
                                 'class_weight':[None,'balanced'],
                                     }
                 c_params["Forests"] = {
@@ -711,7 +711,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 C = np.linspace(0.01,1000,50)
                 c_params['Linear'] = {
                             'C': C, 
-                                'solver' :[ 'saga'],#'newton-cg', 'lbfgs', 'liblinear',
+                                'solver' :[ 'lbfgs'],#'saga', 'lbfgs', 'liblinear','newton-cg'
                                 'class_weight':[None,'balanced'],
                                     }
                 c_params["Forests"] = {
@@ -879,7 +879,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     if hyper_param == 'GS':
                         c_params['Linear'] = {
                             'C': np.linspace(0.01,1000,50),
-                            'solver' :[ 'newton-cg'],# 'lbfgs', 'liblinear',
+                            'solver' :[ 'lbfgs'],# 'saga', 'newton-cg','lbfgs', 'liblinear',
                             'multi_class': ['ovr','multinomial'],
                                     }
                     else:
@@ -887,7 +887,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         C = np.linspace(0.01,1000,50)
                         c_params['Linear'] = {
                                             'C': C, 
-                                            'solver' :['newton-cg'],# 'lbfgs', 'saga'],
+                                            'solver' :['lbfgs'],# newton-cg,'lbfgs', 'saga'],
                                             'multi_class': ['ovr','multinomial'],
                                         }
                     #### I have set the Verbose to be False here since it produces too much output ###
@@ -930,7 +930,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                                param_distributions = r_params[model_name],
                                                n_iter = no_iter,
                                                scoring = scorer,               
-                                               refit = "mae",
+                                               refit = "rmse",
                                                return_train_score = True,
                                                random_state = seed,
                                                cv = scv,
@@ -993,9 +993,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         if modeltype != 'Regression':
             if Imbalanced_Flag:
                 try:
-                    print('Training Imbalanced Data set...')
+                    print('\nImbalanced Class Training using Majority Class Downsampling method...')
                     #### The d_model is the downsampled model Trained on downsampled data sets. ####
-                    d_model = downsampling_with_model_training(X_train,y_train,model,Boosting_Flag, eval_metric,
+                    d_model = downsampling_with_model_training(X_train,y_train,eval_set,model, 
+                                           Boosting_Flag, eval_metric,
                                            modeltype,no_training=False, 
                                            minority_class=rare_class, verbose=verbose)
                     if not isinstance(d_model, str):
@@ -1094,14 +1095,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         else:
             if model_name == 'Forests':
                 print('    OOB Score = %0.3f' %model.oob_score_)
-            rmsle_calculated_m = (y_pred==y_cv.values).astype(int).sum(axis=0)/(y_cv.shape[0])
+            try:
+                rmsle_calculated_m = balanced_accuracy_score(y_cv,y_pred)
+            except:
+                rmsle_calculated_m = (y_pred==y_cv.values).astype(int).sum(axis=0)/(y_cv.shape[0])
             minority_class = find_rare_class(y_cv)
             rare_pct = y_cv[y_cv==minority_class].shape[0]/y_cv.shape[0]
-            if len(classes) == 2 and rare_pct <= 0.05:
-                print('    Average of both classes accurately predicted = %0.3f%%' %(
-                    accuracy_score(y_cv,y_pred,normalize=True)*100))
-            else:
-                print('    Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
+            if len(classes) == 2:
+                print('    Balanced Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
             print(classification_report(y_cv,y_pred))
             print(confusion_matrix(y_cv, y_pred))
         ######      SET BEST PARAMETERS HERE ######
@@ -1216,15 +1217,16 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     print('\nSingle Model is better than Ensembling Models for this data set.')
                     error_rate.append(rmsle_calculated_m)
             else:
-                rmsle_calculated_f = accu(y_cv.values,y_pred.values)
+                try:
+                    rmsle_calculated_f = balanced_accuracy_score(y_cv,y_pred)
+                except:
+                    rmsle_calculated_f = (y_pred==y_cv.values).astype(int).sum(axis=0)/(y_cv.shape[0])
                 print('After multiple models, Ensemble Model Results:')
                 minority_class = find_rare_class(y_cv)
                 rare_pct = y_cv[y_cv==minority_class].shape[0]/y_cv.shape[0]
-                if len(classes) == 2 and rare_pct <= 0.05:
-                    print('    Average of both classes accurately predicted = %0.3f%%' %(
-                        accuracy_score(y_cv,y_pred,normalize=True)*100))
-                else:
-                    print('    Accuracy Score = %0.1f%%' %(rmsle_calculated_f*100,))
+                if len(classes) == 2:
+                    print('    Balanced Accuracy Score = %0.3f%%' %(
+                        rmsle_calculated_f*100))
                 print(classification_report(y_cv.values,y_pred.values))
                 print(confusion_matrix(y_cv.values,y_pred.values))
                 if rmsle_calculated_f > rmsle_calculated_m:
@@ -1342,15 +1344,27 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         ###   They should not be df.values since they will become numpy arrays and XGB will error.
         trainm = train[important_features+[each_target]]
         red_preds = copy.deepcopy(important_features)
-        X_train = trainm[red_preds]
-        y_train = trainm[each_target]
+        if Boosting_Flag:
+            X = trainm[red_preds]
+            y = trainm[each_target]
+            if modeltype == 'Regression':
+                train_part = int((1-test_size)*X.shape[0])
+                X_train, X_cv, y_train, y_cv = X[:train_part],X[train_part:],y[:train_part],y[train_part:]
+            else:
+                X_train, X_cv, y_train, y_cv = train_test_split(X, y, 
+                                                            test_size=test_size, random_state=seed)      
+            eval_set = [(X_cv,y_cv)]
+        else:
+            X_train = trainm[red_preds]
+            y_train = trainm[each_target]
+            eval_set = [()]
         ##### ############      TRAINING MODEL SECOND TIME WITH FULL_TRAIN AND PREDICTING ON TEST ############
         if modeltype != 'Regression':
             if Imbalanced_Flag:
                 try:
-                    print('Training Imbalanced Data set...')
-                    d_model = downsampling_with_model_training(X_train,y_train,model,Boosting_Flag, eval_metric,
-                                           modeltype,no_training=False, 
+                    print('\nImbalanced Class Training using Majority Class Downsampling method...')
+                    d_model = downsampling_with_model_training(X_train,y_train, eval_set, model, 
+                                      Boosting_Flag, eval_metric,modeltype,no_training=False, 
                                       minority_class=rare_class,verbose=verbose)
                     if not isinstance(d_model, str):
                         #### If d_model succeeds,copy it so it can become a regular model again ## 
@@ -2719,7 +2733,7 @@ warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
 warnings.filterwarnings(action='ignore', category=DataConversionWarning)
 ####################################################################################
-def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,modeltype,
+def downsampling_with_model_training(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,modeltype,
                                      no_training=False,minority_class=1, verbose=0):
     """
     #########    DOWNSAMPLING OF MAJORITY CLASS AND TRAINING IN SMALL BATCH SIZES  ###############
@@ -2735,7 +2749,6 @@ def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,m
     df_target = y_df.name
     train_preds = [x for x in list(df) if x not in [df_target]]
     ccounts = Counter(y_df)   # Get class counts
-    print("Downsampling Majority Class since Imbalanced_Flag is set to True")
     # Identify minority and majority classes
     # Get indices of each class
     print('Rare Class = %s' %minority_class)
@@ -2745,96 +2758,56 @@ def downsampling_with_model_training(X_df,y_df,model,Boosting_Flag,eval_metric,m
     n_minority = ccounts[minority_class]
     rare_pct = n_minority/y_df.shape[0]
     print('    Pct of Rare Class in data = %0.2f%%' %(rare_pct*100))
-    if rare_pct <= 0.05:
-        #### Remember that if you increase the denominator, you get small batch sizes and too many iter
-        ###  Small batch sizes do not give good results and with Class_Weights they give terrible results.
-        #### Instead keep the denominator small such as 10 and do not use any class_weights at all!
-        if n_minority < 100:
-        ### If the number of rare samples is very tiny, then boost the training rows x 200 so we can balance it
-            n_iter = 20
-        else:
-            n_iter = 10
-        print('Rare class Pct < 5%%, hence max iterations for training...')
-    else:
-        n_iter = 2
-        print('Rare class Pct > 5%%, hence selecting at least %d iterations for training...' %n_iter)
-    batch_size = int(df.shape[0]/n_iter)
-    print('  Rare Class rows in data set = %d' %n_minority)
-    print('  Maximum number of Training Iterations = %d' %int(df.shape[0]/batch_size))
-    if batch_size > df.shape[0]:
+    #### Remember that if you increase the denominator, you get small batch sizes and too many iter
+    ###  Small batch sizes do not give good results and with Class_Weights they give terrible results.
+    #### Instead keep the denominator small such as 10 and do not use any class_weights at all!
+    n_iter = int(min(np.ceil(0.1/rare_pct),20))
+    print('    Number of iterations for training =  %d' %n_iter)
+    batch_size = int(df_neg.shape[0]/n_iter)
+    print('  Rare Class Batch Size = %d' %n_minority)
+    print('  Majority Class Batch Size = %d' %batch_size)
+    for each_iter in range(n_iter):
+        start_time = time.time()
         majority_egs_idx = df_pos.index
-        train_batch = df_neg.iloc[:batch_size].append(df_pos)
-        if verbose >= 1:
-            print('    Training Batch Size = %s' %(train_batch.shape[0]))
+        # We undersample the majority class so they're somewhat balanced
+        # THis is where you train the model with 90/10 Pos/Neg Sample Ratio ##
+        begin_row = each_iter*batch_size
+        end_row = begin_row + batch_size 
+        train_batch = df_neg.iloc[begin_row:end_row].append(df_pos)
         rare_pct = train_batch[train_batch[df_target]==minority_class].shape[0]/train_batch.shape[0]
         if verbose >= 1:
-            print('    Training Batch incident rate: %0.1f%%' %(rare_pct*100))
-        if Boosting_Flag:
-            from sklearn.model_selection import train_test_split
-            if modeltype == 'Regression':
-                X = train_batch[train_preds]
-                y = train_batch[df_target]
-                train_part = int((1-test_size)*X.shape[0])
-                X_train, X_cv, y_train, y_cv = X[:train_part],X[train_part:],y[:train_part],y[train_part:]
-            else:
-                X_train, X_cv, y_train, y_cv = train_test_split(train_batch[train_preds],
-                                                    train_batch[df_target], test_size=0.2,random_state=99)
-            eval_set = [(X_cv, y_cv)]
-            model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
-                        eval_metric=eval_metric,eval_set=eval_set,verbose=False)
-        else:
-            model.fit(train_batch[train_preds],train_batch[df_target])
-        downsampled_list.append(train_batch)
-        print('All downsampling steps completed')
-    else:
-        for each_iter in range(int(df.shape[0]/batch_size)):
-            start_time = time.time()
-            majority_egs_idx = df_pos.index
-            # We undersample the majority class so they're somewhat balanced
-            # THis is where you train the model with 90/10 Pos/Neg Sample Ratio ##
-            train_batch = df_neg.iloc[:batch_size].append(df_pos)
-            rare_pct = train_batch[train_batch[df_target]==minority_class].shape[0]/train_batch.shape[0]
-            if verbose >= 1:
-                print('    Training Batch Size = %s' %(train_batch.shape[0]))
-                print('    Training Batch incident rate: %0.1f%%' %(rare_pct*100))
-            if not no_training:
-                ####  DO NOT USE CLASS WEIGHTS! THEY ARE A BLUNT INSTRUMENT! SAMPLE WEIGHTS ARE BETTER!
-                #classes = [0,1]
-                #wt = compute_class_weight("balanced", classes, train_batch[df_target])
-                ### If using the plain model, use this next line ####
-                #model.set_params(**{'class_weight':dict(zip(classes,wt))})
-                ### If using GridSearchCV use the next line
-                #model.estimator.set_params(**{'class_weight':dict(zip(classes,wt))})
-                try:
-                    if Boosting_Flag:
-                        from sklearn.model_selection import train_test_split
-                        X_train, X_cv, y_train, y_cv = train_test_split(train_batch[train_preds],
-                                                                train_batch[df_target], test_size=0.2,random_state=99)
-                        eval_set = [(X_cv, y_cv)]
-                        model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
-                                    eval_metric=eval_metric,eval_set=eval_set,verbose=False)
-                        if verbose >= 1:
-                            print('        Batch Training %s completed' %(each_iter+1))
-                            print('        Time Taken = %0.0f (in seconds)' %(
-                                            time.time()-start_time))
-                    else:
-                        model.fit(train_batch[train_preds],train_batch[df_target])
-                        if verbose >= 1:
-                            print('        Batch Training %s completed' %(each_iter+1))
-                            print('        Time Taken = %0.0f (in seconds)' %(
-                                            time.time()-start_time))
-                except:
-                    print('Error in training batch...continuing')
-                    downsampled_list.append(train_batch)
-                    return ''
-            else:
+            print('     %d. Training Batch Size = %s' %((each_iter+1),train_batch.shape[0]))
+            print('        Training Batch incident rate: %0.1f%%' %(rare_pct*100))
+        if not no_training:
+            ####  DO NOT USE CLASS WEIGHTS! THEY ARE A BLUNT INSTRUMENT! SAMPLE WEIGHTS ARE BETTER!
+            #classes = [0,1]
+            #wt = compute_class_weight("balanced", classes, train_batch[df_target])
+            ### If using the plain model, use this next line ####
+            #model.set_params(**{'class_weight':dict(zip(classes,wt))})
+            ### If using GridSearchCV use the next line
+            #model.estimator.set_params(**{'class_weight':dict(zip(classes,wt))})
+            try:
+                X_train = train_batch[train_preds]
+                y_train = train_batch[df_target]
+                if Boosting_Flag:
+                    model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
+                                eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                    if verbose >= 1:
+                        print('             Batch Training completed' )
+                        print('        Time Taken = %0.0f (in seconds)' %(
+                                        time.time()-start_time))
+                else:
+                    model.fit(X_train,y_train)
+                    if verbose >= 1:
+                        print('             Batch Training completed' )
+                        print('        Time Taken = %0.0f (in seconds)' %(
+                                        time.time()-start_time))
+            except:
+                print('Error in training batch...continuing')
                 downsampled_list.append(train_batch)
-            if df_neg.iloc[batch_size:].shape[0] == 0 or df_neg.iloc[batch_size:].shape[0]<batch_size:
-                ### Stop when no more rows left to train ####
-                print('    All downsampling steps completed. Discarding remainder=%s rows' %
-                                                         df_neg.iloc[batch_size:].shape[0])
-                break
-            df_neg = df_neg.iloc[batch_size:]
+                return ''
+        else:
+            downsampled_list.append(train_batch)
     if no_training:
         return downsampled_list
     else:

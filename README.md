@@ -6,8 +6,8 @@
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.61                                               #########
-    #####   Improved downsampling method for Imbalanced data.  Aug 17,2019                          #########
+    ######                               Version 0.63                                               #########
+    #####   Improved Cat handling when zero numeric vars.  Nov 27,2019                              #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######

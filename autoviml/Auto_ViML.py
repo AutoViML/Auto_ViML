@@ -12,14 +12,8 @@
 #WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #See the License for the specific language governing permissions and
 #limitations under the License.
-#########################################################################################################
-####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
-####                                Developed by Ramadurai Seshadri                                ######
-######                               Version 0.61                                               #########
-#####   Improved downsampling method for Imbalanced data.  Aug 17,2019                          #########
-#########################################################################################################
+################################################################################
 from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
-
 import warnings
 warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
@@ -152,8 +146,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.61                                               #########
-    #####   Improved downsampling method for Imbalanced data.  Aug 17,2019                          #########
+    ######                               Version 0.63                                               #########
+    #####   Improved Cat handling when zero numeric vars.  Nov 27,2019                              #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -558,12 +552,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         ############   Add Entropy Binning of Continuous Variables Here ##############################
         saved_important_features = copy.deepcopy(important_features)  ### these are original features without '_bin' added
         saved_num_vars = copy.deepcopy(num_vars)  ### these are original numeric features without '_bin' added  
-        part_train, num_vars, important_features, part_cv = add_entropy_binning(part_train, each_target, num_vars, 
-                                                             important_features, part_cv, modeltype,Binning_Flag)
+        if len(saved_num_vars) > 0:
+            #### Do binning only when there are numeric features ####
+            part_train, num_vars, important_features, part_cv = add_entropy_binning(part_train, each_target, num_vars, 
+                                                                 important_features, part_cv, modeltype,Binning_Flag)
         ### Now we add another Feature tied to KMeans clustering using Predictor and Target variables ###
         X_train, X_cv, y_train, y_cv = part_train[important_features],part_cv[important_features
                                                    ],train[each_target][:train_num],train[each_target][train_num:]
-        if KMeans_Featurizer:
+        if KMeans_Featurizer and len(num_vars) > 0:
+            ### DO KMeans Featurizer only if there are numeric features in the data set!
             print('    Adding 1 Feature using KMeans_Featurizer...')
             if modeltype != 'Regression':
                 ### If it is Classification, you can specify the number of clusters same as classes
@@ -1282,10 +1279,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         print('Training model on complete Train data and Predicting using give Test Data...')
         ###############################################################################################################
         ###### Once again we do Entropy Binning on the Full Train Data Set !!
-        train, num_vars, important_features, test = add_entropy_binning(train, each_target, 
+        if len(num_vars) > 0:
+            ### Do Entropy Binning only if there are numeric variables in the data set! #####
+            train, num_vars, important_features, test = add_entropy_binning(train, each_target, 
                                                   saved_num_vars, saved_important_features, test, modeltype,Binning_Flag)
         ### Now we add another Feature tied to KMeans clustering using Predictor and Target variables ###
-        if KMeans_Featurizer:
+        if KMeans_Featurizer and len(num_vars) > 0:
+            #### Perform KMeans Featurizer only if there are numeric variables in data set! #########
             print('    Adding 1 Feature using KMeans_Featurizer...')
             if isinstance(test, str):
                 if modeltype != 'Regression':

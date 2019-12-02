@@ -37,7 +37,6 @@ from sklearn.metrics import roc_auc_score
 from autoviml.Transform_KM_Features import Transform_KM_Features
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
-from sklearn.preprocessing import OrdinalEncoder
 from catboost import CatBoostClassifier, CatBoostRegressor
 
 from autoviml.custom_scores import accu, rmse, gini_sklearn, gini_meae
@@ -276,6 +275,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     early_stopping = 4 #### Early stopping rounds for XGBoost ######
     encoded = '_Label_Encoded' ### This is the tag we add to feature names in the end to indicate they are label encoded
     CatBoost_Limit = 0.4 #### The CatBoost_Limit represents the percentage of num vars in data. ANy lower, CatBoost is used.
+    n_steps = 3 ### number of estimator steps between 100 and max_estims 
     ##########   This is where some more default parameters are set up ######
     data_dimension = orig_train.shape[0]*orig_train.shape[1]  ### number of cells in the entire data set .
     if data_dimension > 1000000:
@@ -497,16 +497,22 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     try:
                         ### First try Ordinal Encoder which works most times. But it has a problem...
                         ### when Test has diff categories than train, it blows up. So you need exception handling.
-                        oe = OrdinalEncoder()
-                        start_train[col_le] = oe.fit_transform(start_train[col].values.reshape(-1,1))
+                        oe = LabelEncoder()
+                        start_train[col] = oe.fit_transform(start_train[col].values.reshape(-1,1))
                         if type(orig_test) != str:
-                            start_test[col_le] = oe.transform(start_test[col].values.reshape(-1,1))
+                            start_test[col] = oe.transform(start_test[col].values.reshape(-1,1))
                     except:
+                        #### In case the above transform errors, you lose the original values. 
+                        ####   Hence this next statement restores the original values it lost.
+                        start_train[col] = orig_train[col].values
                         ### This is where we handle all exceptions by combining all categories from train and test
                         ### Then we apply factorize using these categories. This works on transforming train and test.
-                        start_train[col_le] = start_train[col].map(dict_all)
+                        start_train[col] = start_train[col].map(dict_all)
                         if type(orig_test) != str:
-                            start_test[col_le] = start_test[col].map(dict_all)
+                        #### In case the above transform errors, you lose the original values. 
+                        ####   Hence this next statement restores the original values it lost.
+                            start_test[col] = orig_test[col].values
+                            start_test[col] = start_test[col].map(dict_all)
                 cat_vars.append(col)
                 cat_vars_encoded.append(col_le)
             elif start_train[col].dtype == int:
@@ -545,14 +551,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         start_test[col] = SS.fit_transform(start_test[col].values.reshape(-1,1))
         ################   THE BELOW STEP IS VERY IMPORTANT #############################################
         print('Completed Label Encoding, Missing Value Imputing and Scaling of data without errors.')
-        if model_name == 'CatBoost':
-            new_preds = [x for x in list(start_train) if x not in [each_target]]
-        else:
-            new_preds = [x for x in list(start_train) if x not in cat_vars+[each_target]]
-        if start_train[new_preds].isnull().sum().sum() == 0:
+        if start_train[preds].isnull().sum().sum() == 0:
             print('    No Missing values in Train')
         if type(orig_test) != str:
-            if start_test[new_preds].isnull().sum().sum() > 0:
+            if start_test[preds].isnull().sum().sum() > 0:
                 print('    Test data still has some missing values. Continuing...')
             else:
                 print('    Test data has no missing values')
@@ -563,9 +565,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         print('    No predictors in your data set. Please check your data and try again')
         return
     ### Make sure you remove variables that are highly correlated within data set first ############
-    rem_vars = left_subtract(new_preds,numvars)
+    rem_vars = left_subtract(preds,numvars)
     if len(numvars) > 0 and feature_reduction:
-        numvars = remove_variables_using_fast_correlation(start_train[new_preds],numvars,corr_limit,verbose)  
+        numvars = remove_variables_using_fast_correlation(start_train[preds],numvars,corr_limit,verbose)  
     ### Reduced Preds are now free of correlated variables and hence can be used for Poly adds
     red_preds = rem_vars + numvars
     #### You need to save a copy of this red_preds so you can later on create a start_train 
@@ -717,7 +719,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                                    ],train[each_target][:train_num],train[each_target][train_num:]
         if KMeans_Featurizer and len(num_vars) > 0:
             ### DO KMeans Featurizer only if there are numeric features in the data set!
-            print('    Adding 1 Feature using KMeans_Featurizer...')
+            print('    Adding 1 Feature named "cluster" using KMeans_Featurizer...')
             if modeltype != 'Regression':
                 ### If it is Classification, you can specify the number of clusters same as classes
                 X_train, X_cv = Transform_KM_Features(X_train, y_train, X_cv, len(classes))
@@ -755,7 +757,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         ##      Be consistent with XGB. That's the best way.
         cat_vars_encoded = [x for x in cat_vars_encoded if x in X_train.columns]
         print('Number of Rows in Train data set = %d' %X_train.shape[0])
-        print('Number of Features in Train data set = %d' %X_train.shape[1])
+        print('    Number of Features in Train data set = %d' %X_train.shape[1])
         data_dim = X_train.shape[0]*X_train.shape[1]
         ###   Setting up the Estimators for Single Label and Multi Label targets only
         if modeltype == 'Regression':
@@ -787,9 +789,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             if hyper_param == 'GS':
                 r_params = { 
                         "Forests": {
-                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),  
                                 "max_depth": [2, 5, 10], 
-                                "criterion" : ['mse','mae'],
+                                #"criterion" : ['mse','mae'],
                                 },
                         "Linear": {
                             'alpha': np.logspace(-3,3), 
@@ -797,7 +799,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         "XGBoost": {
                                 'max_depth': [2,5,10],
                                 'gamma': [0,1,2,4,8,16,32],
-                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),  
                                 'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
                                 },
                         "CatBoost": {
@@ -807,10 +809,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             else:
                 r_params = { 
                         "Forests": {
-                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),  
                                 "max_depth": [2, 5, 10], 
                                 #"min_samples_leaf": np.linspace(2, 50, 20, dtype = "int"),  
-                                "criterion" : ['mse','mae'],
+                                #"criterion" : ['mse','mae'],
                                 },
                         "Linear": {
                             'alpha': np.logspace(-3,3), 
@@ -818,7 +820,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         "XGBoost": {
                                 'max_depth': [2,5,10],
                                 'gamma': [0,1,2,4,8,16,32],
-                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),  
                                 'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
                                 },
                         "CatBoost": {
@@ -855,7 +857,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                             'max_depth': [2,5,10],
                                             'gamma': [0,1,2,4,8,16,32],
                                 'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
-                                    "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                    "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),  
                                     }
                 c_params["CatBoost"] = {
                                 'learning_rate': [0.01,  0.05,  0.1],
@@ -873,7 +875,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                     }
                 c_params["Forests"] = {
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets 
-                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),  
                                     "max_depth": [2, 5, 10], 
                                     "criterion":['gini','entropy'],
                                             }
@@ -885,7 +887,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                                 'max_depth': [2,5,10],
                                                 'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
                                                 'gamma': [0,1,2,4,8,16,32],
-                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),  
                                     }
                 C = np.linspace(0.01,100,100)
                 if not Imbalanced_Flag:
@@ -902,7 +904,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 if not Imbalanced_Flag:
                     c_params["Forests"] = {
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets 
-                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),  
                                     "max_depth": [2, 5, 10], 
                                     #"min_samples_leaf": np.linspace(2, 50, 20, dtype = "int"),  
                                     "criterion":['gini','entropy'],
@@ -911,7 +913,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 else:
                     c_params["Forests"] = {
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets 
-                                "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
+                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),  
                                     "max_depth": [2, 5, 10], 
                                     #"min_samples_leaf": np.linspace(2, 50, 20, dtype = "int"),  
                                     "criterion":['gini','entropy'],
@@ -1138,7 +1140,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                                scoring = scorer,               
                                                n_jobs=-1,
                                                cv = scv,
-                                     verbose=0)
+                                               return_train_score=True,
+                                                verbose=0)
             elif hyper_param == 'RS':
                 model = RandomizedSearchCV(xgbm,
                                                param_distributions = r_params[model_name],
@@ -1159,7 +1162,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                                scoring = scorer,               
                                                n_jobs=-1,
                                                cv = scv,
-                                     verbose=0)
+                                               return_train_score = True,
+                                                 verbose=0)
             elif hyper_param == 'RS':
                 #### I have set the Verbose to be False here since it produces too much output ###
                 model = RandomizedSearchCV(xgbm,
@@ -1181,7 +1185,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         if modeltype != 'Regression':
             ### Do this only for Binary Classes and Multi-Classes, both are okay
             baseline_accu = 1-(train[each_target].value_counts(1).sort_values())[rare_class]
-            print('Baseline Accuracy Needed for Model = %0.2f%%' %(baseline_accu*100))
+            print('    Baseline Accuracy Needed for Model = %0.2f%%' %(baseline_accu*100))
         print()
         if modeltype == 'Regression':
             if Boosting_Flag:
@@ -1438,7 +1442,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 print('No Ensembling of models done since Stacking_Flag = True ')
             if verbose >= 1:
                 try:
-                    Draw_ROC_MC_ML(y_cv, y_proba, each_target, model_name, verbose)
+                    Draw_ROC_MC_ML(y_cv, y_proba,y_pred, each_target, model_name, verbose)
                 except:
                     print('    Error: Could not draw ROC AUC curve for multi-class data')
                 try:
@@ -2761,9 +2765,9 @@ from matplotlib.pylab import rcParams
 figsize = (10, 6)
 rcParams['figure.figsize'] = figsize
 ##################################################################################
-def Draw_ROC_MC_ML(y_true, y_proba, target, model_name, verbose=0):
+def Draw_ROC_MC_ML(y_true, y_proba,y_pred,target, model_name, verbose=0):
     y_proba = y_proba[:]
-    y_pred = y_proba[:]
+    y_pred = y_pred[:]
     fpr = dict()
     tpr = dict()
     roc_auc = dict()
@@ -2778,10 +2782,10 @@ def Draw_ROC_MC_ML(y_true, y_proba, target, model_name, verbose=0):
             rare_class = 1
         else:
             rare_class = find_rare_class(y_true)
-        y_test = label_binarize(y_true, classes)
+            y_test = label_binarize(y_true, classes)
         try:
             if n_classes > 2:
-                if y_test.shape[1] == y_proba.shape[0]:
+                if y_test.shape[1] == y_proba.shape[1]:
                     classes = list(range(y_test.shape[1]))
                 else:
                     if y_proba.shape[1] > y_test.shape[1]:
@@ -2797,19 +2801,22 @@ def Draw_ROC_MC_ML(y_true, y_proba, target, model_name, verbose=0):
         #####################   This is where you calculate ROC_AUC for all classes #########
         for i in range(iterations):
             if n_classes==2:
-                fpr[rare_class], tpr[rare_class], _ = roc_curve(y_test.ravel(), y_pred[:,rare_class])
+                fpr[rare_class], tpr[rare_class], _ = roc_curve(y_test.ravel(), y_proba[:,rare_class])
                 roc_auc[rare_class] = auc(fpr[rare_class], tpr[rare_class])
             else:
-                fpr[i], tpr[i], _ = roc_curve(y_test[:,i], y_pred[:,i])
+                fpr[i], tpr[i], _ = roc_curve(y_test[:,i], y_proba[:,i])
                 roc_auc[i] = auc(fpr[i], tpr[i])
         ### Compute Micro Average which is a row-by-row score ###########
         try:
-            fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_pred.ravel())
+            if n_classes == 2:
+                fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_pred.ravel())
+            else:
+                fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(),label_binarize(y_pred, classes).ravel())
         except:
             if y_test.ravel().shape[0] != y_pred.ravel().shape[0]:
                 pass
             else:
-                fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_pred[:,rare_class].ravel())
+                fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_proba[:,rare_class].ravel())
         roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
         # micro-average ROC curve and ROC area has been computed
         labels = []

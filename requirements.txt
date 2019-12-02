@@ -5,3 +5,4 @@ pandas
 matplotlib
 seaborn
 scikit-learn
+catboost

@@ -1,11 +1,11 @@
 import setuptools
 
-with open("README.md", "r", encoding="utf-16") as fh:
+with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="autoviml",
-    version="0.0.5",
+    version="0.0.51",
     author="Ram Seshadri",
     # author_email="author@example.com",
     description="Automatically Build Variant Interpretable ML models fast!",
@@ -28,4 +28,3 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
 )
-

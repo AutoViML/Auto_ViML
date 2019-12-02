@@ -17,6 +17,22 @@ from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import roc_auc_score
 #####################################################################################
+from sklearn.metrics import confusion_matrix
+def balanced_accuracy_score(y_true, y_pred, sample_weight=None,
+                            adjusted=False):
+    C = confusion_matrix(y_true, y_pred, sample_weight=sample_weight)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        per_class = np.diag(C) / C.sum(axis=1)
+    if np.any(np.isnan(per_class)):
+        warnings.warn('y_pred contains classes not in y_true')
+        per_class = per_class[~np.isnan(per_class)]
+    score = np.mean(per_class)
+    if adjusted:
+        n_classes = len(per_class)
+        chance = 1 / n_classes
+        score -= chance
+        score /= 1 - chance
+    return score
 def accu(results, y_cv):
     return (results==y_cv).astype(int).sum(axis=0)/(y_cv.shape[0])
 def rmse(results, y_cv):
@@ -57,7 +73,6 @@ def gini_accuracy(truth, predictions):
 
 def gini_bal_accuracy(truth, predictions):
     try:
-        from sklearn.metrics import balanced_accuracy_score
         return balanced_accuracy_score(truth, predictions)
     except:
         return accuracy_score(truth, predictions)

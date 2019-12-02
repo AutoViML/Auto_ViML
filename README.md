@@ -6,8 +6,8 @@
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.63                                               #########
-    #####   Improved Cat handling when zero numeric vars.  Nov 27,2019                              #########
+    ######                               Version 0.73                                               #########
+    #####   Upgraded with CatBoost for categorical heavy data sets.  Nov 29,2019                    #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -29,7 +29,7 @@
     ####   since it selects the fewest Features to build a simpler, more interpretable model. This is key. ##
     ####   Auto_ViML is built mostly using Scikit-Learn, Numpy, Pandas and Matplotlib. Hence it should run ##
     ####   on any Python 2 or Python 3 Anaconda installations. You won't have to import any special      ####
-    ####   Libraries other than "SHAP" library for SHAP values which provides more interpretability.    #####
+    ####   Libraries other than "CatBoost" and "SHAP" library for SHAP values for interpretability.     #####
     ####   But if you don't have it, Auto_ViML will skip it and show you the regular feature importances. ###
     #########################################################################################################
     ####   INPUTS:                                                                                        ###
@@ -47,10 +47,11 @@
     ####         results when you don't reduce features automatically. You can always try both and see. #####
     ####   KMeans_Featurizer = True: Adds a cluster label to features based on KMeans. Use for Linear.  #####
     ####         False (default) = For Random Forests or XGB models, leave it False since it may overfit.####
-    ####   Boosting Flag: you have 3 possible choices (default is False):                               #####
+    ####   Boosting Flag: you have 4 possible choices (default is False):                               #####
     ####    None = This will build a Linear Model                                                       #####
     ####    False = This will build a Random Forest or Extra Trees model (also known as Bagging)        #####
     ####    True = This will build an XGBoost model                                                     #####
+    ####    CatBoost = THis will build a CatBoost model (provided you have CatBoost installed)          #####
     ####   Add_Poly: Default is 0. It has 2 additional settings:                                        #####
     ####    1 = Add interaction variables only such as x1*x2, x2*x3,...x9*10 etc.                       ##### 
     ####    2 = Add Interactions and Squared variables such as x1**2, x2**2, etc.                       #####

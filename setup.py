@@ -5,10 +5,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="autoviml",
-    version="0.0.51",
+    version="0.1.01",
     author="Ram Seshadri",
     # author_email="author@example.com",
-    description="Automatically Build Variant Interpretable ML models fast!",
+    description="Automatically Build Variant Interpretable ML models fast - now with CatBoost!",
     long_description=long_description,
     long_description_content_type="text/markdown",
     license='Apache License 2.0',

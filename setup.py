@@ -1,11 +1,11 @@
 import setuptools
 
-with open("README.md", "r", encoding="utf-8") as fh:
+with open("README.md", "r", encoding="utf-16") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="autoviml",
-    version="0.1.01",
+    version="0.1.02",
     author="Ram Seshadri",
     # author_email="author@example.com",
     description="Automatically Build Variant Interpretable ML models fast - now with CatBoost!",
@@ -22,7 +22,8 @@ setuptools.setup(
         "matplotlib",
         "seaborn",
         "scikit-learn"
-    ],
+	"catboost"
+Y    ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",

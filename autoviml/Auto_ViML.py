@@ -498,21 +498,34 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         ### First try Ordinal Encoder which works most times. But it has a problem...
                         ### when Test has diff categories than train, it blows up. So you need exception handling.
                         oe = LabelEncoder()
-                        start_train[col] = oe.fit_transform(start_train[col].values.reshape(-1,1))
-                        if type(orig_test) != str:
-                            start_test[col] = oe.transform(start_test[col].values.reshape(-1,1))
+                        if Boosting_Flag is None:
+                            start_train[col_le] = oe.fit_transform(start_train[col].values.reshape(-1,1))
+                            if type(orig_test) != str:
+                                start_test[col_le] = oe.transform(start_test[col].values.reshape(-1,1))
+                        else:
+                            start_train[col] = oe.fit_transform(start_train[col].values.reshape(-1,1))
+                            if type(orig_test) != str:
+                                start_test[col] = oe.transform(start_test[col].values.reshape(-1,1))
                     except:
                         #### In case the above transform errors, you lose the original values. 
                         ####   Hence this next statement restores the original values it lost.
                         start_train[col] = orig_train[col].values
                         ### This is where we handle all exceptions by combining all categories from train and test
                         ### Then we apply factorize using these categories. This works on transforming train and test.
-                        start_train[col] = start_train[col].map(dict_all)
-                        if type(orig_test) != str:
-                        #### In case the above transform errors, you lose the original values. 
-                        ####   Hence this next statement restores the original values it lost.
-                            start_test[col] = orig_test[col].values
-                            start_test[col] = start_test[col].map(dict_all)
+                        if Boosting_Flag is None:
+                            start_train[col_le] = start_train[col].map(dict_all)
+                            if type(orig_test) != str:
+                                #### In case the above transform errors, you lose the original values. 
+                                ####   Hence this next statement restores the original values it lost.
+                                start_test[col_le] = orig_test[col].values
+                                start_test[col_le] = start_test[col].map(dict_all)
+                        else:
+                            start_train[col] = start_train[col].map(dict_all)
+                            if type(orig_test) != str:
+                                #### In case the above transform errors, you lose the original values. 
+                                ####   Hence this next statement restores the original values it lost.
+                                start_test[col] = orig_test[col].values
+                                start_test[col] = start_test[col].map(dict_all)
                 cat_vars.append(col)
                 cat_vars_encoded.append(col_le)
             elif start_train[col].dtype == int:
@@ -665,7 +678,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             print('    Features list: %s' %important_features)
         #############  C R E A T I N G  D U M M Y   V A R I A B L E S FOR LINEAR MODELS ONLY  ############
         if Boosting_Flag is None and len(cat_vars) > 0:
-            LE_features = [x for x in important_features if x.endswith(encoded) ]
+            pdb.set_trace()
+            if not feature_reduction:
+                LE_features = copy.deepcopy(cat_vars_encoded)
+            else:
+                LE_features = [x for x in important_features if x.endswith(encoded) ]
             LE_features = [x[:-14] for x in LE_features]
             dummy_vars = [x for x in LE_features if x in cat_vars]
             print('    Creating dummy variables for %d categorical features for Linear Models' %len(dummy_vars))
@@ -1259,6 +1276,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     print('Error in training Imbalanced model first time. Trying regular model..')
                     Imbalanced_Flag = False
             else:
+                pdb.set_trace()
                 try:
                     if Boosting_Flag:
                         if model_name == 'XGBoost':

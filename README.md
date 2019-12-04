@@ -6,7 +6,7 @@
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.73                                               #########
+    ######                               Version 0.1.033                                               #########
     #####   Upgraded with CatBoost for categorical heavy data sets.  Nov 29,2019                    #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######

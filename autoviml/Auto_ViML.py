@@ -274,7 +274,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     matplotlib_flag = True #(default) This is for drawing SHAP values. If this is False, initJS is used.
     early_stopping = 4 #### Early stopping rounds for XGBoost ######
     encoded = '_Label_Encoded' ### This is the tag we add to feature names in the end to indicate they are label encoded
-    CatBoost_Limit = 0.4 #### The CatBoost_Limit represents the percentage of num vars in data. ANy lower, CatBoost is used.
+    catboost_limit = 0.4 #### The catboost_limit represents the percentage of num vars in data. ANy lower, CatBoost is used.
+    cat_code_limit = 100 #### If the number of dummy variables to create in a data set exceeds this, CatBoost is the default Algorithm used 
+    one_hot_size = 100 #### This determines the max length of one_hot_max_size parameter of CatBoost algrithm
     n_steps = 3 ### number of estimator steps between 100 and max_estims 
     ##########   This is where some more default parameters are set up ######
     data_dimension = orig_train.shape[0]*orig_train.shape[1]  ### number of cells in the entire data set .
@@ -433,6 +435,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     string_cols = var_df['nlp_vars']+var_df['date_vars']
     del_cols = var_df['cols_delete']
     continuous_vars = var_df['continuous_vars']+var_df['int_vars']
+    cat_vars = var_df['string_bool_vars']+var_df['discrete_string_vars']+var_df['cat_vars']
     preds = [x for x in orig_preds if x not in id_cols+del_cols+string_cols+target]
     if len(id_cols+del_cols+string_cols)== 0:
         print('    No variables removed since no ID or low-information variables found in data set')
@@ -445,7 +448,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         if Boosting_Flag == 'CatBoost' or Boosting_Flag == 'Catboost' or Boosting_Flag == 'catboost':
             model_name = 'CatBoost'
             hyper_param = None
-        elif percent_num_vars <= CatBoost_Limit:
+        elif percent_num_vars <= catboost_limit:
             ### If the percentage of num vars in data set is less than 40%, Use Cat Boost whiich is fast
             ####  when there are very few numeric vars in a data set. This limit is known as CatBoost _Limit
             model_name = 'CatBoost'
@@ -456,6 +459,22 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         model_name = 'Linear'
     else:
         model_name = 'Forests'
+    if len(cat_vars) > 0:
+        ####### Test here if the number of Categories is very large whether you should use CatBoost or Linear models
+        cat_var_categs_list = []
+        for cat_var in cat_vars:
+            cat_var_categs_list.append(start_train[cat_var].value_counts().index.tolist())
+        if len(sum(cat_var_categs_list, [])) > cat_code_limit:
+            ### If data set has too many categorical variables resulting in 100 or more dummy variables, then swtitch to CatBoost
+            ### A Linear Model such as Logistic Regression will struggle with 100 or more dummy variables, esp if sample size is large.
+            ### However CatBoost is very fast in such Category-heavy data sets and hence is a better choice for such data sets.
+            model_name = 'CatBoost'
+            Boosting_Flag = 'CatBoost'
+            one_hot_size = len(max(cat_var_categs_list, key = lambda i: len(i)))
+            if one_hot_size == 0:
+                one_hot_size = 100
+            print('Changing model to CatBoost since No. of dummy variables to create in data set exceeds %d' %cat_code_limit)
+    #####   Set the Scoring Parameters here based on each model and preferences of user ##############
     if model_name == 'CatBoost':
         if model_class == 'Binary-Class':
             catboost_scoring = 'Accuracy'
@@ -464,7 +483,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         else:
             catboost_scoring = 'RMSE'
     ######  Fill Missing Values, Scale Data and Classify Variables Here ###
-    cat_vars = []
     cat_vars_encoded = []
     numvars = []
     if len(preds) > 0:
@@ -477,11 +495,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     #####  So we will fill NaN values in Category Variables with the word "missing"
                     if orig_train[col].isnull().sum() > 0:
                         start_train[col] = start_train[col].fillna("'missing'")
-                    #start_train[col_le] = start_train[col].astype('category')
+                    start_train[col_le] = start_train[col].astype('category')
                     if type(orig_test) != str:
                         if orig_test[col].isnull().sum() > 0:
                             start_test[col] = start_test[col].fillna("'missing'")
-                        #start_test[col_le] = start_test[col].astype('category')
+                        start_test[col_le] = start_test[col].astype('category')
                 else:
                     #####  For All other models except CatBoost, we need special methods to handle Cat variables
                     ####  This is the easiest way to label encode object variables in both train and test
@@ -658,14 +676,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     num_vars = copy.deepcopy(numvars)
                     print('Selected %d features using Linear feature selection methods' %len(important_features))
                 else:
-                    print('No numeric featres. Hence CatBoost used - no feature reduction needed.')
+                    print('No numeric features in data set. Hence CatBoost used: no feature reduction needed.')
                     important_features = copy.deepcopy(red_preds)
                     num_vars = copy.deepcopy(numvars)
-            else:    
-                important_features,num_vars = find_top_features_xgb(train,red_preds,train_sel,
+            else:
+                if model_name != 'CatBoost':
+                    important_features,num_vars = find_top_features_xgb(train,red_preds,train_sel,
                                                          each_target,
                                                      modeltype,corr_limit,verbose)
-                print('Selected %d features using Boosted feature selection methods' %len(important_features))
+                    print('Selected %d features using Boosted feature selection methods' %len(important_features))
+                else:
+                    print('In CatBoost, no feature reduction is done. All %d features are used in model' %len(red_preds))
+                    important_features = copy.deepcopy(red_preds)
+                    num_vars = copy.deepcopy(numvars)
         else:
             print('No feature reduction done. All %d features to be used in model' %len(red_preds))
             important_features = copy.deepcopy(red_preds)
@@ -678,7 +701,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             print('    Features list: %s' %important_features)
         #############  C R E A T I N G  D U M M Y   V A R I A B L E S FOR LINEAR MODELS ONLY  ############
         if Boosting_Flag is None and len(cat_vars) > 0:
-            pdb.set_trace()
             if not feature_reduction:
                 LE_features = copy.deepcopy(cat_vars_encoded)
             else:
@@ -847,7 +869,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             if Boosting_Flag:
                 if model_name == 'CatBoost':
                     xgbm = CatBoostRegressor(verbose=0,n_estimators=1000,random_state=99,
-                            one_hot_max_size=100,
+                            one_hot_max_size=one_hot_size,
                             loss_function='RMSE', eval_metric='RMSE',
                             subsample=0.7,bootstrap_type='Bernoulli',
                            early_stopping_rounds=25,boosting_type='Plain')
@@ -979,7 +1001,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 ### DO NOT USE NUM CLASS WITH BINARY CLASSIFICATION ######
                 if Boosting_Flag:
                     if model_name == 'CatBoost':
-                        xgbm =  CatBoostClassifier(verbose=0,n_estimators=1000,random_state=99,one_hot_max_size=100,
+                        xgbm =  CatBoostClassifier(verbose=0,n_estimators=1000,random_state=99,
+                                        one_hot_max_size=one_hot_size,
                                         loss_function='Logloss', eval_metric=catboost_scoring,
                                         subsample=0.7,bootstrap_type='Bernoulli',
                                        early_stopping_rounds=25,boosting_type='Plain')
@@ -1089,7 +1112,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
                                     }
                     if model_name == 'CatBoost':
-                        xgbm =  CatBoostClassifier(verbose=0,n_estimators=1000,random_state=99,one_hot_max_size=100,
+                        xgbm =  CatBoostClassifier(verbose=0,n_estimators=1000,random_state=99,
+                                        one_hot_max_size=one_hot_size,
                                         loss_function='MultiClass', eval_metric=catboost_scoring,
                                         subsample=0.7,bootstrap_type='Bernoulli',
                                        early_stopping_rounds=25,boosting_type='Plain')
@@ -1276,7 +1300,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     print('Error in training Imbalanced model first time. Trying regular model..')
                     Imbalanced_Flag = False
             else:
-                pdb.set_trace()
                 try:
                     if Boosting_Flag:
                         if model_name == 'XGBoost':

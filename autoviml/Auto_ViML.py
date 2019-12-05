@@ -167,8 +167,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.73                                               #########
-    #####   Incorporated CatBoost for categorical heavy data sets.  Nov 29,2019                     #########
+    ######                               Version 1.045                                               ########
+    #####    STABLE VERSION WITH CATBOOST for categorical heavy data sets.  Dec 5,2019              #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -255,7 +255,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     ######################### HELP OTHERS! PLEASE CONTRIBUTE! OPEN A PULL REQUEST! ##########################
     #########################################################################################################
     """
-    #####   These copies are to make sure that the originals are not destroyed ####
+    #####   These copies are to make sure that the originals are not destroyed #############################
     test = copy.deepcopy(test)
     orig_train = copy.deepcopy(train)
     orig_test = copy.deepcopy(test)
@@ -278,7 +278,18 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     cat_code_limit = 100 #### If the number of dummy variables to create in a data set exceeds this, CatBoost is the default Algorithm used 
     one_hot_size = 100 #### This determines the max length of one_hot_max_size parameter of CatBoost algrithm
     n_steps = 3 ### number of estimator steps between 100 and max_estims 
-    ##########   This is where some more default parameters are set up ######
+    class colour:
+       PURPLE = '\033[95m'
+       CYAN = '\033[96m'
+       DARKCYAN = '\033[36m'
+       BLUE = '\033[94m'
+       GREEN = '\033[92m'
+       YELLOW = '\033[93m'
+       RED = '\033[91m'
+       BOLD = '\033[1m'
+       UNDERLINE = '\033[4m'
+       END = '\033[0m'    
+    ##########   This is where some more default parameters are set up ###########################################
     data_dimension = orig_train.shape[0]*orig_train.shape[1]  ### number of cells in the entire data set .
     if data_dimension > 1000000:
         ### if data dimension exceeds 1 million, then reduce no of params
@@ -868,7 +879,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         }
             if Boosting_Flag:
                 if model_name == 'CatBoost':
-                    xgbm = CatBoostRegressor(verbose=0,n_estimators=1000,random_state=99,
+                    xgbm = CatBoostRegressor(verbose=0,n_estimators=max_estims,random_state=99,
                             one_hot_max_size=one_hot_size,
                             loss_function='RMSE', eval_metric='RMSE',
                             subsample=0.7,bootstrap_type='Bernoulli',
@@ -1001,11 +1012,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 ### DO NOT USE NUM CLASS WITH BINARY CLASSIFICATION ######
                 if Boosting_Flag:
                     if model_name == 'CatBoost':
-                        xgbm =  CatBoostClassifier(verbose=0,n_estimators=1000,random_state=99,
-                                        one_hot_max_size=one_hot_size,
-                                        loss_function='Logloss', eval_metric=catboost_scoring,
-                                        subsample=0.7,bootstrap_type='Bernoulli',
-                                       early_stopping_rounds=25,boosting_type='Plain')
+                        xgbm = CatBoostClassifier(n_estimators=1000,verbose=0,random_state=seed,
+                                                one_hot_max_size=one_hot_size)
                     else:
                         xgbm = XGBClassifier(seed=seed,n_jobs=-1, random_state=seed,subsample=subsample,
                                          colsample_bytree=col_sub_sample,
@@ -1112,12 +1120,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
                                     }
                     if model_name == 'CatBoost':
-                        xgbm =  CatBoostClassifier(verbose=0,n_estimators=1000,random_state=99,
-                                        one_hot_max_size=one_hot_size,
-                                        loss_function='MultiClass', eval_metric=catboost_scoring,
-                                        subsample=0.7,bootstrap_type='Bernoulli',
-                                       early_stopping_rounds=25,boosting_type='Plain')
-
+                        xgbm = CatBoostClassifier(n_estimators=1000,verbose=0,random_state=seed,
+                                            one_hot_max_size=one_hot_size)
                     else:
                         xgbm = XGBClassifier(seed=seed,n_jobs=-1, random_state=seed,subsample=subsample,
                                          colsample_bytree=col_sub_sample,

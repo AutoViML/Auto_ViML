@@ -447,6 +447,16 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     del_cols = var_df['cols_delete']
     continuous_vars = var_df['continuous_vars']+var_df['int_vars']
     cat_vars = var_df['string_bool_vars']+var_df['discrete_string_vars']+var_df['cat_vars']
+    ##### There are a couple of extra work you need to do to remove abberations in cat_vars ###
+    cat_vars_copy = copy.deepcopy(cat_vars)
+    for cat in cat_vars_copy: 
+        if orig_train[cat].dtype==float: 
+            continuous_vars.append(cat)
+            cat_vars.remove(cat)
+        elif len(orig_train[cat].value_counts()) == orig_train.shape[0]:
+            id_cols.append(cat)
+            cat_vars.remove(cat)
+    #######################################################################################
     preds = [x for x in orig_preds if x not in id_cols+del_cols+string_cols+target]
     if len(id_cols+del_cols+string_cols)== 0:
         print('    No variables removed since no ID or low-information variables found in data set')
@@ -475,7 +485,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         cat_var_categs_list = []
         for cat_var in cat_vars:
             cat_var_categs_list.append(start_train[cat_var].value_counts().index.tolist())
-        if len(sum(cat_var_categs_list, [])) > cat_code_limit:
+        if len(sum(cat_var_categs_list, [])) > cat_code_limit and model_name is None:
             ### If data set has too many categorical variables resulting in 100 or more dummy variables, then swtitch to CatBoost
             ### A Linear Model such as Logistic Regression will struggle with 100 or more dummy variables, esp if sample size is large.
             ### However CatBoost is very fast in such Category-heavy data sets and hence is a better choice for such data sets.
@@ -718,7 +728,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 LE_features = [x for x in important_features if x.endswith(encoded) ]
             LE_features = [x[:-14] for x in LE_features]
             dummy_vars = [x for x in LE_features if x in cat_vars]
-            print('    Creating dummy variables for %d categorical features for Linear Models' %len(dummy_vars))
+            print('    Creating %d  dummy variables from %d categorical features for Linear Models' %(len(sum(cat_var_categs_list, [])),len(dummy_vars)))
             all_other_vars = [x for x in LE_features if x not in dummy_vars]
             orig_train['SOURCE_DATA_SPLIT'] = 'Train'
             if type(orig_test) != str:
@@ -1012,8 +1022,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 ### DO NOT USE NUM CLASS WITH BINARY CLASSIFICATION ######
                 if Boosting_Flag:
                     if model_name == 'CatBoost':
-                        xgbm = CatBoostClassifier(n_estimators=1000,verbose=0,random_state=seed,
-                                                one_hot_max_size=one_hot_size)
+                        xgbm =  CatBoostClassifier(verbose=0,n_estimators=max_estims,
+                            random_state=99,one_hot_max_size=one_hot_size,
+                            loss_function='Logloss', eval_metric='AUC',
+                            subsample=0.7,bootstrap_type='Bernoulli',
+                           early_stopping_rounds=25,boosting_type='Plain')
                     else:
                         xgbm = XGBClassifier(seed=seed,n_jobs=-1, random_state=seed,subsample=subsample,
                                          colsample_bytree=col_sub_sample,
@@ -1120,8 +1133,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 "n_estimators" : np.linspace(100, max_estims, 4, dtype = "int"),  
                                     }
                     if model_name == 'CatBoost':
-                        xgbm = CatBoostClassifier(n_estimators=1000,verbose=0,random_state=seed,
-                                            one_hot_max_size=one_hot_size)
+                        xgbm =  CatBoostClassifier(verbose=0,n_estimators=max_estims,
+                                random_state=99,one_hot_max_size=one_hot_size,
+                                loss_function='MultiClass', eval_metric='AUC',
+                                subsample=0.7,bootstrap_type='Bernoulli',
+                               early_stopping_rounds=25,boosting_type='Plain')
                     else:
                         xgbm = XGBClassifier(seed=seed,n_jobs=-1, random_state=seed,subsample=subsample,
                                          colsample_bytree=col_sub_sample,
@@ -1234,7 +1250,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         print()
         if modeltype == 'Regression':
             if Boosting_Flag:
-                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/20000.))
+                if model_name == 'CatBoost':
+                    data_dim = data_dim*one_hot_size/len(preds)
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/200000.))
+                else:
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/20000.))
             elif Boosting_Flag is None:
                 print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
             else:
@@ -1242,7 +1262,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         else:
             if hyper_param == 'GS':
                 if Boosting_Flag:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/30000.))
+                    if model_name == 'CatBoost':
+                        data_dim = data_dim*one_hot_size/len(preds)
+                        print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/300000.))
+                    else:
+                        print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/30000.))
                 elif Boosting_Flag is None:
                     #### A Linear model is usually the fastest ###########
                     print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
@@ -1250,7 +1274,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/10000.))
             else:
                 if Boosting_Flag:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/30000.))
+                    if model_name == 'CatBoost':
+                        data_dim = data_dim*one_hot_size/len(preds)
+                        print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/300000.))
+                    else:
+                        print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/30000.))
                 elif Boosting_Flag is None:
                     print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
                 else:

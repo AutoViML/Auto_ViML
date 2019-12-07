@@ -6,8 +6,8 @@
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.045                                               ######
-    #####   STABLE VERSION WITH SEVERAL UPGRADES AND BUG FIXES.                                        ######
+    ######                               Version 0.1.05                                                ######
+    #####   MOST STABLE VERSION WITH SEVERAL UPGRADES AND BUG FIXES.                                   ######
     #####   PLEASE DO: pip3 install --upgrade --ignore-installed  --no-deps autoviml                  #######
     #####   Upgraded with CatBoost for categorical heavy data sets.With Bug Fixes. Dec 3,2019       #########
     #########################################################################################################

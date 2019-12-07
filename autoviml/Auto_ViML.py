@@ -18,7 +18,7 @@ import warnings
 warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
 warnings.filterwarnings(action='ignore', category=DataConversionWarning)
-
+import pdb
 from sklearn.linear_model import LassoCV
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import chi2, mutual_info_regression, mutual_info_classif
@@ -167,7 +167,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 1.045                                               ########
+    ######                               Version 1.0452                                              ########
     #####    STABLE VERSION WITH CATBOOST for categorical heavy data sets.  Dec 5,2019              #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
@@ -445,8 +445,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     id_cols = var_df['id_vars']
     string_cols = var_df['nlp_vars']+var_df['date_vars']
     del_cols = var_df['cols_delete']
+    factor_cols = var_df['factor_vars']
     continuous_vars = var_df['continuous_vars']+var_df['int_vars']
-    cat_vars = var_df['string_bool_vars']+var_df['discrete_string_vars']+var_df['cat_vars']
+    cat_vars = var_df['string_bool_vars']+var_df['discrete_string_vars']+var_df['cat_vars']+var_df['factor_vars']
     ##### There are a couple of extra work you need to do to remove abberations in cat_vars ###
     cat_vars_copy = copy.deepcopy(cat_vars)
     for cat in cat_vars_copy: 
@@ -481,20 +482,31 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     else:
         model_name = 'Forests'
     if len(cat_vars) > 0:
-        ####### Test here if the number of Categories is very large whether you should use CatBoost or Linear models
-        cat_var_categs_list = []
-        for cat_var in cat_vars:
-            cat_var_categs_list.append(start_train[cat_var].value_counts().index.tolist())
-        if len(sum(cat_var_categs_list, [])) > cat_code_limit and model_name is None:
-            ### If data set has too many categorical variables resulting in 100 or more dummy variables, then swtitch to CatBoost
-            ### A Linear Model such as Logistic Regression will struggle with 100 or more dummy variables, esp if sample size is large.
-            ### However CatBoost is very fast in such Category-heavy data sets and hence is a better choice for such data sets.
+        if len(factor_cols) > 0:
+            cat_var_categs_list = []
+            for cat_var in factor_cols:
+                cat_var_categs_list.append(start_train[cat_var].value_counts().index.tolist())
             model_name = 'CatBoost'
             Boosting_Flag = 'CatBoost'
             one_hot_size = len(max(cat_var_categs_list, key = lambda i: len(i)))
             if one_hot_size == 0:
                 one_hot_size = 100
             print('Changing model to CatBoost since No. of dummy variables to create in data set exceeds %d' %cat_code_limit)
+        elif Boosting_Flag is None:
+            ####### Test here if the number of Categories is very large whether you should use CatBoost or Linear models
+            cat_var_categs_list = []
+            for cat_var in cat_vars:
+                cat_var_categs_list.append(start_train[cat_var].value_counts().index.tolist())
+            if len(sum(cat_var_categs_list, [])) > cat_code_limit and model_name is None:
+                ### If data set has too many categorical variables resulting in 100 or more dummy variables, then swtitch to CatBoost
+                ### A Linear Model such as Logistic Regression will struggle with 100 or more dummy variables, esp if sample size is large.
+                ### However CatBoost is very fast in such Category-heavy data sets and hence is a better choice for such data sets.
+                model_name = 'CatBoost'
+                Boosting_Flag = 'CatBoost'
+                one_hot_size = len(max(cat_var_categs_list, key = lambda i: len(i)))
+                if one_hot_size == 0:
+                    one_hot_size = 100
+                print('Changing model to CatBoost since No. of dummy variables to create in data set exceeds %d' %cat_code_limit)
     #####   Set the Scoring Parameters here based on each model and preferences of user ##############
     if model_name == 'CatBoost':
         if model_class == 'Binary-Class':
@@ -509,17 +521,18 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     if len(preds) > 0:
         dict_train = {}
         for col in preds:
+            import pdb
             if start_train[col].dtype == object:
                 col_le = col + encoded
                 if model_name == 'CatBoost':
                     ######  If Model is CatBoost, it handles Category Variables automatically except NaN.
                     #####  So we will fill NaN values in Category Variables with the word "missing"
                     if orig_train[col].isnull().sum() > 0:
-                        start_train[col] = start_train[col].fillna("'missing'")
+                        start_train[col] = start_train[col].fillna("NA")
                     start_train[col_le] = start_train[col].astype('category')
                     if type(orig_test) != str:
                         if orig_test[col].isnull().sum() > 0:
-                            start_test[col] = start_test[col].fillna("'missing'")
+                            start_test[col] = start_test[col].fillna("NA")
                         start_test[col_le] = start_test[col].astype('category')
                 else:
                     #####  For All other models except CatBoost, we need special methods to handle Cat variables
@@ -577,6 +590,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     if start_test[col].isnull().sum() > 0:
                         start_test[col] = start_test[col].fillna(fill_num)
                 pass
+            elif col in factor_cols:
+                if orig_train[col].isnull().sum() > 0:
+                    start_train[col] = start_train[col].fillna("NA")
+                if type(orig_test) != str:
+                    if orig_test[col].isnull().sum() > 0:
+                        start_test[col] = start_test[col].fillna("NA")
             else:
                 numvars.append(col)
                 ### for all numeric variables, fill missing values with 1 less than min.
@@ -1289,6 +1308,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         model_start_time = time.time()
         if modeltype != 'Regression':
             if Imbalanced_Flag:
+                ######   This is for Imbalanced Classification tasks ##############
                 try:
                     print('\nImbalanced Class Training using Majority Class Downsampling method...')
                     #### The d_model is the downsampled model Trained on downsampled data sets. ####
@@ -1316,9 +1336,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
                                     eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                             else:
-                                model.fit(X_train, y_train, cat_features=cat_vars,eval_set=(X_cv,y_cv))
-                                #model.fit(X_train, y_train, cat_features=cat_vars_encoded, 
-                                #    early_stopping_rounds=early_stopping, eval_set=eval_set)
+                                try:
+                                    model.fit(X_train, y_train, cat_features=cat_vars,eval_set=(X_cv,y_cv))
+                                except:
+                                    model.fit(X_train, y_train, cat_features=cat_vars)
                         else:
                                 model.fit(X_train, y_train)
                         if hyper_param == 'RS' or hyper_param == 'GS':
@@ -1332,6 +1353,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     print('Error in training Imbalanced model first time. Trying regular model..')
                     Imbalanced_Flag = False
             else:
+                ######   This is for Regular Classification tasks ##############
                 try:
                     if Boosting_Flag:
                         if model_name == 'XGBoost':
@@ -1339,9 +1361,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
                                     eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                         else:
-                            model.fit(X_train, y_train, cat_features=cat_vars,eval_set=(X_cv,y_cv))
-                            #model.fit(X_train, y_train, cat_features=cat_vars_encoded, 
-                            #    early_stopping_rounds=early_stopping, eval_set=eval_set)
+                            try:
+                                model.fit(X_train, y_train, cat_features=cat_vars,eval_set=(X_cv,y_cv))
+                            except:
+                                model.fit(X_train, y_train, cat_features=cat_vars)
                     else:
                         model.fit(X_train, y_train)
                     if hyper_param == 'RS' or hyper_param == 'GS':
@@ -1355,7 +1378,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     print('Training regular model first time is Erroring: Check if your Input is correct...')
                     return
         else:
-            ########### This is for Regression Model Trainining ###################
+            ########### This is for Regression Model Training ###################
             try:
                 if Boosting_Flag:
                     if model_name == 'XGBoost':
@@ -1363,9 +1386,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
                             eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                     else:
-                        model.fit(X_train, y_train, cat_features=cat_vars,eval_set=(X_cv,y_cv))
-                        #model.fit(X_train, y_train, cat_features=cat_vars_encoded, 
-                        #        early_stopping_rounds=early_stopping, eval_set=eval_set)
+                        try:
+                            model.fit(X_train, y_train, cat_features=cat_vars,eval_set=(X_cv,y_cv))
+                        except:
+                            model.fit(X_train, y_train, cat_features=cat_vars)
                 else:
                     model.fit(X_train, y_train)
                 if hyper_param == 'RS' or hyper_param == 'GS':
@@ -3226,7 +3250,6 @@ from sklearn.metrics import f1_score
 import copy
 import matplotlib.pyplot as plt
 from inspect import signature
-import pdb
 from sklearn.preprocessing import label_binarize
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score

@@ -34,6 +34,7 @@ from sklearn.metrics import precision_score
 from sklearn.metrics import roc_auc_score
 from autoviml.Transform_KM_Features import Transform_KM_Features
 from sklearn.model_selection import RandomizedSearchCV
+from sklearn.utils import shuffle
 
 from autoviml.custom_scores import accu, rmse, gini_sklearn, gini_meae
 from autoviml.custom_scores import gini_msle, gini_mae, gini_mse, gini_rmse
@@ -278,18 +279,18 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         no_iter=30
         early_stopping = 5
         test_size = 0.15
-        max_iter = 4000
+        max_iter = 1000
         max_estims = 400
     else:
         if orig_train.shape[0] <= 1000:
             no_iter=20
             test_size = 0.1
-            max_iter = 2000
+            max_iter = 250
             max_estims = 300
         else:
             no_iter=30
             test_size = 0.1
-            max_iter = 3000
+            max_iter = 700
             max_estims = 350
         early_stopping = 4
     #### The warnings from Sklearn are so annoying that I have to shut it off ####
@@ -341,7 +342,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         else:
             ### This is for Classification Problems Only ########
             print('Shuffling the data set before training')
-            train = train.sample(frac=1.0, random_state=seed)
+            orig_train = shuffle(train,random_state=seed)
+            start_train = shuffle(train,random_state=seed)
             scv = StratifiedKFold(n_splits=n_splits, random_state=seed, shuffle=True)
         if modeltype != 'Regression':
             rare_class = find_rare_class(train[each_target].values,verbose=1)
@@ -413,7 +415,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     string_cols = var_df['nlp_vars']+var_df['date_vars']
     del_cols = var_df['cols_delete']
     factor_cols = var_df['factor_vars']
-    numvars = var_df['continuous_vars']+var_df['int_vars']
+    numvars = var_df['continuous_vars']+var_df['int_vars']+var_df['num_bool_vars']
     cat_vars = var_df['string_bool_vars']+var_df['discrete_string_vars']+var_df['cat_vars']+var_df['factor_vars']
     ##### There are a couple of extra work you need to do to remove abberations in cat_vars ###
     cat_vars_copy = copy.deepcopy(cat_vars)
@@ -733,10 +735,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 c_params["CatBoost"] = {
                                 'learning_rate': [0.01,  0.05,  0.1],
                                 }
-                c_params['Linear'] = {
-                                'C': np.linspace(0.01,1000,50),
-                                'solver' :[ 'lbfgs' ],#'saga',, 'liblinear','newton-cg'
-                                'class_weight':[None,'balanced'],
+                if Imbalanced_Flag:
+                    c_params['Linear'] = {
+                                'C': np.linspace(0.001,100,50),
+                                'class_weight':[None, 'balanced'],
+                                    }
+                else:
+                    c_params['Linear'] = {
+                                'C': np.linspace(0.001,100,50),
                                     }
                 c_params["Forests"] = {
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets 
@@ -754,11 +760,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 c_params["CatBoost"] = {
                                 'learning_rate': [0.01,  0.05,  0.1],
                                 }
-                C = np.linspace(0.01,1000,50)
-                c_params['Linear'] = {
-                            'C': C, 
-                                'solver' :[ 'lbfgs'],#'saga', 'lbfgs', 'liblinear','newton-cg'
-                                'class_weight':[None,'balanced'],
+                if Imbalanced_Flag:
+                    c_params['Linear'] = {
+                                'C': np.linspace(0.001,100,50),
+                                'class_weight':[None, 'balanced'],
+                                    }
+                else:
+                    c_params['Linear'] = {
+                                'C': np.linspace(0.001,100,50),
                                     }
                 c_params["Forests"] = {
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets 
@@ -817,7 +826,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                      objective=objective)
                 elif Boosting_Flag is None:
                     #### I have set the Verbose to be False here since it produces too much output ###
-                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,
+                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,tol=0.01,
                                              warm_start=False, max_iter=max_iter)
                 else:
                     xgbm = ExtraTreesClassifier(
@@ -922,23 +931,22 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                          num_class= len(classes),
                                      objective=objective)
                 elif Boosting_Flag is None:
-                    if hyper_param == 'GS':
+                    if Imbalanced_Flag:
                         c_params['Linear'] = {
-                            'C': np.linspace(0.01,1000,50),
-                            'solver' :[ 'lbfgs'],# 'saga', 'newton-cg','lbfgs', 'liblinear',
-                            'multi_class': ['ovr','multinomial'],
-                                    }
+                                'C': np.linspace(0.001,100,50),
+                                'class_weight':[None, 'balanced'],
+                                'solver': ['saga','lbfgs'],
+                                'multi_class': ['multinomial'],
+                                }
                     else:
-                        # Create regularization hyperparameter distribution with 50 C values ####
-                        C = np.linspace(0.01,1000,50)
                         c_params['Linear'] = {
-                                            'C': C, 
-                                            'solver' :['lbfgs'],# newton-cg,'lbfgs', 'saga'],
-                                            'multi_class': ['ovr','multinomial'],
+                                    'C': np.linspace(0.001,100,50),
+                                    'solver': ['saga','lbfgs'],
+                                    'multi_class': ['multinomial'],
                                         }
                     #### I have set the Verbose to be False here since it produces too much output ###
                     xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,
-                                              max_iter=max_iter, warm_start=False,
+                                              max_iter=max_iter, warm_start=False,tol=0.01
                                               )
                 else:
                     if hyper_param == 'GS':
@@ -970,7 +978,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                                scoring = scorer,               
                                                n_jobs=-1,
                                                cv = scv,
-                                     verbose=0)
+                                               return_train_score = True,
+                                                verbose=0)
             else:
                 model = RandomizedSearchCV(xgbm,
                                                param_distributions = r_params[model_name],
@@ -987,9 +996,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 #### I have set the Verbose to be False here since it produces too much output ###
                 model = GridSearchCV(xgbm,param_grid=c_params[model_name], 
                                                scoring = scorer,               
+                                               return_train_score = True,
                                                n_jobs=-1,
                                                cv = scv,
-                                     verbose=0)
+                                                verbose=0)
             else:
                 #### I have set the Verbose to be False here since it produces too much output ###
                 model = RandomizedSearchCV(xgbm,
@@ -1036,7 +1046,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/40000.))
         ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
         ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
+        model_start_time = time.time()
         if modeltype != 'Regression':
+            ####### Imbalanced with Classification #################
             if Imbalanced_Flag:
                 try:
                     print('\nImbalanced Class Training using Majority Class Downsampling method...')
@@ -1064,6 +1076,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     print('Error in training Imbalanced model first time. Trying regular model..')
                     Imbalanced_Flag = False
             else:
+                ####### Regular with Classification #################
                 try:
                     if Boosting_Flag:
                         #### Set the Verbose to 0 since we don't want too much output ##
@@ -1088,18 +1101,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 print('Training regular model is Erroring: Check if your Input Data is in correct Format...')
                 return
         ##   TRAINING OF MODELS COMPLETED. NOW GET METRICS on CV DATA ################
+        print('    Model training time (seconds): %0.0f' %(time.time()-model_start_time))
         if modeltype != 'Regression':
             if scoring_parameter == 'logloss' or scoring_parameter == 'neg_log_loss' :
-                print('    Hyper Tuned %s = %0.4f' %(scoring_parameter, best_score))
+                print('    Cross Validation %s = %0.4f' %(scoring_parameter, best_score))
             elif scoring_parameter == '':
-                print('    Hyper Tuned  %s = %0.1f%%' %('Accuracy', best_score*100))
+                print('    Cross Validation  %s = %0.1f%%' %('Accuracy', best_score*100))
             else:
-                print('    Hyper Tuned  %s = %0.1f%%' %(scoring_parameter, best_score*100))
+                print('    Cross Validation  %s = %0.1f%%' %(scoring_parameter, best_score*100))
         else:
             if scoring_parameter == '':
-                print('    Hyper Tuned %s Score = %0.4f' %('RMSE', best_score))
+                print('    Cross Validation %s Score = %0.4f' %('RMSE', best_score))
             else:
-                print('    Hyper Tuned %s Score = %0.4f' %(scoring_parameter, best_score))
+                print('    Cross Validation %s Score = %0.4f' %(scoring_parameter, best_score))
         #### We now need to set the Best Parameters, Fit the Model on Full X_train and Predict on X_cv
         ### Find what the order of best params are and set the same as the original model ###
         print('Model Best Parameters = %s' %model.best_params_)
@@ -1222,11 +1236,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 print('########################################################################')
                 print('No Ensembling of models done since Stacking_Flag = True ')
             if verbose >= 1:
-                Draw_ROC_MC_ML(y_cv, y_proba, each_target, model_name, verbose)
+                try:
+                    Draw_ROC_MC_ML(y_cv, y_proba,y_pred, each_target, model_name, verbose)
+                except:
+                    print('    Could not draw ROC AUC curve')
                 try:
                     Draw_MC_ML_PR_ROC_Curves(model,X_cv,y_cv)
                 except:
-                    print('    Could not draw PR ROC AUC curve')
+                    print('    Could not draw Precision-Recall ROC AUC curve')
             #### In case there are special scoring_parameter requests, you can print it here!
             if scoring_parameter == 'roc_auc' or scoring_parameter == 'auc':
                 if len(classes) == 2:
@@ -1771,6 +1788,8 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                 train_categs = list(pd.unique(train[f].values))
                 dict_train =  return_factorized_dict(train_categs)
                 train[f] = train[f].map(dict_train)
+                catvars.append(f)
+            else:
                 catvars.append(f)
         except:
             continue
@@ -2535,9 +2554,9 @@ from matplotlib.pylab import rcParams
 figsize = (10, 6)
 rcParams['figure.figsize'] = figsize
 ##################################################################################
-def Draw_ROC_MC_ML(y_true, y_proba, target, model_name, verbose=0):
+def Draw_ROC_MC_ML(y_true, y_proba,y_pred,target, model_name, verbose=0):
     y_proba = y_proba[:]
-    y_pred = y_proba[:]
+    y_pred = y_pred[:]
     fpr = dict()
     tpr = dict()
     roc_auc = dict()
@@ -2550,10 +2569,12 @@ def Draw_ROC_MC_ML(y_true, y_proba, target, model_name, verbose=0):
         if n_classes == 2:
             ### Always set rare_class to 1 when there are only 2 classes for drawing ROC Curve!
             rare_class = 1
-        y_test = label_binarize(y_true, classes)
+        else:
+            rare_class = find_rare_class(y_true)
+            y_test = label_binarize(y_true, classes)
         try:
             if n_classes > 2:
-                if y_test.shape[1] == y_proba.shape[0]:
+                if y_test.shape[1] == y_proba.shape[1]:
                     classes = list(range(y_test.shape[1]))
                 else:
                     if y_proba.shape[1] > y_test.shape[1]:
@@ -2569,16 +2590,22 @@ def Draw_ROC_MC_ML(y_true, y_proba, target, model_name, verbose=0):
         #####################   This is where you calculate ROC_AUC for all classes #########
         for i in range(iterations):
             if n_classes==2:
-                fpr[rare_class], tpr[rare_class], _ = roc_curve(y_test.ravel(), y_pred[:,rare_class])
+                fpr[rare_class], tpr[rare_class], _ = roc_curve(y_test.ravel(), y_proba[:,rare_class])
                 roc_auc[rare_class] = auc(fpr[rare_class], tpr[rare_class])
             else:
-                fpr[i], tpr[i], _ = roc_curve(y_test[:,i], y_pred[:,i])
+                fpr[i], tpr[i], _ = roc_curve(y_test[:,i], y_proba[:,i])
                 roc_auc[i] = auc(fpr[i], tpr[i])
-        ### Compute Micro Average which is a row-by-row score 
+        ### Compute Micro Average which is a row-by-row score ###########
         try:
-            fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_pred.ravel())
+            if n_classes == 2:
+                fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_pred.ravel())
+            else:
+                fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(),label_binarize(y_pred, classes).ravel())
         except:
-            fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_pred[:,rare_class].ravel())
+            if y_test.ravel().shape[0] != y_pred.ravel().shape[0]:
+                pass
+            else:
+                fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_proba[:,rare_class].ravel())
         roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
         # micro-average ROC curve and ROC area has been computed
         labels = []
@@ -3228,7 +3255,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.461'
+    version_number = '0.1.462'
     print("""Running Auto_ViML version = %s.
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',
@@ -3240,7 +3267,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.461'
+    version_number = '0.1.462'
     print("""Imported Auto_ViML version = %s. 
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',

@@ -520,8 +520,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         train = start_train[[each_target]+red_preds]
         if type(orig_test) != str:
             test = start_test[red_preds]
-        print('Starting Feature Engg, Extraction and Model Training for target %s and %d predictors' %(
-                                                each_target,len(red_preds)))
+        print('    Feature Reduction begins: currently %d predictors' %(
+                                                len(red_preds)))
         ###### Add Polynomial Variables and Interaction Variables to Train ######
         if Add_Poly >= 1:
             print('\nCAUTION: Adding 2nd degree Polynomial & Interaction Variables may result in Overfitting!')
@@ -560,7 +560,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             train_sel = copy.deepcopy(numvars)
         #########     SELECT IMPORTANT FEATURES HERE   #############################
         if feature_reduction:
-            important_features,num_vars = find_top_features_xgb(train,red_preds,train_sel,
+            important_features,num_vars, imp_cats = find_top_features_xgb(train,red_preds,train_sel,
                                                          each_target,
                                                      modeltype,corr_limit,verbose)
         else:
@@ -641,8 +641,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         #### Remember that the next 2 lines are crucial: if X and y are dataframes, then predict_proba
         ###     will have to also predict on dataframes. So don't confuse values with df's. 
         ##      Be consistent with XGB. That's the best way.
-        print('Rows in Train data set = %d' %X_train.shape[0])
-        print('Features in Train data set = %d' %X_train.shape[1])
+        print('\nRows in Train data set = %d' %X_train.shape[0])
+        print('  Features in Train data set = %d' %X_train.shape[1])
         print('    Rows in held-out data set = %d' %X_cv.shape[0])
         data_dim = X_train.shape[0]*X_train.shape[1]
         ###   Setting up the Estimators for Single Label and Multi Label targets only
@@ -1019,7 +1019,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         if modeltype != 'Regression':
             ### Do this only for Binary Classes and Multi-Classes, both are okay
             baseline_accu = 1-(train[each_target].value_counts(1).sort_values())[rare_class]
-            print('Baseline Accuracy Needed for Model = %0.2f%%' %(baseline_accu*100))
+            print('    Baseline Accuracy Needed for Model = %0.2f%%' %(baseline_accu*100))
         print()
         if modeltype == 'Regression':
             if Boosting_Flag:
@@ -1104,19 +1104,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         print('    Model training time (seconds): %0.0f' %(time.time()-model_start_time))
         if modeltype != 'Regression':
             if scoring_parameter == 'logloss' or scoring_parameter == 'neg_log_loss' :
-                print('    Cross Validation %s = %0.4f' %(scoring_parameter, best_score))
+                print('Cross Validation %s = %0.4f' %(scoring_parameter, best_score))
             elif scoring_parameter == '':
-                print('    Cross Validation  %s = %0.1f%%' %('Accuracy', best_score*100))
+                print('Cross Validation  %s = %0.1f%%' %('Accuracy', best_score*100))
             else:
-                print('    Cross Validation  %s = %0.1f%%' %(scoring_parameter, best_score*100))
+                print('Cross Validation  %s = %0.1f%%' %(scoring_parameter, best_score*100))
         else:
             if scoring_parameter == '':
-                print('    Cross Validation %s Score = %0.4f' %('RMSE', best_score))
+                print('Cross Validation %s Score = %0.4f' %('RMSE', best_score))
             else:
-                print('    Cross Validation %s Score = %0.4f' %(scoring_parameter, best_score))
+                print('Cross Validation %s Score = %0.4f' %(scoring_parameter, best_score))
         #### We now need to set the Best Parameters, Fit the Model on Full X_train and Predict on X_cv
         ### Find what the order of best params are and set the same as the original model ###
-        print('Model Best Parameters = %s' %model.best_params_)
+        print('    Model Best Parameters = %s' %model.best_params_)
         gs = copy.deepcopy(model)
         model = gs.best_estimator_
         model.fit(X_train, y_train)
@@ -1398,7 +1398,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         feature_reduction = False #### Let's not do any more feature reduction after the first time!
         if feature_reduction:
             #########     SELECT IMPORTANT FEATURES FROM THE NEWLY ADDED FEATURES   ################
-            important_features,num_vars = find_top_features_xgb(train,important_features,num_vars,
+            important_features,num_vars, imp_cats = find_top_features_xgb(train,important_features,num_vars,
                                                          each_target,
                                                      modeltype,corr_limit,verbose)
         ############################################################################################
@@ -1812,7 +1812,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         #### Select those with less than 0.05 p-value #####
         cols_index = fs.pvalues_ < 0.05
         important_cats = np.array(catvars)[cols_index].tolist()
-        print('Selected %d categorical features using Linear feature selection methods' %len(important_cats))
+        print('Linear feature selection: selected %d categorical features ' %len(important_cats))
     elif max_feats == 1:
         important_cats = copy.deepcopy(catvars)
     else:
@@ -1865,11 +1865,11 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         iter_limit = 2
     else:
         iter_limit = int(train_p.shape[1]/5+0.5)
-    print('Selected No. of variables = %d ' %(train_p.shape[1],))
-    print('Finding Important Features...')
+    print('Current number of predictors = %d ' %(train_p.shape[1],))
+    print('    Finding Important Features using Boosted Trees algorithm...')
     for i in range(0,train_p.shape[1],iter_limit):
         if verbose >= 1:
-            print('        in %d variables' %(train_p.shape[1]-i))
+            print('        using %d variables...' %(train_p.shape[1]-i))
         if train_p.shape[1]-i < iter_limit:
             X = train_p.iloc[:,i:]
             if modeltype == 'Regression':
@@ -1912,10 +1912,11 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                 print('Multi Label possibly no feature importances.')
                 important_features = copy.deepcopy(preds)
     important_features = list(OrderedDict.fromkeys(important_features))
-    print('    Found %d important features' %len(important_features))
+    print('Found %d important features' %len(important_features))
     #print('    Time taken (in seconds) = %0.0f' %(time.time()-start_time))
     numvars = [x for x in numvars if x in important_features]
-    return important_features, numvars
+    important_cats = [x for x in important_cats if x in important_features]
+    return important_features, numvars, important_cats
 ###############################################
 def basket_recall(label, pred):
     """
@@ -2569,6 +2570,7 @@ def Draw_ROC_MC_ML(y_true, y_proba,y_pred,target, model_name, verbose=0):
         if n_classes == 2:
             ### Always set rare_class to 1 when there are only 2 classes for drawing ROC Curve!
             rare_class = 1
+            y_test = copy.deepcopy(y_true)
         else:
             rare_class = find_rare_class(y_true)
             y_test = label_binarize(y_true, classes)
@@ -2837,7 +2839,10 @@ def write_file_to_folder(df, each_target, base_filename, verbose=1):
         dir_name = str(each_target)
     filename = os.path.join(dir_name, base_filename)
     if verbose >= 1:
-        print('    Adding output files to current folder: ./%s' %filename)
+        if os.name == 'nt':
+            print('    Saving predictions to .\%s' %filename)
+        else:
+            print('    Saving predictions to ./%s' %filename)
         if not os.path.isdir(dir_name):
             os.mkdir(dir_name)
         df.to_csv(filename,index=False)
@@ -3204,10 +3209,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
         elif len(continuous_vars) > 50:
             max_depth = 10
             continuous_vars = continuous_vars[:50]
-        print('Binning Top %d continuous variables...' %len(continuous_vars))
-    else:
-        print('Leaving Top %d continuous variables as is...' %len(continuous_vars))
-    if entropy_binning:
+        print('Entropy Binning %d continuous variables...' %len(continuous_vars))
         new_bincols = []
         ###   This is an Awesome Entropy Based Binning for Continuous Variables ###########
         from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier 
@@ -3251,11 +3253,11 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
                 print('Error in %s during Entropy Binning' %each_num)
         print('    Binning and replacing %s numeric features.' %(len(new_bincols)))
     else:
-        print('    No Entropy Binning specified')
+        print('    No Entropy Binning specified or there are no numeric vars in data set to Bin')
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.462'
+    version_number = '0.1.463'
     print("""Running Auto_ViML version = %s.
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',
@@ -3267,7 +3269,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.462'
+    version_number = '0.1.463'
     print("""Imported Auto_ViML version = %s. 
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',

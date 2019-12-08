@@ -167,8 +167,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.460                                            #########
-    #####   MOST STABLE VERSION: Improved Cat handling with CatBoost.  Dec 7,2019                   #########
+    ######                               Version 0.1.465                                            #########
+    #####   MOST STABLE VERSION: Improved Cat handling with CatBoost.              Dec 8,2019       #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -3257,7 +3257,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.463'
+    version_number = '0.1.464'
     print("""Running Auto_ViML version = %s.
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',
@@ -3269,7 +3269,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.463'
+    version_number = '0.1.464'
     print("""Imported Auto_ViML version = %s. 
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',

@@ -6,3 +6,4 @@ matplotlib
 seaborn
 scikit-learn
 catboost
+shap

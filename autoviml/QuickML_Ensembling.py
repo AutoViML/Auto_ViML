@@ -133,12 +133,16 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             metrics2 = 0
         estimators.append(('Linear Discriminant',model6, metrics2))
         if modeltype == 'Binary_Classification':
-            if (X_train<0).astype(int).sum().sum() > 0:
+            float_cols = X_train.columns[(X_train.dtypes==float).values].tolist()
+            int_cols = X_train.columns[(X_train.dtypes==int).values].tolist()
+            if (X_train[float_cols+int_cols]<0).astype(int).sum().sum() > 0:
                 model7 = DecisionTreeClassifier(max_depth=5)
             else:
                 model7 = GaussianNB()
         else:
-            if (X_train<0).astype(int).sum().sum() > 0:
+            float_cols = X_train.columns[(X_train.dtypes==float).values].tolist()
+            int_cols = X_train.columns[(X_train.dtypes==int).values].tolist()
+            if (X_train[float_cols+int_cols]<0).astype(int).sum().sum() > 0:
                 model7 = DecisionTreeClassifier(max_depth=5)
             else:
                 model7 = MultinomialNB()

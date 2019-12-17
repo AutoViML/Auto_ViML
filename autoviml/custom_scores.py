@@ -33,6 +33,7 @@ def balanced_accuracy_score(y_true, y_pred, sample_weight=None,
         score -= chance
         score /= 1 - chance
     return score
+#####################################################################################
 def accu(results, y_cv):
     return (results==y_cv).astype(int).sum(axis=0)/(y_cv.shape[0])
 def rmse(results, y_cv):
@@ -72,10 +73,7 @@ def gini_accuracy(truth, predictions):
     return accuracy_score(truth, predictions)
 
 def gini_bal_accuracy(truth, predictions):
-    try:
-        return balanced_accuracy_score(truth, predictions)
-    except:
-        return accuracy_score(truth, predictions)
+    return balanced_accuracy_score(truth, predictions)
 
 def gini_roc(truth, predictions):
     return roc_auc_score(truth, predictions)

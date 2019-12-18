@@ -1097,7 +1097,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
                 gs = copy.deepcopy(xgbm)
         #trains and optimizes the model
-        eval_set = [(X_cv, y_cv)]
+        eval_set = [(X_train,y_train),(X_cv,y_cv)]
         print('Finding Best Model and Hyper Parameters for Target: %s...' %each_target)
         ##### Here is where we put the part_train and part_cv together ###########
         if modeltype != 'Regression':
@@ -1235,16 +1235,16 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         print('    Model training time (in seconds): %0.0f' %(time.time()-model_start_time))
         if modeltype != 'Regression':
             if scoring_parameter == 'logloss' or scoring_parameter == 'neg_log_loss' :
-                print('$d-fold Cross Validation %s = %0.4f' %(n_splits,scoring_parameter, best_score))
+                print('{}-fold Cross Validation {} = {}'.format(n_splits, scoring_parameter, best_score))
             elif scoring_parameter == '':
                 print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,'Accuracy', best_score*100))
             else:
                 print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,scoring_parameter, best_score*100))
         else:
             if scoring_parameter == '':
-                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,'RMSE', best_score))
+                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,'RMSE', -1*best_score))
             else:
-                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,scoring_parameter, best_score))
+                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,scoring_parameter, -1*best_score))
         #### We now need to set the Best Parameters, Fit the Model on Full X_train and Predict on X_cv
         ### Find what the order of best params are and set the same as the original model ###
         if hyper_param == 'RS' or hyper_param == 'GS':
@@ -1937,18 +1937,23 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         except:
             continue
     max_feats = len(catvars)
+    print('Linear feature selection: out of %d categorical features...' %max_feats)
     if max_feats > 1:
         if modeltype == 'Regression':
             sel_function = mutual_info_regression
+            fs = SelectKBest(score_func=sel_function, k=max_feats)
+            fs.fit(train[catvars], train[target])
+            #### Select those with less than 0.05 p-value #####
+            cols_index = fs.scores_ != 0.0
         else:
             #sel_function = mutual_info_classif
             sel_function = chi2
-        fs = SelectKBest(score_func=sel_function, k=max_feats)
-        fs.fit(train[catvars], train[target])
-        #### Select those with less than 0.05 p-value #####
-        cols_index = fs.pvalues_ < 0.05
+            fs = SelectKBest(score_func=sel_function, k=max_feats)
+            fs.fit(train[catvars], train[target])
+            #### Select those with less than 0.05 p-value #####
+            cols_index = fs.pvalues_ < 0.05
         important_cats = np.array(catvars)[cols_index].tolist()
-        print('Linear feature selection: selected %d categorical features ' %len(important_cats))
+        print('    Selecting %d categorical features' %len(important_cats))
     elif max_feats == 1:
         important_cats = copy.deepcopy(catvars)
     else:
@@ -2015,7 +2020,8 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                 X_train, X_cv, y_train, y_cv = train_test_split(X, y, 
                                                             test_size=test_size, random_state=seed)
             try:
-                model_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,eval_set=[(X_cv,y_cv)],
+                eval_set = [(X_train,y_train),(X_cv,y_cv)]
+                model_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,eval_set=eval_set,
                                     eval_metric=eval_metric,verbose=False)
             except:
                 print('XGB is Erroring. Check if there are missing values in your data and try again...')
@@ -2037,8 +2043,9 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
             else:
                 X_train, X_cv, y_train, y_cv = train_test_split(X, y, 
                                                             test_size=test_size, random_state=seed)
+            eval_set = [(X_train,y_train),(X_cv,y_cv)]
             model_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,
-                          eval_set=[(X_cv,y_cv)],eval_metric=eval_metric,verbose=False)
+                          eval_set=eval_set,eval_metric=eval_metric,verbose=False)
             try:
                 [important_features.append(x) for x in list(pd.concat([pd.Series(model_xgb.feature_importances_
                         ),pd.Series(list(X_train.columns.values))],axis=1).rename(columns={0:'importance',1:'column'
@@ -3426,8 +3433,8 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.467'
-    print("""Running Auto_ViML version: %s.
+    version_number = '0.1.468'
+    print("""Running Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',
                                     scoring_parameter='',
@@ -3438,8 +3445,8 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.467'
-    print("""Imported Auto_ViML version: %s. 
+    version_number = '0.1.468'
+    print("""Imported Auto_ViML version: %s. Call using: 
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',
                                     scoring_parameter='',

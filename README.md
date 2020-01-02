@@ -2,7 +2,7 @@
 
 ## Automatically Build Variant Interpretable ML models fast!<p>
 Auto_ViML (pronounced as "auto vimal")
-Read this Medium article to learn how to use <a href="https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46?source=friends_link&sk=d03a0cc55c23deb497d546d6b9be0653">Auto_ViML</a>. 
+Read this Medium article to learn how to use <a href="https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46?source=friends_link&sk=d03a0cc55c23deb497d546d6b9be0653">Auto_ViML</a>.<p> 
     #########################################################################################################
     #############       This is not an Officially Supported Google Product!         #########################
     #########################################################################################################

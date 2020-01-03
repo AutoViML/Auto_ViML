@@ -191,8 +191,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.466                                            #########
-    #####   MOST STABLE VERSION: Improved Cat handling with CatBoost.              Dec 8,2019       #########
+    ######                               Version 0.1.469                                            #########
+    #####   MOST STABLE VERSION: Improved Cat handling with CatBoost.              Jan 2,2020       #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -1176,12 +1176,16 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         best_score = model.best_score_
                     else:
                         if model_class == 'Binary-Class':
-                            best_score = model.best_score_['validation'][catboost_scoring]
+                            if len(eval_set) == 1:
+                                best_score = model.best_score_['validation'][catboost_scoring]
+                            elif len(eval_set) == 2:
+                                best_score = model.best_score_['validation_1'][catboost_scoring]
                         else:
                             best_score = model.best_score_['validation'][validation_metric]
                 except:
                     print('Error in training Imbalanced model first time. Trying regular model..')
                     Imbalanced_Flag = False
+                    best_score = 0
             else:
                 model = copy.deepcopy(gs)
                 ####### Regular with Classification #################
@@ -1202,7 +1206,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         best_score = model.best_score_
                     else:
                         if model_class == 'Binary-Class':
-                            best_score = model.best_score_['validation'][catboost_scoring]
+                            if len(eval_set) == 1:
+                                best_score = model.best_score_['validation'][catboost_scoring]
+                            elif len(eval_set) == 2:
+                                best_score = model.best_score_['validation_1'][catboost_scoring]
                         else:
                             best_score = model.best_score_['validation'][validation_metric]
                 except:
@@ -1574,7 +1581,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             if model_name == 'XGBoost':
                                 #### Set the Verbose to 0 since we don't want too much output ##
                                 model.fit(X, y, 
-                                        eval_metric=eval_metric,silent=True)
+                                        eval_metric=eval_metric,verbose=0)
                             else:
                                 model.fit(X, y, cat_features=imp_cats)
                         else:
@@ -1586,7 +1593,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             if model_name == 'XGBoost':
                                 #### Set the Verbose to 0 since we don't want too much output ##
                                 model.fit(X, y, 
-                                        eval_metric=eval_metric,silent=True)
+                                        eval_metric=eval_metric,verbose=0)
                             else:
                                 model.fit(X, y, cat_features=imp_cats)
                     else:
@@ -1610,7 +1617,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 if Boosting_Flag:
                     if model_name == 'XGBoost':
                         model.fit(X, y,
-                            eval_metric=eval_metric,verbose=verbose)
+                            eval_metric=eval_metric,verbose=0)
                     else:
                         model.fit(X, y, cat_features=imp_cats)
                 else:
@@ -1990,7 +1997,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                 max_depth=5, min_child_weight=1, missing=-999, n_estimators=100,
                 n_jobs=-1, nthread=None, objective='binary:logistic',
                 random_state=1, reg_alpha=0.5, reg_lambda=0.5, scale_pos_weight=1,
-                seed=1, silent=True)
+                seed=1)
             eval_metric = 'logloss'
         else:
             model_xgb = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
@@ -1998,7 +2005,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                 max_depth=5, min_child_weight=1, missing=-999, n_estimators=100,
                 n_jobs=-1, nthread=None, objective='multi:softmax',
                 random_state=1, reg_alpha=0.5, reg_lambda=0.5, scale_pos_weight=1,
-                seed=1, silent=True)
+                seed=1)
             eval_metric = 'mlogloss'
     ####   This is where you start to Iterate on Finding Important Features ################
     train_p = train[preds]
@@ -3057,7 +3064,11 @@ def downsampling_with_model_training(X_df,y_df,eval_set,model,Boosting_Flag,eval
         print('This is not an Imbalanced data set. Training in one batch...')
         if Boosting_Flag:
             if model_name == 'XGBoost':
-                model.fit(X_df,y_df, early_stopping_rounds=early_stopping,
+                if eval_set==[()]:
+                    model.fit(X_df,y_df, 
+                        eval_metric=eval_metric, verbose=False)
+                else:
+                    model.fit(X_df,y_df, early_stopping_rounds=early_stopping,
                         eval_metric=eval_metric,eval_set=eval_set,verbose=False)
             else:
                 if eval_set == [()]:
@@ -3094,8 +3105,18 @@ def downsampling_with_model_training(X_df,y_df,eval_set,model,Boosting_Flag,eval
                 X_train = train_batch[train_preds]
                 y_train = train_batch[df_target]
                 if Boosting_Flag:
-                    model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
+                    if model_name == 'XGBoost':
+                        if eval_set==[()]:
+                            model.fit(X_df,y_df, 
+                                eval_metric=eval_metric, verbose=False)
+                        else:
+                            model.fit(X_df,y_df, early_stopping_rounds=early_stopping,
                                 eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                    else:
+                        if eval_set == [()]:
+                            model.fit(X_df,y_df, cat_features=imp_cats)
+                        else:                    
+                            model.fit(X_df,y_df, cat_features=imp_cats,eval_set=eval_set)
                     if verbose >= 1:
                         print('             Batch Training completed' )
                         print('        Time Taken = %0.0f (in seconds)' %(
@@ -3433,7 +3454,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.468'
+    version_number = '0.1.469'
     print("""Running Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',
@@ -3445,7 +3466,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.468'
+    version_number = '0.1.469'
     print("""Imported Auto_ViML version: %s. Call using: 
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',

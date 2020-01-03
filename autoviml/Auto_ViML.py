@@ -191,8 +191,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.469                                            #########
-    #####   MOST STABLE VERSION: Improved Cat handling with CatBoost.              Jan 2,2020       #########
+    ######                               Version 0.1.470                                            #########
+    #####   MOST STABLE VERSION: Improved CatBoost and XGBoost handling + more plots.Jan 2,2020     #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -1258,7 +1258,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             print('    Best Parameters for Model = %s' %model.best_params_)
         else:
             #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
-            print('%s    Best Parameters for Model: Iterations = %s, learning_rate = %0.2f' %(
+            print('    %s Best Parameters for Model: Iterations = %s, learning_rate = %0.2f' %(
                                 model_name, model.get_all_params()['iterations'],model.get_all_params()['learning_rate']))
         if hyper_param == 'RS' or hyper_param == 'GS':
             #### In the case of CatBoost, we don't do any Hyper Parameter tuning #########
@@ -1283,7 +1283,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 except:
                     best_f1 = f1_score(y_cv, y_pred)
                     m_thresh = 0.5
-                print("    Using threshold=0.5. However, %0.2f provides better F1=%0.2f in CV data..." %(m_thresh,best_f1))
+                print("    Using threshold=0.5. However, %0.2f provides better F1=%0.2f for rare class..." %(m_thresh,best_f1))
                 ###y_pred = (y_proba[:,rare_class]>=m_thresh).astype(int)
                 y_pred = (y_proba[:,1]>0.5).astype(int)
             else:
@@ -1437,24 +1437,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 if model_name != 'CatBoost':
                     plot_RS_params(gs.cv_results_, scoring_parameter, each_target)
                 else:
-                    if modeltype != 'Regression':
-                        if len(classes) <= 2:
-                            cat_evals = pd.DataFrame([model.get_evals_result()['learn'][catboost_scoring],
-                                            model.get_evals_result()['validation'][validation_metric]]).T
-                            cat_evals.columns = ['learn','validation']
-                            cat_evals.plot(title=catboost_scoring,figsize=(10,6))
+                    print('No hyper param tuning plots available for this model')
         except:
             print('Could not plot Cross Validation Parameters')
         try:
             if Boosting_Flag and verbose >= 1:
-                if model_name != 'CatBoost':
-                    #### This plot is only for XGBoost ############
-                    plot_xgb_metrics(model,eval_metric,eval_set,modeltype,'%s Results' %each_target)
+                if model_name == 'CatBoost':
+                    plot_xgb_metrics(model,catboost_scoring,eval_set,modeltype,'%s Results' %each_target,
+                                    model_name)
                 else:
-                    cat_log = pd.DataFrame([model.get_evals_result()['learn'][loss_function],
-                                    model.get_evals_result()['validation'][loss_function]]).T
-                    cat_log.columns = ['learn','validation']
-                    cat_log.plot(title='%s Loss Function' %loss_function,figsize=(10,6))
+                    plot_xgb_metrics(model,eval_metric,eval_set,modeltype,'%s Results' %each_target,
+                                    model_name)
+            else:
+                 print('No evaluation metrics plot available for this model')
         except:
             print('Could not plot Model Evaluation Results Metrics')
         print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
@@ -2207,11 +2202,14 @@ def plot_RS_params(cv_results, score, mname):
     plt.show();
     return df
 ################################################################################
-def plot_xgb_metrics(model,eval_metric,eval_set,modeltype,model_label=''):
+def plot_xgb_metrics(model,eval_metric,eval_set,modeltype,model_label='',model_name=""):
     height_size = 5
     width_size = 10
-    if modeltype == 'Regression':
+    if model_name == 'CatBoost':
+        results = model.get_evals_result()
+    else:
         results = model.evals_result()
+    if modeltype == 'Regression':
         epochs = len(results['validation_0'][eval_metric])
         x_axis = range(0, epochs)
         # plot log loss
@@ -2223,12 +2221,11 @@ def plot_xgb_metrics(model,eval_metric,eval_set,modeltype,model_label=''):
             ax.plot(x_axis, results['validation_1'][eval_metric], label='Cross Validation')
         ax.legend()
         plt.ylabel('RMSE')
-        plt.title('%s Train and CV Model Performance RMSE vs Epochs' %model_label)
+        plt.title('%s Train and CV Model Performance: Error vs Epochs' %model_label)
         plt.show();
     else:
         # retrieve performance metrics
         # plot classification error
-        results = model.evals_result()
         epochs = len(results['validation_0'][eval_metric])
         x_axis = range(0, epochs)
         # plot log loss
@@ -2241,8 +2238,8 @@ def plot_xgb_metrics(model,eval_metric,eval_set,modeltype,model_label=''):
             ax.plot(x_axis, results['validation_0'][eval_metric], label='Train')
             ax.plot(x_axis, results['validation_1'][eval_metric], label='Cross Validation')
         ax.legend()
-        plt.ylabel('Log Loss')
-        plt.title('%s Validation Metrics: Classification Error vs Epochs' %model_label)
+        plt.ylabel(eval_metric)
+        plt.title('%s Validation Metrics: Classification Metric vs Epochs' %model_label)
         plt.show();
 ######### NEW And FAST WAY to CLASSIFY COLUMNS IN A DATA SET #######
 def classify_columns(df_preds, verbose=0):
@@ -3454,7 +3451,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.469'
+    version_number = '0.1.470'
     print("""Running Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',
@@ -3466,7 +3463,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.469'
+    version_number = '0.1.470'
     print("""Imported Auto_ViML version: %s. Call using: 
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',

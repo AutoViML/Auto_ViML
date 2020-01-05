@@ -19,7 +19,8 @@ warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
 warnings.filterwarnings(action='ignore', category=DataConversionWarning)
 
-from sklearn.linear_model import LassoCV
+from sklearn.linear_model import LassoCV, RidgeCV
+from sklearn.linear_model import Lasso, Ridge
 from sklearn.model_selection import StratifiedShuffleSplit
 import matplotlib.pylab as plt
 get_ipython().magic(u'matplotlib inline')
@@ -191,7 +192,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.470                                            #########
+    ######                               Version 0.1.471                                            #########
     #####   MOST STABLE VERSION: Improved CatBoost and XGBoost handling + more plots.Jan 2,2020     #########
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
@@ -299,6 +300,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     catboost_limit = 0.4 #### The catboost_limit represents the percentage of num vars in data. ANy lower, CatBoost is used.
     cat_code_limit = 100 #### If the number of dummy variables to create in a data set exceeds this, CatBoost is the default Algorithm used 
     one_hot_size = 100 #### This determines the max length of one_hot_max_size parameter of CatBoost algrithm
+    C_min = 10e-5  ### The lowest value of C used in Logistic Regression
+    C_max = 100  ### The highest value of C used in Logistic Regression
+    Alpha_max = 2 #### The highest value of Alpha in LOGSPACE that is used in Lasso or Ridge Regression 
     n_steps = 4 ### number of estimator steps between 100 and max_estims 
     ##########   This is where some more default parameters are set up ######
     data_dimension = orig_train.shape[0]*orig_train.shape[1]  ### number of cells in the entire data set .
@@ -502,6 +506,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             loss_function = 'RMSE'
             validation_metric = 'RMSE'
             catboost_scoring = 'RMSE'
+    else:
+        validation_metric = copy.deepcopy(scoring_parameter)
     ######  Fill Missing Values, Scale Data and Classify Variables Here ###
     if len(preds) > 0:
         dict_train = {}
@@ -567,6 +573,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     ####     with it after each_target cycle is completed. Very important!
     orig_red_preds = copy.deepcopy(red_preds)
     for each_target in target:
+        print('\nDetected this as a %s problem...' %modeltype)
         ########   D E F I N I N G   N E W  T R A I N and N E W   T E S T here #########################
         ####  This is where we set the orig train data set with multiple labels to the new start_train
         ####     start_train has the new features added or reduced with the multi targets in one cycle
@@ -574,10 +581,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         train = start_train[[each_target]+red_preds]
         if type(orig_test) != str:
             test = start_test[red_preds]
-        print('    Feature Selection begins: currently %d predictors' %(
+        print('    After variable removal, %d predictors left...' %(
                                                 len(red_preds)))
         ###### Add Polynomial Variables and Interaction Variables to Train ######
-        print('\nData Ready for Modeling with %s as Target...' %each_target)
         if Add_Poly >= 1:
             print('\nCAUTION: Adding 2nd degree Polynomial & Interaction Variables may result in Overfitting!')
             ## Since the data is already scaled, we set scaling to None here ##
@@ -631,7 +637,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             ####  we need to set the rem_vars in case there is no feature reduction #######
             imp_cats = left_subtract(important_features,num_vars)
         if verbose and len(important_features) <= 30:
-            print('    Features list: %s' %important_features)
+            print('    Selected Features: %s' %important_features)
         ### Training an XGBoost model to find important features
         train = train[important_features+[each_target]]
         ######################################################################
@@ -733,7 +739,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 "criterion" : ['mse','mae'],
                                 },
                         "Linear": {
-                            'alpha': np.logspace(-3,3), 
+                            'alpha': np.logspace(-5,Alpha_max,1000), 
                                 },
                         "XGBoost": {
                                 'max_depth': [2,5,10],
@@ -754,7 +760,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 "criterion" : ['mse','mae'],
                                 },
                         "Linear": {
-                            'alpha': np.logspace(-3,3), 
+                            'alpha': np.logspace(-5,Alpha_max,1000), 
                                 },
                         "XGBoost": {
                                 'max_depth': [2,5,10],
@@ -778,7 +784,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                          colsample_bytree=col_sub_sample,
                                         objective=objective)
             elif Boosting_Flag is None:
-                xgbm = Lasso(max_iter=max_iter,random_state=seed)
+                #xgbm = Lasso(max_iter=max_iter,random_state=seed)
+                xgbm = Ridge(max_iter=max_iter,random_state=seed)
             else:
                 xgbm = ExtraTreesRegressor(
                                 **{
@@ -803,18 +810,18 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 }
                 if Imbalanced_Flag:
                     c_params['Linear'] = {
-                                'C': np.linspace(0.001,100,50),
+                                    'C': np.linspace(C_min,C_max,100),
                                 'class_weight':[None, 'balanced'],
                                     }
                 else:
                     if not Imbalanced_Flag:
                         c_params['Linear'] = {
-                                    'C': np.linspace(0.001,100,50),
+                                    'C': np.linspace(C_min,C_max,100),
                                     'solver' :[ 'lbfgs','saga', 'liblinear','newton-cg']
                                         }
                     else:
                         c_params['Linear'] = {
-                                    'C': np.linspace(0.001,100,50),
+                                    'C': np.linspace(C_min,C_max,100),
                                     'solver' :[ 'lbfgs' ],#'saga', 'liblinear','newton-cg'
                                     'class_weight':[None,'balanced'],
                                         }
@@ -836,12 +843,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 }
                 if Imbalanced_Flag:
                     c_params['Linear'] = {
-                                'C': np.linspace(0.001,100,50),
+                                    'C': np.linspace(C_min,C_max,100),
                                 'class_weight':[None, 'balanced'],
                                     }
                 else:
                     c_params['Linear'] = {
-                                'C': np.linspace(0.001,100,50),
+                                    'C': np.linspace(C_min,C_max,100),
                                     }
                 c_params["Forests"] = {
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets 
@@ -1011,14 +1018,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 elif Boosting_Flag is None:
                     if Imbalanced_Flag:
                         c_params['Linear'] = {
-                                'C': np.linspace(0.001,100,50),
+                                    'C': np.linspace(C_min,C_max,100),
                                 'class_weight':[None, 'balanced'],
                                 'solver': ['saga','lbfgs'],
                                 'multi_class': ['multinomial'],
                                 }
                     else:
                         c_params['Linear'] = {
-                                    'C': np.linspace(0.001,100,50),
+                                    'C': np.linspace(C_min,C_max,100),
                                     'solver': ['saga','lbfgs'],
                                     'multi_class': ['multinomial'],
                                         }
@@ -1111,11 +1118,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     data_dim = data_dim*one_hot_size/len(preds)
                     print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/2000000.))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/20000.))
+                    print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/200000.))
             elif Boosting_Flag is None:
-                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/50000.))
+                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/800000.))
             else:
-                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/40000.))
+                print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/400000.))
         else:
             if hyper_param == 'GS':
                 if Boosting_Flag:
@@ -1143,9 +1150,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
         ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
         model_start_time = time.time()
-        if modeltype != 'Regression':
-            ####### Imbalanced with Classification #################
-            if Imbalanced_Flag:
+        ################################################################################################################################
+        #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! ##############
+        ################################################################################################################################
+        if Imbalanced_Flag:
+            if modeltype == 'Regression':
+                ###########  In case someone sets the Imbalanced_Flag mistakenly to True and it is Regression, you must set it to False ######
+                Imbalanced_Flag = False
+            else:
+                ####### Imbalanced with Classification #################
                 try:
                     print('\nImbalanced Class Training using Majority Class Downsampling method...')
                     #### The model is the downsampled model Trained on downsampled data sets. ####
@@ -1175,68 +1188,40 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     if hyper_param == 'RS' or hyper_param == 'GS':
                         best_score = model.best_score_
                     else:
-                        if model_class == 'Binary-Class':
-                            if len(eval_set) == 1:
-                                best_score = model.best_score_['validation'][catboost_scoring]
-                            elif len(eval_set) == 2:
-                                best_score = model.best_score_['validation_1'][catboost_scoring]
-                        else:
-                            best_score = model.best_score_['validation'][validation_metric]
+                        val_keys = list(model.best_score_.keys())
+                        best_score = model.best_score_[val_keys[-1]][validation_metric]
                 except:
                     print('Error in training Imbalanced model first time. Trying regular model..')
                     Imbalanced_Flag = False
                     best_score = 0
-            else:
-                model = copy.deepcopy(gs)
-                ####### Regular with Classification #################
-                try:
-                    if Boosting_Flag:
-                        if model_name == 'XGBoost':
-                            #### Set the Verbose to 0 since we don't want too much output ##
-                            model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
-                                    eval_metric=eval_metric,eval_set=eval_set,verbose=0)
-                        else:
-                            try:
-                                model.fit(X_train, y_train, cat_features=imp_cats,eval_set=(X_cv,y_cv))
-                            except:
-                                model.fit(X_train, y_train, cat_features=imp_cats)
-                    else:
-                        model.fit(X_train, y_train)
-                    if hyper_param == 'RS' or hyper_param == 'GS':
-                        best_score = model.best_score_
-                    else:
-                        if model_class == 'Binary-Class':
-                            if len(eval_set) == 1:
-                                best_score = model.best_score_['validation'][catboost_scoring]
-                            elif len(eval_set) == 2:
-                                best_score = model.best_score_['validation_1'][catboost_scoring]
-                        else:
-                            best_score = model.best_score_['validation'][validation_metric]
-                except:
-                    print('Training regular model first time is Erroring: Check if your Input is correct...')
-                    return
-        else:
-            ########### This is for Regression Model Training ###################
-            model = copy.deepcopy(gs)
+        ################################################################################################################################
+        #######   Though this next step looks like it is a Coding Mistake by Me, don't change it!!! ################### 
+        #######   This is for case when Imbalanced with Classification succeeds, this next step is skipped ############ 
+        ################################################################################################################################
+        if not Imbalanced_Flag:
+            ########### This is for both regular Regression and regular Classification Model Training. It is not a Mistake #############
+            ########### In case Imbalanced training fails, this method is also tried. That's why we test the Flag here!!  #############
             try:
+                model = copy.deepcopy(gs)
                 if Boosting_Flag:
                     if model_name == 'XGBoost':
                         #### Set the Verbose to 0 since we don't want too much output ##
                         model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
-                            eval_metric=eval_metric,eval_set=eval_set,verbose=0)
+                                eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                     else:
                         try:
-                            model.fit(X_train, y_train, cat_features=cat_vars,eval_set=(X_cv,y_cv))
+                            model.fit(X_train, y_train, cat_features=imp_cats,eval_set=(X_cv,y_cv))
                         except:
-                            model.fit(X_train, y_train, cat_features=cat_vars)
+                            model.fit(X_train, y_train, cat_features=imp_cats)
                 else:
                     model.fit(X_train, y_train)
                 if hyper_param == 'RS' or hyper_param == 'GS':
                     best_score = model.best_score_
                 else:
-                    best_score = model.best_score_['validation'][validation_metric]
+                    val_keys = list(model.best_score_.keys())
+                    best_score = model.best_score_[val_keys[-1]][validation_metric]
             except:
-                print('Training regular model is Erroring: Check if your Input Data is in correct Format...')
+                print('Training regular model first time is Erroring: Check if your Input is correct...')
                 return
         ##   TRAINING OF MODELS COMPLETED. NOW GET METRICS on CV DATA ################
         print('    Model training time (in seconds): %0.0f' %(time.time()-model_start_time))
@@ -1248,10 +1233,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             else:
                 print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,scoring_parameter, best_score*100))
         else:
+            ######### This is for Regression only ###############
+            if best_score < 0:
+                best_score = best_score*-1
             if scoring_parameter == '':
-                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,'RMSE', -1*best_score))
+                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,'RMSE', best_score))
             else:
-                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,scoring_parameter, -1*best_score))
+                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,scoring_parameter, best_score))
         #### We now need to set the Best Parameters, Fit the Model on Full X_train and Predict on X_cv
         ### Find what the order of best params are and set the same as the original model ###
         if hyper_param == 'RS' or hyper_param == 'GS':
@@ -1262,7 +1250,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 model_name, model.get_all_params()['iterations'],model.get_all_params()['learning_rate']))
         if hyper_param == 'RS' or hyper_param == 'GS':
             #### In the case of CatBoost, we don't do any Hyper Parameter tuning #########
-            best_model = model.best_estimator_
+            gs = copy.deepcopy(model)
             model = model.best_estimator_
         ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
         performed_ensembling = False
@@ -1311,6 +1299,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         ## This is where we set the best parameters from training to the model ####
         if modeltype == 'Regression':
             if not Stacking_Flag:
+                print('########################################################')
                 try:
                     cols = []
                     subm = pd.DataFrame()
@@ -1327,7 +1316,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             subm[new_col] = cv_ensembles[:,each]
                         cols.append(new_col)
                     y_pred = subm[cols].mean(axis=1)
-                    print('########################################################')
                     print('Completed Ensemble predictions on held out data')
                     performed_ensembling = True
                     print_regression_model_stats(y_cv.values, y_pred.values,'Ensemble Model: Model Predicted vs Actual')
@@ -1339,6 +1327,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             ### Find what the order of best params are and set the same as the original model ###
             ## This is where we set the best parameters from training to the model ####
             if not Stacking_Flag:    
+                print('########################################################')
                 #### We do Ensembling only if the Stacking_Flag is False. Otherwise, we don't!
                 try:
                     classes = label_dict[each_target]['classes']
@@ -1409,7 +1398,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     count += 1
         if not Stacking_Flag and performed_ensembling: 
             if modeltype == 'Regression':
-                rmsle_calculated_f = rmse(y_cv, y_pred)
+                rmsle_calculated_f = rmse(y_cv.values, y_pred.values)
                 print('After multiple models, Ensemble Model Results:')
                 print('    RMSE Score = %0.1f' %(rmsle_calculated_f,))
                 if rmsle_calculated_f < rmsle_calculated_m:
@@ -1432,14 +1421,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 else:
                     print('\nSingle Model is better than Ensembling Models for this data set.')
                     error_rate.append(rmsle_calculated_m)
-        try:
-            if verbose >= 2:
-                if model_name != 'CatBoost':
+        if verbose >= 2:
+            if model_name != 'CatBoost':
+                try:
                     plot_RS_params(gs.cv_results_, scoring_parameter, each_target)
-                else:
-                    print('No hyper param tuning plots available for this model')
-        except:
-            print('Could not plot Cross Validation Parameters')
+                except:
+                    print('Could not plot Cross Validation Parameters')
+            else:
+                print('No hyper param tuning plots available for this model')
         try:
             if Boosting_Flag and verbose >= 1:
                 if model_name == 'CatBoost':
@@ -1903,7 +1892,9 @@ def plot_SHAP_values(m,X,Boosting_Flag=False,matplotlib_flag=False):
     else:
         shap.summary_plot(shap_values, X, plot_type="bar")
 
+################################################################################
 ################      Find top features using XGB     ###################
+################################################################################
 from xgboost.sklearn import XGBClassifier
 from xgboost.sklearn import XGBRegressor
 from sklearn.feature_selection import SelectKBest
@@ -1939,8 +1930,8 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         except:
             continue
     max_feats = len(catvars)
-    print('Linear feature selection: out of %d categorical features...' %max_feats)
     if max_feats > 1:
+        print('    Linear feature selection: out of %d categorical features...' %max_feats)
         if modeltype == 'Regression':
             sel_function = mutual_info_regression
             fs = SelectKBest(score_func=sel_function, k=max_feats)
@@ -1957,8 +1948,10 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         important_cats = np.array(catvars)[cols_index].tolist()
         print('    Selecting %d categorical features' %len(important_cats))
     elif max_feats == 1:
+        print('    No Categorical feature selection since %d categorical features...' %max_feats)
         important_cats = copy.deepcopy(catvars)
     else:
+        print('    No Categorical feature selection since %d categorical features...' %max_feats)
         important_cats = []
     if len(numvars) > 0:
         final_list = remove_variables_using_fast_correlation(train,numvars,corr_limit,verbose)
@@ -2062,7 +2055,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     numvars = [x for x in numvars if x in important_features]
     important_cats = [x for x in important_cats if x in important_features]
     return important_features, numvars, important_cats
-###############################################
+################################################################################
 def basket_recall(label, pred):
     """
     This tests the recall of a given basket of items in a label by the second basket, pred.
@@ -2092,7 +2085,7 @@ def basket_recall(label, pred):
         union = (len(list1) + len(list2)) - intersection
         jacc_arr = float(intersection / union)
     return jacc_arr
-#################################################
+################################################################################
 def jaccard_singlelabel(label, pred):
     """
     This compares 2 baskets (could be lists or arrays): label and pred, and finds common items
@@ -2170,6 +2163,9 @@ def plot_RS_params(cv_results, score, mname):
     width_size = 15
     fig = plt.figure(figsize=(width_size,rows*height_size))
     fig.suptitle('Training and Validation: Hyper Parameter Tuning for target=%s' %mname, fontsize=20,y=1.01)
+    #### If the values are negative, convert them to positive ############
+    if len(df[(df[cols]<0)]) > 0:
+        df[cols] = df[cols]*-1
     for each_param, count in zip(params, range(noplots)):
         plt.subplot(rows,ncols,count+1)
         ax1 = plt.gca()
@@ -2209,39 +2205,24 @@ def plot_xgb_metrics(model,eval_metric,eval_set,modeltype,model_label='',model_n
         results = model.get_evals_result()
     else:
         results = model.evals_result()
-    if modeltype == 'Regression':
-        epochs = len(results['validation_0'][eval_metric])
-        x_axis = range(0, epochs)
-        # plot log loss
-        fig, ax = plt.subplots(figsize=(width_size, height_size))
-        if len(eval_set) == 1:
-            ax.plot(x_axis, results['validation_0'][eval_metric], label='Cross Validation')
-        else:
-            ax.plot(x_axis, results['validation_0'][eval_metric], label='Train')
-            ax.plot(x_axis, results['validation_1'][eval_metric], label='Cross Validation')
-        ax.legend()
-        plt.ylabel('RMSE')
-        plt.title('%s Train and CV Model Performance: Error vs Epochs' %model_label)
-        plt.show();
-    else:
-        # retrieve performance metrics
-        # plot classification error
-        epochs = len(results['validation_0'][eval_metric])
-        x_axis = range(0, epochs)
-        # plot log loss
+    res_keys = list(results.keys())
+    epochs = len(results[res_keys[0]][eval_metric])
+    if modeltype != 'Regression':
         if isinstance(eval_metric, list):
+            # plot log loss
             eval_metric = 'logloss'
-        fig, ax = plt.subplots(figsize=(width_size, height_size))
-        if len(eval_set) == 1:
-            ax.plot(x_axis, results['validation_0'][eval_metric], label='Cross Validation')
-        else:
-            ax.plot(x_axis, results['validation_0'][eval_metric], label='Train')
-            ax.plot(x_axis, results['validation_1'][eval_metric], label='Cross Validation')
-        ax.legend()
-        plt.ylabel(eval_metric)
-        plt.title('%s Validation Metrics: Classification Metric vs Epochs' %model_label)
-        plt.show();
+    x_axis = range(0, epochs)
+    # plot metrics now
+    fig, ax = plt.subplots(figsize=(width_size, height_size))
+    ax.plot(x_axis, results[res_keys[0]][eval_metric], label='Train')
+    ax.plot(x_axis, results[res_keys[-1]][eval_metric], label='Cross Validation')
+    ax.legend()
+    plt.ylabel(eval_metric)
+    plt.title('%s Train and Validation Model Performance across Iterations or Epochs' %model_label)
+    plt.show();
+################################################################################
 ######### NEW And FAST WAY to CLASSIFY COLUMNS IN A DATA SET #######
+################################################################################
 def classify_columns(df_preds, verbose=0):
     """
     Takes a dataframe containing only predictors to be classified into various types.
@@ -2270,7 +2251,8 @@ def classify_columns(df_preds, verbose=0):
                         and len(train[x['index']].value_counts()) == 2 else 0, axis=1)
     string_bool_vars = list(var_df[(var_df['bool'] ==1)]['index'])
     sum_all_cols['string_bool_vars'] = string_bool_vars
-    var_df['num_bool'] = var_df.apply(lambda x: 1 if x['type_of_column'] in [
+    var_df['num_bool'] = var_df.apply(lambda x: 1 if x['type_of_column'] in [np.uint8,
+                            np.uint16, np.uint32, np.uint64,
                             'int8','int16','int32','int64',
                             'float16','float32','float64'] and len(
                         train[x['index']].value_counts()) == 2 else 0, axis=1)
@@ -2313,7 +2295,9 @@ def classify_columns(df_preds, verbose=0):
     factor_vars = list(var_df[(var_df['dcat'] ==1)]['index'])
     sum_all_cols['factor_vars'] = factor_vars
     ########################################################################
-    date_or_id = var_df.apply(lambda x: 1 if x['type_of_column'] in ['int8','int16',
+    date_or_id = var_df.apply(lambda x: 1 if x['type_of_column'] in [np.uint8,
+                         np.uint16, np.uint32, np.uint64,
+                         'int8','int16',
                         'int32','int64']  and x[
         'index'] not in string_bool_vars+num_bool_vars+discrete_string_vars+nlp_vars else 0,
                                         axis=1)
@@ -2396,6 +2380,7 @@ def classify_columns(df_preds, verbose=0):
             print('%s of type=%s is classified into more then one type' %(col,train[col].dtype))
         else:
             pass
+    ###############  This is where you print all the types of variables ##############
     ####### Returns 8 vars in the following order: continuous_vars,int_vars,cat_vars,
     ###  string_bool_vars,discrete_string_vars,nlp_vars,date_or_id_vars,cols_delete
     if verbose >= 1:
@@ -2439,7 +2424,7 @@ def remove_variables_using_fast_correlation(df,numvars,corr_limit = 0.70,verbose
     flatten_keys = lambda dic: [x for x in dic.keys()]
     flatten_values = lambda dic: [x for x in dic.values()]
     start_time = time.time()
-    print('Number of numeric variables = %d' %len(numvars))
+    print('Trying Feature Selection among %d numeric variables...' %len(numvars))
     corr_pair_count_dict, rem_col_list, temp_corr_list,correlated_pair_dict  = find_corr_vars(df[numvars].corr())
     temp_dict = Counter(flatten(flatten_items(correlated_pair_dict)))
     temp_corr_list = []
@@ -2500,6 +2485,7 @@ def count_freq_in_list(lst):
         result.append((i,lst.count(i)))
     return result
 
+################################################################################
 def find_corr_vars(correlation_dataframe,corr_limit = 0.70):
     """
     This returns a dictionary of counts of each variable and how many vars it is correlated to in the dataframe
@@ -2524,11 +2510,10 @@ def find_corr_vars(correlation_dataframe,corr_limit = 0.70):
 ################################################################################
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import Lasso
+from sklearn.linear_model import Lasso, Ridge
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.model_selection import GridSearchCV
 import re
-
 
 def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly=2,md='',
                          scaling=True, fit_flag=False, verbose=0):
@@ -2544,7 +2529,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     """
     orig_data_index = data.index
     if modeltype == 'Regression':
-        lm = LassoCV(alphas=np.linspace(0.01,100),n_jobs=-1,max_iter=2000,
+        lm = LassoCV(alphas=np.linspace(0.001,10000),n_jobs=-1,max_iter=2000,
                  fit_intercept=True, normalize=False)
     else:
         lm = LogisticRegressionCV(Cs=[0.01,0.1,1,2,5,10,20],fit_intercept=True,
@@ -2657,9 +2642,10 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         New_XP.columns = finalvars
         return finalvars, lm_p, New_XP, md, final_x_vars
 
+
+##################################################################################
 ## Import sklearn
 from sklearn.model_selection import cross_val_score,KFold, StratifiedKFold
-
 
 def print_model_metrics(modeltype,reg,X,y,fit_flag=False,verbose=1):
     ### If fit_flag is set to True, then you must return a fitted model ###
@@ -2689,8 +2675,7 @@ def print_model_metrics(modeltype,reg,X,y,fit_flag=False,verbose=1):
         return reg.fit(X,y),  cv_scores.mean()
     else:
         return  cv_scores.mean()
-
-
+##############################################################################################
 def select_best_variables(md, reg, df,names,n_orig_features,Add_Poly,verbose=0):
     """ 
     This program selects the top 10% of interaction variables created using linear modeling.
@@ -2707,17 +2692,13 @@ def select_best_variables(md, reg, df,names,n_orig_features,Add_Poly,verbose=0):
     print('%d Interaction and Polynomial variable(s) selected...\n' %len(interactions))
     finalvars = names + interactions
     #finalvars_index = [df[df['Interaction Variable Names']==x].index[0] for x in finalvars]
-    return finalvars##############################################################################################
+    return finalvars
+##############################################################################################
 from sklearn.metrics import roc_curve, auc
 from scipy import interp
 import pandas as pd
-
-get_ipython().magic(u'matplotlib inline')
-from matplotlib.pylab import rcParams
-figsize = (10, 6)
-rcParams['figure.figsize'] = figsize
-##################################################################################
 def Draw_ROC_MC_ML(y_true, y_proba,y_pred,target, model_name, verbose=0):
+    figsize = (10, 6)
     y_proba = copy.deepcopy(y_proba)
     y_pred = copy.deepcopy(y_pred)
     fpr = dict()
@@ -3159,10 +3140,10 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
     https://scikit-learn.org/stable/auto_examples/model_selection/plot_precision_recall.html
     ========================================================================================
     """
+    figsize = (10, 6)
     ###############################################################################
     # In binary classification settings
     # Compute the average precision score for Binary Classes
-    # --------------------------------------------------------
     ###############################################################################
     classes = list(range(len(np.unique(y_test))))                                             
     n_classes = len(classes)
@@ -3299,6 +3280,7 @@ def print_regression_model_stats(actuals, predicted, title='Model'):
     in the input as "title" and it will print that title on the MAE and RMSE as a
     chart for that model. Returns MAE, MAE_as_percentage, and RMSE_as_percentage
     """
+    figsize = (10, 10)
     colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk') 
     if len(actuals) != len(predicted):
         print('Error: Number of actuals and predicted dont match. Continuing...')
@@ -3310,7 +3292,6 @@ def print_regression_model_stats(actuals, predicted, title='Model'):
         y =  predicted
         lineStart = actuals.min() 
         lineEnd = actuals.max()  
-        plt.figure()
         plt.scatter(x, y, color = next(colors), alpha=0.5,label='Predictions')
         plt.plot([lineStart, lineEnd], [lineStart, lineEnd], 'k-', color = next(colors))
         plt.xlim(lineStart, lineEnd)
@@ -3451,7 +3432,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.470'
+    version_number = '0.1.471'
     print("""Running Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',
@@ -3463,7 +3444,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.470'
+    version_number = '0.1.471'
     print("""Imported Auto_ViML version: %s. Call using: 
              m, feats, trainm, testm = Auto_ViML(train, target, test, 
                                     sample_submission='',

@@ -128,14 +128,17 @@ def Transform_KM_Features(training_data, training_labels, test_data, km_max=0):
         k_max = copy.deepcopy(km_max)
     kmf =  KMeansFeaturizer(k=k_max, target_scale=0, random_state=seed)
     kmf_hint = kmf.fit(training_data, training_labels)
-
+    ### Just return it with the cluster column => no need to return the data frame ###
     training_cluster_features = kmf_hint.transform(training_data)
     test_cluster_features = kmf_hint.transform(test_data)
     npx = np.c_[training_data, training_labels.values]
     training_with_cluster = np.c_[npx,training_cluster_features]
     test_with_cluster = np.c_[test_data, test_cluster_features]
-    train_with_cluster_df = pd.DataFrame(training_with_cluster,index=train_index,
-                                      columns=preds+[target,'cluster'])
-    test_with_cluster_df = pd.DataFrame(test_with_cluster,index=test_index,
-                                      columns=preds+['cluster'])
+    ### We are going to just return the cluster values ######
+    train_with_cluster_df = training_with_cluster[:,-1]
+    test_with_cluster_df = test_with_cluster[:,-1]
+    #train_with_cluster_df = pd.DataFrame(training_with_cluster,index=train_index,
+    #                                  columns=preds+[target,'cluster'])
+    #test_with_cluster_df = pd.DataFrame(test_with_cluster,index=test_index,
+    #                                  columns=preds+['cluster'])
     return train_with_cluster_df, test_with_cluster_df

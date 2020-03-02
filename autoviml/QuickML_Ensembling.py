@@ -63,21 +63,21 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
                 metrics1 = rmse(results1, y_test).mean()
             else:
                 metrics1 = 0
-            estimators.append(('LassoLarsCV Regression',model5, metrics1))
+            estimators.append(('LassoLarsCV',model5, metrics1))
         model6 = LassoCV(alphas=np.logspace(-10,-1,50), cv=scv,random_state=seed)
         results2 = model6.fit(X_train,y_train).predict(X_test)
         if not isinstance(y_test, str):
             metrics2 = rmse(results2, y_test).mean()
         else:
             metrics2 = 0
-        estimators.append(('LassoCV Regularization',model6, metrics2))
+        estimators.append(('LassoCV',model6, metrics2))
         model7 = RidgeCV(alphas=np.logspace(-10,-1,50), cv=scv)
         results3 = model7.fit(X_train,y_train).predict(X_test)
         if not isinstance(y_test, str):
             metrics3 = rmse(results3, y_test).mean()
         else:
             metrics3 = 0
-        estimators.append(('RidgeCV Regression',model7, metrics3))
+        estimators.append(('RidgeCV',model7, metrics3))
         ## Create an ensemble model ####
         if Boosting_Flag:
             model8 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),

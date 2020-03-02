@@ -16,6 +16,7 @@ from sklearn.metrics import log_loss
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import roc_auc_score
+from sklearn.metrics import fbeta_score
 #####################################################################################
 from sklearn.metrics import confusion_matrix
 def balanced_accuracy_score(y_true, y_pred, sample_weight=None,
@@ -129,3 +130,6 @@ def gini_macro_recall(truth, predictions):
 def gini_micro_recall(truth, predictions):
     return recall_score(truth, predictions.argmax(axis=1),average='micro')
 
+# calculate f2-measure
+def f2_measure(y_true, y_pred):
+    return fbeta_score(y_true, y_pred, beta=2)

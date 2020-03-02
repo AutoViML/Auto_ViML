@@ -216,7 +216,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.475                                              #######
+    ######                               Version 0.1.476                                              #######
     #####   MOST STABLE VERSION: Now with HyperOpt + more stable and better plots. Feb 15,2020        #######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -444,7 +444,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         if modeltype == 'Regression':
             scv = KFold(n_splits=n_splits, random_state=seed)
             eval_metric = 'rmse'
-            if float(xgb.__version__)<0.9:
+            if float(xgb.__version__[0])<1:
                 objective = 'reg:linear'
             else:
                 objective = 'reg:squarederror'
@@ -2116,7 +2116,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     ######################################################################
     important_features = []
     if modeltype == 'Regression':
-        if float(xgb.__version__)<0.9:
+        if float(xgb.__version__[0])<1:
             objective = 'reg:linear'
         else:
             objective = 'reg:squarederror'
@@ -3587,7 +3587,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.475'
+    version_number = '0.1.476'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3599,7 +3599,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.475'
+    version_number = '0.1.476'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

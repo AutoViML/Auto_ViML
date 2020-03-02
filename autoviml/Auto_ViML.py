@@ -216,7 +216,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.474                                              #######
+    ######                               Version 0.1.475                                              #######
     #####   MOST STABLE VERSION: Now with HyperOpt + more stable and better plots. Feb 15,2020        #######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -335,25 +335,25 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     maxdepth = 8 ##### This limits the max_depth used in decision trees and other classifiers
     ###########    T H I S   I S  W H E R E   H Y P E R O P T    P A R A M S  A R E   S E T #########
     if hyper_param == 'HO':
-        from custom_scores_HO import accu, rmse, gini_sklearn, gini_meae
-        from custom_scores_HO import gini_msle, gini_mae, gini_mse, gini_rmse
-        from custom_scores_HO import gini_accuracy, gini_bal_accuracy, gini_roc
-        from custom_scores_HO import gini_precision, gini_average_precision, gini_weighted_precision
-        from custom_scores_HO import gini_macro_precision, gini_micro_precision
-        from custom_scores_HO import gini_samples_precision, gini_f1, gini_weighted_f1
-        from custom_scores_HO import gini_macro_f1, gini_micro_f1, gini_samples_f1, f2_measure
-        from custom_scores_HO import gini_log_loss, gini_recall, gini_weighted_recall
-        from custom_scores_HO import gini_samples_recall, gini_macro_recall, gini_micro_recall
+        from autoviml.custom_scores_HO import accu, rmse, gini_sklearn, gini_meae
+        from autoviml.custom_scores_HO import gini_msle, gini_mae, gini_mse, gini_rmse
+        from autoviml.custom_scores_HO import gini_accuracy, gini_bal_accuracy, gini_roc
+        from autoviml.custom_scores_HO import gini_precision, gini_average_precision, gini_weighted_precision
+        from autoviml.custom_scores_HO import gini_macro_precision, gini_micro_precision
+        from autoviml.custom_scores_HO import gini_samples_precision, gini_f1, gini_weighted_f1
+        from autoviml.custom_scores_HO import gini_macro_f1, gini_micro_f1, gini_samples_f1,f2_measure
+        from autoviml.custom_scores_HO import gini_log_loss, gini_recall, gini_weighted_recall
+        from autoviml.custom_scores_HO import gini_samples_recall, gini_macro_recall, gini_micro_recall
     else:
-        from custom_scores import accu, rmse, gini_sklearn, gini_meae
-        from custom_scores import gini_msle, gini_mae, gini_mse, gini_rmse
-        from custom_scores import gini_accuracy, gini_bal_accuracy, gini_roc
-        from custom_scores import gini_precision, gini_average_precision, gini_weighted_precision
-        from custom_scores import gini_macro_precision, gini_micro_precision
-        from custom_scores import gini_samples_precision, gini_f1, gini_weighted_f1
-        from custom_scores import gini_macro_f1, gini_micro_f1, gini_samples_f1, f2_measure
-        from custom_scores import gini_log_loss, gini_recall, gini_weighted_recall
-        from custom_scores import gini_samples_recall, gini_macro_recall, gini_micro_recall
+        from autoviml.custom_scores import accu, rmse, gini_sklearn, gini_meae
+        from autoviml.custom_scores import gini_msle, gini_mae, gini_mse, gini_rmse
+        from autoviml.custom_scores import gini_accuracy, gini_bal_accuracy, gini_roc
+        from autoviml.custom_scores import gini_precision, gini_average_precision, gini_weighted_precision
+        from autoviml.custom_scores import gini_macro_precision, gini_micro_precision
+        from autoviml.custom_scores import gini_samples_precision, gini_f1, gini_weighted_f1
+        from autoviml.custom_scores import gini_macro_f1, gini_micro_f1, gini_samples_f1,f2_measure
+        from autoviml.custom_scores import gini_log_loss, gini_recall, gini_weighted_recall
+        from autoviml.custom_scores import gini_samples_recall, gini_macro_recall, gini_micro_recall
     ##########   This is where some more default parameters are set up ######
     data_dimension = orig_train.shape[0]*orig_train.shape[1]  ### number of cells in the entire data set .
     if data_dimension > 1000000:
@@ -3587,7 +3587,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.474'
+    version_number = '0.1.475'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3599,7 +3599,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.474'
+    version_number = '0.1.475'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

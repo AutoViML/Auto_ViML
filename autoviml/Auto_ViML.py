@@ -224,8 +224,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.482                                              #######
-    #####   MOST STABLE VERSION: Faster Correlated Vars removal + better Intxn Vars. Feb 25,2020      #######
+    ######                               Version 0.1.484                                              #######
+    #####   MOST STABLE VERSION: Faster Correlated Vars + better Add_Poly + Better Charts. March 15,2020#####
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
@@ -679,6 +679,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     else:
         print('    Could not find any variables in your data set. Please check input and try again')
         return
+    print('%s problem' %modeltype)
     ### Make sure you remove variables that are highly correlated within data set first
     rem_vars = left_subtract(preds,numvars)
     if len(numvars) > 0 and feature_reduction:
@@ -690,7 +691,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     ####     with it after each_target cycle is completed. Very important!
     orig_red_preds = copy.deepcopy(red_preds)
     for each_target in target:
-        print('%s problem' %modeltype)
         ########   D E F I N I N G   N E W  T R A I N and N E W   T E S T here #########################
         ####  This is where we set the orig train data set with multiple labels to the new start_train
         ####     start_train has the new features added or reduced with the multi targets in one cycle
@@ -1487,7 +1487,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             subm[new_col] = cv_ensembles[:,each]
                         cols.append(new_col)
                     y_pred = subm[cols].mean(axis=1)
-                    print('Completed Ensemble predictions on held out data')
+                    print('#############################################################################')
                     performed_ensembling = True
                     print_regression_model_stats(y_cv.values, y_pred.values,'Ensemble Model: Model Predicted vs Actual')
                 except:
@@ -1524,7 +1524,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         y_pred = (subm[cols].mean(axis=1)>0.5).astype(int)
                     else:
                         y_pred = (subm[cols].mean(axis=1)).astype(int)
-                    print('Completed Ensemble predictions on held out data')
+                    print('#############################################################################')
                     performed_ensembling = True
                 except:
                     print('Could not complete Ensembling predictions on held out data due to Error')
@@ -1532,7 +1532,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 print('No Ensembling of models done since Stacking_Flag = True ')
             if verbose >= 1:
                 try:
-                    Draw_ROC_MC_ML(y_cv, y_proba,y_pred, each_target, model_name, verbose)
+                    Draw_ROC_MC_ML(model, X_cv, y_cv, each_target, model_name, verbose)
                 except:
                     print('    Could not draw ROC AUC curve')
                 try:
@@ -1568,7 +1568,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 rmsle_calculated_f = rmse(y_cv.values, y_pred.values)
                 print('After multiple models, Ensemble Model Results:')
                 print('    RMSE Score = %0.5f' %(rmsle_calculated_f,))
-                print('########################################################')
+                print('#############################################################################')
                 if rmsle_calculated_f < rmsle_calculated_m:
                     print('Ensembling Models is better than Single Model for this data set.')
                     error_rate.append(rmsle_calculated_f)
@@ -1583,7 +1583,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         rmsle_calculated_f*100))
                 print(classification_report(y_cv.values,y_pred.values))
                 print(confusion_matrix(y_cv.values,y_pred.values))
-                print('########################################################')
+                print('#############################################################################')
                 if rmsle_calculated_f > rmsle_calculated_m:
                     print('Ensembling Models is better than Single Model for this data set.')
                     error_rate.append(rmsle_calculated_f)
@@ -1621,20 +1621,32 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             imp_features_df = pd.DataFrame(model.feature_importances_, columns=['Feature Weightings'],
                          index=important_features).sort_values('Feature Weightings',
                          ascending=False)
+        ###########   D R A W  SHAP  VALUES USING TREE BASED MODELS. THE REST WILL NOT GET SHAP ############
         if verbose >= 1:
             try:
-                if len(X_train) >10000:
-                    SHAP_model = copy.deepcopy(model)
-                    SHAP_model.fit(X_train[:10000],y_train[:10000])
-                    #### This is to make sure that SHAP values plotting doesn't take too long ############
-                    plot_SHAP_values(SHAP_model,
-                                     pd.DataFrame(X_train[:10000].T,columns=important_features),
-                                     Boosting_Flag, matplotlib_flag)
-                    print('Plotting SHAP (first 10,000) values to explain the output of model')
+                if model_name.lower() == 'catboost':
+                    if verbose > 0:
+                        import shap
+                        shap_values = model.get_feature_importance(Pool(X_cv, label=y_cv,cat_features=imp_cats),type="ShapValues")
+                        shap.initjs()
+                        shap.summary_plot(shap_values, X_cv.join(y_cv),plot_type="violin")
+                    if verbose > 1 and modeltype != 'Multi_Classification':
+                        ### Dont draw this for multiclassification since it is the same plot as the previous one ####
+                        shap.initjs()
+                        shap.summary_plot(shap_values, X_cv.join(y_cv), plot_type="bar");
                 else:
-                    plot_SHAP_values(model,pd.DataFrame(X_train,columns=important_features),
-                                     Boosting_Flag, matplotlib_flag)
-                    print('Plotting SHAP (SHapley Additive exPlanations) values to explain the output of model')
+                    if len(X_train) >10000:
+                        SHAP_model = copy.deepcopy(model)
+                        SHAP_model.fit(X_train[:10000],y_train[:10000])
+                        #### This is to make sure that SHAP values plotting doesn't take too long ############
+                        plot_SHAP_values(SHAP_model,
+                                         pd.DataFrame(X_train[:10000].T,columns=important_features),modeltype,
+                                         Boosting_Flag, matplotlib_flag,verbose)
+                        print('Plotting SHAP (first 10,000) values to explain the output of model')
+                    else:
+                        plot_SHAP_values(model,pd.DataFrame(X_train,columns=important_features),modeltype,
+                                         Boosting_Flag, matplotlib_flag,verbose)
+                        print('Plotting SHAP (SHapley Additive exPlanations) values to explain the output of model')
             except:
                 height_size = 5
                 width_size = 10
@@ -1967,26 +1979,30 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 print('    Saving sample_submission...')
                 sample_submission[each_target] = y_pred
                 sample_submission = pd.concat([sample_submission,testm[new_cols]], axis=1)
+                #####   D R A W   K D E  P L O T S   FOR PROBABILITY OF PREDICTIONS - very useful! #########
                 if modeltype != 'Regression':
                     probacols = [x for x in new_cols if 'proba' in x]
                     if verbose >= 2:
                         sample_submission[probacols].plot(kind='kde',figsize=(10,6),
                                                      title='Predictive Probability Density Chart')
+                #############################################################################################
                 try:
                     write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
                 except:
                     print('Error: Not able to write submission file to disk. Skipping...')
             else:
                 sample_submission = pd.concat([orig_test,testm[new_cols]], axis=1)
+                try:
+                    write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
+                except:
+                    print('Error: Not able to write submission file to disk. Skipping...')
+                #####   D R A W   K D E  P L O T S   FOR PROBABILITY OF PREDICTIONS - very useful! #########
                 if modeltype != 'Regression':
                     probacols = [x for x in new_cols if 'proba' in x]
                     if verbose >= 1:
                         sample_submission[probacols].plot(kind='kde',figsize=(10,6),
                                                      title='Predictive Probability Density Chart ')
-                try:
-                    write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
-                except:
-                    print('Error: Not able to write submission file to disk. Skipping...')
+                #############################################################################################
             try:
                 write_file_to_folder(trainm, each_target, each_target+'_'+modeltype+'_'+'train_modified.csv')
             except:
@@ -2054,21 +2070,23 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #return model, imp_features_df.index.tolist(), trainm, testm
     return model, important_features, trainm, testm
 ###############################################################################
-def plot_SHAP_values(m,X,Boosting_Flag=False,matplotlib_flag=False):
+from catboost import Pool
+def plot_SHAP_values(m,X,modeltype,Boosting_Flag=False,matplotlib_flag=False,verbose=0):
     import shap
-    plt.figure(figsize=(10,6))
     # load JS visualization code to notebook
     if not matplotlib_flag:
-        shap.initjs()
+        shap.initjs();
     # explain the model's predictions using SHAP values
     explainer = shap.TreeExplainer(m)
     shap_values = explainer.shap_values(X)
-    if Boosting_Flag:
+    if not Boosting_Flag is None:
         # visualize the first prediction's explanation (use matplotlib=True to avoid Javascript)
-        shap.summary_plot(shap_values, X, plot_type="violin")
+        if verbose > 0 and modeltype != 'Multi_Classification':
+            shap.summary_plot(shap_values, X, plot_type="violin");
+        if verbose > 1 and modeltype == 'Multi_Classification':
+            shap.summary_plot(shap_values, X, plot_type="bar");
     else:
         shap.summary_plot(shap_values, X, plot_type="bar")
-
 ################################################################################
 ################      Find top features using XGB     ###################
 ################################################################################
@@ -2382,6 +2400,7 @@ def plot_RS_params(cv_results, score, mname):
         df[['combined_parameters']+cols].groupby('combined_parameters').mean().sort_values(
             cols[1]).plot(figsize=(width_size,height_size),kind='line',subplots=False,
                             title='Combined Parameters: %s scores for %s' %(score,mname))
+    plt.xticks(rotation=45)
     plt.show();
     return df
 ################################################################################
@@ -2393,10 +2412,11 @@ def plot_xgb_metrics(model,eval_metric,eval_set,modeltype,model_label='',model_n
     else:
         results = model.evals_result()
     res_keys = list(results.keys())
+    eval_metric = list(results[res_keys[0]].keys())
     if modeltype != 'Regression':
         if isinstance(eval_metric, list):
             # plot log loss
-            eval_metric = 'logloss'
+            eval_metric = eval_metric[0]
     # plot metrics now
     fig, ax = plt.subplots(figsize=(width_size, height_size))
     epochs = len(results[res_keys[0]][eval_metric])
@@ -2734,9 +2754,8 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     data set with the old and new (added) variables. Very Convenient when you want to do quick testing.
     There are 3 settings for Add_Poly flag: 0 => No poly or intxn variables added. 1=> Only intxn vars
     added. 2=> only polynomial degree (squared) vars added. 3=> both squared and intxn vars added.
-    If Fit_Flag=True, then it is assumed that there are predictors and labels and hence a model is fitted.
-    If Fit_Flag=False, then it is assumed it is Test data and hence does not contain labels. So no model
-    is fitted and no variables are chosen.
+    If Fit_Flag=True, then it is assumed that it is Training data and hence variables are selected
+    If Fit_Flag=False, then it is assumed it is Test data and no variables are chosen but we keep training ones.
     """
     orig_data_index = data.index
     if modeltype == 'Regression':
@@ -2889,11 +2908,15 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
                     kind='bar',x='Interaction Variable Names',y='Coefficient Values',
                         title='All Variable Interactions and their Coefficients',figsize=(20,10))
             interactions = df90['Interaction Variable Names'].values.tolist()
-            print('\nSelecting and Substituting %d Interaction and Polynomial variable(s) for numeric variables...' %len(interactions))
             sel_x_vars = df90["X Names"].values.tolist()
         ####### Now we have to put the full dataframe together with selected variables and original predictors!
         #### DO NOT CHANGE THE NEXT LINE EVEN THOUGH IT MIGHT BE TEMPTING TO DO SO! It is correct!
         final_x_vars = x_vars + sel_x_vars
+        sel_text_vars = [feature_xvar_dict[x] for x in sel_x_vars]
+        print('Initially adding %d variable(s) due to Add_Poly = %s setting' %(len(sel_text_vars),Add_Poly))
+        if verbose > 1:
+            if len(sel_text_vars) <= 30:
+                print('    Added variables: %s' %sel_text_vars)
         final_text_vars = [feature_xvar_dict[x] for x in final_x_vars]
         New_XP = XP1[final_x_vars]
         New_XP.columns = final_text_vars
@@ -2902,6 +2925,10 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         final_text_vars = remove_variables_using_fast_correlation(New_XP,final_text_vars,
                                 corr_limit,verbose)
         final_x_vars = [feature_textvar_dict[x] for x in final_text_vars]
+        if verbose >= 1:
+            print('Finally selecting %d variables after high-correlation test' %len(final_text_vars))
+            if len(final_text_vars) <= 30:
+                print('    Selected variables are: %s' %final_text_vars)
         return final_text_vars, lm_p, New_XP, md, final_x_vars
     else:
         #### Just return the transformed dataframe with all orig+poly+intxn vars 
@@ -2959,10 +2986,10 @@ def select_best_variables(md, reg, df,names,n_orig_features,Add_Poly,verbose=0):
 from sklearn.metrics import roc_curve, auc
 from scipy import interp
 import pandas as pd
-def Draw_ROC_MC_ML(y_true, y_proba,y_pred,target, model_name, verbose=0):
+def Draw_ROC_MC_ML(model, X_test, y_true, target, model_name, verbose=0):
     figsize = (10, 6)
-    y_proba = copy.deepcopy(y_proba)
-    y_pred = copy.deepcopy(y_pred)
+    y_proba = model.predict_proba(X_test)
+    y_pred = model.predict(X_test)
     fpr = dict()
     tpr = dict()
     roc_auc = dict()
@@ -2970,10 +2997,16 @@ def Draw_ROC_MC_ML(y_true, y_proba,y_pred,target, model_name, verbose=0):
     if isinstance(target,str):
         target = [target]
     for targ in target:
-        classes = list(range(len(np.unique(y_true))))
+        if len(left_subtract(np.unique(y_true),np.unique(y_pred))) == 0:
+            classes = list(range(len(np.unique(y_true))))
+        else:
+            classes = list(range(len(np.unique(y_pred))))
         n_classes = len(classes)
         if model_name == 'CatBoost':
-            y_pred = (y_proba>0.5).astype(int).dot(classes)
+            try:
+                y_pred = (y_proba>0.5).astype(int).dot(classes)
+            except:
+                pass
         if n_classes == 2:
             ### Always set rare_class to 1 when there are only 2 classes for drawing ROC Curve!
             rare_class = 1
@@ -3012,10 +3045,13 @@ def Draw_ROC_MC_ML(y_true, y_proba,y_pred,target, model_name, verbose=0):
                 fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(),label_binarize(y_pred, classes).ravel())
         except:
             if y_test.ravel().shape[0] != y_pred.ravel().shape[0]:
-                pass
+                fpr["micro"], tpr["micro"], _ = roc_curve(y_test[:,:n_classes].ravel(), y_proba[:,:n_classes].ravel())
             else:
                 fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_proba[:,rare_class].ravel())
-        roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+        try:
+            roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+        except:
+            pass
         # micro-average ROC curve and ROC area has been computed
         labels = []
         if n_classes <= 2:
@@ -3028,7 +3064,7 @@ def Draw_ROC_MC_ML(y_true, y_proba,y_pred,target, model_name, verbose=0):
             plt.ylim([0.0, 1.05])
             plt.xlabel('False Positive Rate')
             plt.ylabel('True Positive Rate')
-            plt.title('ROC Curve for label:%s' %targ)
+            plt.title('ROC Curve for Predictions on held out data for target: %s' %targ)
             plt.legend(loc="lower right")
             plt.show();
         else:
@@ -3057,20 +3093,26 @@ def Draw_ROC_MC_ML(y_true, y_proba,y_pred,target, model_name, verbose=0):
                 color = next(colors)
                 ax.plot(fpr[i], tpr[i], color=color, lw=lw)
                 labels.append('ROC curve of class %d (area = %0.2f)' %(i, roc_auc[i]))
-            labels.append('micro-average ROC curve (area = {0:0.2f})'
-                           ''.format(roc_auc["micro"]))
-            ax.plot(fpr["micro"], tpr["micro"],
-                     color='deeppink', linestyle=':', linewidth=4)
-            labels.append('macro-average ROC curve (area = {0:0.2f})'
-                           ''.format(roc_auc["macro"]))
-            ax.plot(fpr["macro"], tpr["macro"],
-                     color='navy', linestyle=':', linewidth=4)
+            try:
+                labels.append('micro-average ROC curve (area = {0:0.2f})'
+                               ''.format(roc_auc["micro"]))
+                ax.plot(fpr["micro"], tpr["micro"],
+                         color='deeppink', linestyle=':', linewidth=4)
+            except:
+                pass
+            try:
+                labels.append('macro-average ROC curve (area = {0:0.2f})'
+                               ''.format(roc_auc["macro"]))
+                ax.plot(fpr["macro"], tpr["macro"],
+                         color='navy', linestyle=':', linewidth=4)
+            except:
+                pass
             ax.plot([0, 1], [0, 1], 'k--', lw=lw)
             ax.set_xlim([0.0, 1.0])
             ax.set_ylim([0.0, 1.05])
             ax.set_xlabel('False Positive Rate')
             ax.set_ylabel('True Positive Rate')
-            ax.set_title('ROC Curve for label: %s' %targ)
+            ax.set_title('ROC Curve for Predictions on held out data for target: %s' %targ)
             plt.legend(labels,loc="lower right")
             plt.show();
 
@@ -3414,7 +3456,12 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
     # In binary classification settings
     # Compute the average precision score for Binary Classes
     ###############################################################################
-    classes = list(range(len(np.unique(y_test))))
+    y_pred = classifier.predict(X_test)
+    if len(left_subtract(np.unique(y_test),np.unique(y_pred))) == 0:
+        classes = list(range(len(np.unique(y_test))))
+    else:
+        classes = list(range(len(np.unique(y_pred))))
+    #classes = list(range(len(np.unique(y_test))))
     n_classes = len(classes)
     if n_classes == 2:
         try:
@@ -3467,7 +3514,6 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
         # We create a multi-label dataset, to illustrate the precision-recall in
         # multi-label settings
 
-
         # Use label_binarize to be multi-label like settings
         Y = label_binarize(y_test, classes)
         n_classes = Y.shape[1]
@@ -3491,10 +3537,10 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
             average_precision[i] = average_precision_score(Y_test[:, i], y_score[:, i])
 
         # A "micro-average": quantifying score on all classes jointly
-        precision["micro"], recall["micro"], _ = precision_recall_curve(Y_test.ravel(),
-            y_score.ravel())
-        average_precision["micro"] = average_precision_score(Y_test, y_score,
-                                                             average="micro")
+        precision["micro"], recall["micro"], _ = precision_recall_curve(Y_test[
+                        :,:n_classes].ravel(),y_score[:,:n_classes].ravel())
+        average_precision["micro"] = average_precision_score(Y_test[
+                        :,:n_classes], y_score[:,:n_classes],average="micro")
         print('Average precision score, micro-averaged over all classes: {0:0.2f}'
               .format(average_precision["micro"]))
 
@@ -3701,7 +3747,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.482'
+    version_number = '0.1.484'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3713,7 +3759,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.482'
+    version_number = '0.1.484'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

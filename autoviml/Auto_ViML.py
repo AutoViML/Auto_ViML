@@ -40,6 +40,7 @@ from autoviml.QuickML_Stacking import QuickML_Stacking
 from autoviml.Transform_KM_Features import Transform_KM_Features
 from autoviml.QuickML_Ensembling import QuickML_Ensembling
 import xgboost as xgb
+import sys
 ##################################################################################
 def find_rare_class(classes, verbose=0):
     ######### Print the % count of each class in a Target variable  #####
@@ -127,7 +128,10 @@ def analyze_problem_type(train, targ,verbose=0):
                 if verbose >= 1:
                     print('"\n ################### Multi-Class ######################''')
     elif train[targ].dtype == 'int64' or train[targ].dtype == float :
-        if len(train[targ].unique()) == 2:
+        if len(train[targ].unique()) == 1:
+            print('Error in data set: Only one class in Target variable. Check input and try again')
+            sys.exit()
+        elif len(train[targ].unique()) == 2:
             if verbose >= 1:
                 print('"\n ################### Binary-Class ##################### " ')
             model_class = 'Binary_Classification'
@@ -201,6 +205,15 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
         start_test[col] = start_test[col].map(dict_all)
     return start_train, start_test
 #############################################################################################################
+def flatten_list(list_of_lists):
+    final_ls = []
+    for each_item in list_of_lists:
+        if isinstance(each_item,list):
+            final_ls += each_item
+        else:
+            final_ls.append(each_item)
+    return final_ls
+#############################################################################################################
 def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feature_reduction=True,
             scoring_parameter='logloss', Boosting_Flag=None, KMeans_Featurizer=False,
             Add_Poly=0, Stacking_Flag=False, Binning_Flag=False,
@@ -211,8 +224,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.478                                              #######
-    #####   MOST STABLE VERSION: Now with HyperOpt + more stable and better plots. Feb 15,2020        #######
+    ######                               Version 0.1.479                                              #######
+    #####   MOST STABLE VERSION: Faster Correlated Vars removal + better Intxn Vars. Feb 25,2020      #######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
@@ -326,8 +339,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     C_max = 100  ### The highest value of C used in Logistic Regression
     Alpha_min = -3 #### The lowest value of Alpha in LOGSPACE that is used in CatBoost
     Alpha_max = 2 #### The highest value of Alpha in LOGSPACE that is used in Lasso or Ridge Regression
-    n_steps = 4 ### number of estimator steps between 100 and max_estims
-    maxdepth = 8 ##### This limits the max_depth used in decision trees and other classifiers
+    n_steps = 5 ### number of estimator steps between 100 and max_estims
+    maxdepth = 10 ##### This limits the max_depth used in decision trees and other classifiers
+    max_features = 10 #### maximum number of features in a random forest model or extra trees model
+    warm_start = True ### This is to set the warm_start flag for the ExtraTrees models
+    bootstrap = True #### Set this flag to control whether to bootstrap variables or not. False is default.
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
     if isinstance(Boosting_Flag,str):
         if Boosting_Flag.lower() == 'catboost':
@@ -666,7 +682,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     ### Make sure you remove variables that are highly correlated within data set first
     rem_vars = left_subtract(preds,numvars)
     if len(numvars) > 0 and feature_reduction:
-        numvars = remove_variables_using_fast_correlation(start_train,numvars,modeltype, each_target, 
+        numvars = remove_variables_using_fast_correlation(start_train,numvars, 
                                 corr_limit,verbose)
     ### Reduced Preds are now free of correlated variables and hence can be used for Poly adds
     red_preds = rem_vars + numvars
@@ -685,32 +701,51 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         ###### Add Polynomial Variables and Interaction Variables to Train ######
         if Add_Poly >= 1:
             if Add_Poly == 1:
-                print('\nCAUTION: Adding Interaction Variables may result in Overfitting!')
-            else:
-                print('\nCAUTION: Adding Squared and Interaction Variables may result in Overfitting!')
+                print('\nAdding only Interaction Variables. This may result in Overfitting!')
+            elif Add_Poly == 2:
+                print('\nAdding only Squared Variables. This may result in Overfitting!')
+            elif Add_Poly == 3:
+                print('\nAdding Both Interaction and Squared Variables. This may result in Overfitting!')
             ## Since the data is already scaled, we set scaling to None here ##
             ### For train data we have to set the fit_flag to True   ####
             if len(numvars) > 1:
                 train_sel, lm, train_red,md,fin_xvars = add_poly_vars_select(train,numvars,
                                             each_target,modeltype,poly_degree,Add_Poly,md='',
-                                                                scaling='None',
+                                                                corr_limit=corr_limit, scaling='None',
                                                                 fit_flag=True,verbose=verbose)
-                if len(train_sel) > len(numvars):
-                    #### Do the next step only if new variables were added #############
-                    train = train_red.join(train[rem_vars+[each_target]])
-                    red_preds = list(OrderedDict.fromkeys(train_sel+rem_vars))
+                if len(left_subtract(train_sel,numvars)) > 0:
+                    addl_vars = left_subtract(train_sel,numvars)
+                    ##### Print the additional Interxn and Poly variables here #######
+                    if verbose >= 1:
+                        print('    Intxn and Poly Vars are: %s' %addl_vars)
+                    collect_vars = []
+                    for each_var in numvars: 
+                        ### this puts together the interaction variable and the original variable in a list of tuples
+                        collect_vars += [(each_var,x) for x in addl_vars if each_var in x]
+                    #### subst_vars substitutes the interaction variables for the original vars they represent #############
+                    collect_dict = return_dictionary_list(collect_vars)
+                    subst_list_of_lists = [collect_dict[x] if x in collect_dict else x for x in numvars]
+                    ##### Now we should flatten this list of lists #############
+                    flatten_dict = lambda dic: [x for x in dic.items()]
+                    subst_vars = list(set(flatten_list(subst_list_of_lists)))
+                    #### we should leave numvars as original variables since it is needed in the test add_poly section
+                    train = train_red[subst_vars].join(train[rem_vars+[each_target]])
+                    red_preds = list(OrderedDict.fromkeys(subst_vars+rem_vars))
                     if type(test) != str:
                     ######### Add Polynomial and Interaction variables to Test ################
                     ## Since the data is already scaled, we set scaling to None here ##
                     ### For Test data we have to set the fit_flag to False   ####
                         _, _, test_x_vars,_,_ = add_poly_vars_select(test,numvars,each_target,
                                                               modeltype,poly_degree,Add_Poly,md,
-                                                              scaling='None', fit_flag=False,
+                                                              corr_limit, scaling='None', fit_flag=False,
                                                                verbose=verbose)
                         test_red = test_x_vars[fin_xvars]
                         #### test_red contain xvars with orig and poly/intxn variables
                         ###  we need to convert it into orig text variables
                         test_red.columns = train_sel
+                        #### Now we should change train_sel to subst_vars since that is the new list of vars going forward
+                        train_sel = copy.deepcopy(subst_vars)
+                        numvars = copy.deepcopy(subst_vars)
                         test = test_red[train_sel].join(test[rem_vars])
                 else:
                     ####  NO new variables were added. so we can skip the rest of the stuff now ###
@@ -903,7 +938,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             else:
                 xgbm = ExtraTreesRegressor(
                                 **{
-                                'bootstrap': True, 'n_jobs': -1, 'warm_start': False,
+                                'bootstrap': bootstrap, 'n_jobs': -1, 'warm_start': warm_start,
                                 'random_state':seed,'min_samples_leaf':2,
                                 'max_features': "sqrt"
                                 })
@@ -943,6 +978,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets
                                 "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
                                     "max_depth": [2, 5, maxdepth],
+                                    'max_features': [1,2,5, max_features],
                                     "criterion":['gini','entropy'],
                                             }
             else:
@@ -1033,7 +1069,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 else:
                     xgbm = ExtraTreesClassifier(
                                 **{
-                                'bootstrap': True, 'n_jobs': -1, 'warm_start': False,
+                                'bootstrap': bootstrap, 'n_jobs': -1, 'warm_start': warm_start,
                                 'random_state':seed,'min_samples_leaf':2,'oob_score':True,
                                 'max_features': "sqrt"
                                 })
@@ -1170,7 +1206,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                     "criterion":['gini','entropy'],
                                     #'class_weight':[None,'balanced']
                                                 }
-                    xgbm = ExtraTreesClassifier(bootstrap=True, oob_score=True,warm_start=False,
+                    xgbm = ExtraTreesClassifier(bootstrap=bootstrap, oob_score=True,warm_start=warm_start,
                                             n_estimators=100,max_depth=maxdepth,
                                             min_samples_leaf=2,max_features='auto',
                                           random_state=seed,n_jobs=-1)
@@ -2015,13 +2051,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #return model, imp_features_df.index.tolist(), trainm, testm
     return model, important_features, trainm, testm
 ###############################################################################
-def left_subtract(l1,l2):
-    lst = []
-    for i in l1:
-        if i not in l2:
-            lst.append(i)
-    return lst
-################################################################################
 def plot_SHAP_values(m,X,Boosting_Flag=False,matplotlib_flag=False):
     import shap
     plt.figure(figsize=(10,6))
@@ -2105,7 +2134,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         print('    No Categorical feature selection since %d categorical features < %d' %(max_feats,max_cats))
         important_cats = copy.deepcopy(catvars)
     if len(numvars) > 0:
-        final_list = remove_variables_using_fast_correlation(train,numvars,modeltype, target,
+        final_list = remove_variables_using_fast_correlation(train,numvars,
                              corr_limit,verbose)
     else:
         final_list = numvars[:]
@@ -2565,17 +2594,24 @@ def classify_columns(df_preds, verbose=0):
         print('    Missing columns = %s' %set(list(train))-set(flat_list))
     return sum_all_cols
 #################################################################################
+def left_subtract(l1,l2):
+    lst = []
+    for i in l1:
+        if i not in l2:
+            lst.append(i)
+    return lst
+################################################################################
 from sklearn.feature_selection import chi2, mutual_info_regression, mutual_info_classif
 from sklearn.feature_selection import SelectKBest
 ################################################################################
 from collections import defaultdict
 from collections import OrderedDict
 import time
-def return_dictionary_list(lst):
+def return_dictionary_list(lst_of_tuples):
     """ Returns a dictionary of lists if you send in a list of Tuples"""
     orDict = defaultdict(list)   
     # iterating over list of tuples 
-    for key, val in lst: 
+    for key, val in lst_of_tuples: 
         orDict[key].append(val) 
     return orDict
 ##################################################################################
@@ -2590,8 +2626,30 @@ def count_freq_in_list(lst):
         result.append((i,lst.count(i)))
     return result
 ##################################################################################
-def remove_variables_using_fast_correlation(df, numvars, modeltype, target, 
-                                corr_limit = 0.70,verbose=0):
+def find_corr_vars(correlation_dataframe,corr_limit = 0.70):
+    """
+    This returns a dictionary of counts of each variable and how many vars it is correlated to in the dataframe
+    """
+    flatten = lambda l: [item for sublist in l for item in sublist]
+    flatten_items = lambda dic: [x for x in dic.items()]
+    a = correlation_dataframe.values
+    col_index = correlation_dataframe.columns.tolist()
+    index_triupper = list(zip(np.triu_indices_from(a,k=1)[0],np.triu_indices_from(a,k=1)[1]))
+    high_corr_index_list = [x for x in np.argwhere(abs(a[np.triu_indices(len(a), k = 1)])>=corr_limit)]
+    low_corr_index_list =  [x for x in np.argwhere(abs(a[np.triu_indices(len(a), k = 1)])<corr_limit)]
+    tuple_list = [y for y in [index_triupper[x[0]] for x in high_corr_index_list]]
+    correlated_pair = [(col_index[tuple[0]],col_index[tuple[1]]) for tuple in tuple_list]
+    correlated_pair_dict = dict(correlated_pair)
+    flat_corr_pair_list = [item for sublist in correlated_pair for item in sublist]
+    #### You can make it a dictionary or a tuple of lists. We have chosen the latter here to keep order intact.
+    #corr_pair_count_dict = Counter(flat_corr_pair_list)
+    corr_pair_count_dict = count_freq_in_list(flat_corr_pair_list)
+    corr_list = list(set(flatten(flatten_items(correlated_pair_dict))))
+    rem_col_list = left_subtract(list(correlation_dataframe),list(OrderedDict.fromkeys(flat_corr_pair_list)))
+    return corr_pair_count_dict, rem_col_list, corr_list, correlated_pair_dict
+################################################################################
+from collections import OrderedDict
+def remove_variables_using_fast_correlation(df,numvars,corr_limit = 0.70,verbose=0):
     """
     Removes variables that are highly correlated using a pair-wise
     high-correlation knockout method. It is highly efficient and hence can work on thousands
@@ -2602,64 +2660,60 @@ def remove_variables_using_fast_correlation(df, numvars, modeltype, target,
     after the initial round of cutoffs for pair-wise correlations...It returns a list of
     clean variables that are uncorrelated (atleast in a pair-wise sense).
     """
-    correlation_dataframe = df[numvars].corr()
     flatten = lambda l: [item for sublist in l for item in sublist]
     flatten_items = lambda dic: [x for x in dic.items()]
-    a = correlation_dataframe.values
-    col_index = correlation_dataframe.columns.tolist()
-    index_triupper = list(zip(np.triu_indices_from(a,k=1)[0],np.triu_indices_from(a,k=1)[1]))
-    high_corr_index_list = [x for x in np.argwhere(abs(a[np.triu_indices(len(a), k = 1)])>=corr_limit)]
-    low_corr_index_list =  [x for x in np.argwhere(abs(a[np.triu_indices(len(a), k = 1)])<corr_limit)]
-    tuple_list = [y for y in [index_triupper[x[0]] for x in high_corr_index_list]]
-    correlated_pair = [(col_index[tuple[0]],col_index[tuple[1]]) for tuple in tuple_list]
-    corr_pair_dict = dict(return_dictionary_list(correlated_pair))
-    keys_in_dict = list(corr_pair_dict.keys())
-    reverse_correlated_pair = [(y,x) for (x,y) in correlated_pair]
-    reverse_corr_pair_dict = dict(return_dictionary_list(reverse_correlated_pair))
-    for key, val in reverse_corr_pair_dict.items():
-        if key in keys_in_dict:
-            if len(key) > 1:
-                corr_pair_dict[key] += val 
+    flatten_keys = lambda dic: [x for x in dic.keys()]
+    flatten_values = lambda dic: [x for x in dic.values()]
+    start_time = time.time()
+    print('############## F E A T U R E   S E L E C T I O N  ####################')
+    print('Trying Feature Selection among %d numeric variables...' %len(numvars))
+    corr_pair_count_dict, rem_col_list, temp_corr_list,correlated_pair_dict  = find_corr_vars(df[numvars].corr())
+    temp_dict = Counter(flatten(flatten_items(correlated_pair_dict)))
+    temp_corr_list = []
+    for name, count in temp_dict.items():
+        if count >= 2:
+            temp_corr_list.append(name)
+    temp_uncorr_list = []
+    for name, count in temp_dict.items():
+        if count == 1:
+            temp_uncorr_list.append(name)
+    ### Do another correlation test to remove those that are correlated to each other ####
+    corr_pair_count_dict2, rem_col_list2 , temp_corr_list2, correlated_pair_dict2 = find_corr_vars(
+                            df[rem_col_list+temp_uncorr_list].corr(),corr_limit)
+    final_dict = Counter(flatten(flatten_items(correlated_pair_dict2)))
+    #### Make sure that these lists are sorted and compared. Otherwise, you will get False compares.
+    if temp_corr_list2.sort() == temp_uncorr_list.sort():
+        ### if what you sent in, you got back the same, then you now need to pick just one:
+        ###   either keys or values of this correlated_pair_dictionary. Which one to pick?
+        ###   Here we select the one which has the least overall correlation to rem_col_list
+        ####  The reason we choose overall mean rather than absolute mean is the same reason in finance
+        ####   A portfolio that has lower overall mean is better than  a portfolio with higher correlation
+        corr_keys_mean = df[rem_col_list+flatten_keys(correlated_pair_dict2)].corr().mean().mean()
+        corr_values_mean = df[rem_col_list+flatten_values(correlated_pair_dict2)].corr().mean().mean()
+        if corr_keys_mean <= corr_values_mean:
+            final_uncorr_list = flatten_keys(correlated_pair_dict2)
         else:
-            corr_pair_dict[key] = val
-    flat_corr_pair_list = [item for sublist in correlated_pair for item in sublist]
-    #### You can make it a dictionary or a tuple of lists. We have chosen the latter here to keep order intact.
-    corr_pair_count_dict = count_freq_in_list(flat_corr_pair_list)
-    corr_list = [k for (k,v) in corr_pair_count_dict]
-    ###### This is for ordering the variables in the highest to lowest importance to target ###
-    if len(corr_list) == 0:
-        final_list = list(correlation_dataframe)
-        if verbose >= 1:
-            print('After feature reduction, %d numeric vars selected: No highly correlated vars found' %len(final_list))
+            final_uncorr_list = flatten_values(correlated_pair_dict2)
     else:
-        max_feats = len(corr_list)
-        if modeltype == 'Regression':
-            sel_function = mutual_info_regression
-            fs = SelectKBest(score_func=sel_function, k=max_feats)
-            fs.fit(df[corr_list], df[target])
-            mutual_info = dict(zip(corr_list,fs.scores_))
-        else:
-            sel_function = mutual_info_classif
-            fs = SelectKBest(score_func=sel_function, k=max_feats)
-            fs.fit(df[corr_list], df[target])
-            mutual_info = dict(zip(corr_list,fs.scores_))
-        #### The first variable in list has the highest correlation to the target variable ###
-        sorted_by_mutual_info =[key for (key,val) in sorted(mutual_info.items(), key=lambda kv: kv[1],reverse=True)]
-        #####   Now we select the final list of correlated variables ###########
-        selected_corr_list = []
-        #### select each variable by the highest mutual info and see what vars are correlated to it
-        for each_corr_name in sorted_by_mutual_info:
-            ### add the selected var to the selected_corr_list
-            selected_corr_list.append(each_corr_name)
-            for each_remove in corr_pair_dict[each_corr_name]:
-                #### Now remove each variable that is highly correlated to the selected variable
-                if each_remove in sorted_by_mutual_info:
-                    sorted_by_mutual_info.remove(each_remove)
-        ##### Now we combine the uncorrelated list to the selected correlated list above
-        rem_col_list = left_subtract(list(correlation_dataframe),corr_list)
-        final_list = rem_col_list + selected_corr_list
-        if verbose >= 1:
-            print('After feature reduction, %d numeric vars selected: %s' %(len(final_list),final_list))
+        final_corr_list = []
+        for name, count in final_dict.items():
+            if count >= 2:
+                final_corr_list.append(name)
+        final_uncorr_list = []
+        for name, count in final_dict.items():
+            if count == 1:
+                final_uncorr_list.append(name)
+    ####  Once we have chosen a few from the highest corr list, we add them to the highest uncorr list#####
+    selected = copy.deepcopy(final_uncorr_list)
+    #####  Now we have reduced the list of vars and these are ready to be used ####
+    final_list = list(OrderedDict.fromkeys(selected + rem_col_list))
+    if int(len(numvars)-len(final_list)) == 0:
+        print('    No variables were removed since no highly correlated variables found in data')
+    else:
+        print('    Number of variables removed due to high correlation = %d ' %(len(numvars)-len(final_list)))
+    if verbose == 2:
+        if len(left_subtract(numvars, final_list)) > 0:
+            print('    List of variables removed: %s' %(left_subtract(numvars, final_list)))
     return final_list
 ################################################################################
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
@@ -2669,7 +2723,7 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.model_selection import GridSearchCV
 import re
 
-def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly=2,md='',
+def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly=2,md='',corr_limit=0.70,
                          scaling=True, fit_flag=False, verbose=0):
     """
     #### This adds Polynomial and Interaction Variables of any Size to a data set and returns the best vars
@@ -2715,7 +2769,11 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     if Add_Poly == 1:
         ### If it is 1, add only Interaction variables.
         poly = PolynomialFeatures(degree=poly_degree, include_bias = False, interaction_only=True)
-    elif Add_Poly >= 2:
+    elif Add_Poly == 2:
+        #### If it is 2 or 3 add both Squared and Interaction variables. We will remove interaction
+        ###       variables later in this program. For now include both!
+        poly = PolynomialFeatures(degree=poly_degree, include_bias = False, interaction_only=False)
+    elif Add_Poly == 3:
         #### If it is 2 or 3 add both Squared and Interaction variables. We will remove interaction
         ###       variables later in this program. For now include both!
         poly = PolynomialFeatures(degree=poly_degree, include_bias = False, interaction_only=False)
@@ -2725,40 +2783,82 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         XP = md.transform(X) #### This transforms X into a Polynomial Order
     except MemoryError:
         return predictors, lm, X, md, []
-    ###########   FAST FEATURE REDUCTION USING LASSO FOR LARGE DATA SETS ########
-    snames = md.get_feature_names() ### snames contains all the Poly and Intxn variables including x variables
-    XP1 = pd.DataFrame(XP,index=orig_data_index, columns=snames) ## XP1 has all the Xvars:incl orig+poly+intxn vars
-    if not fit_flag:
-        #### Just return the transformed dataframe with all x_vars incl orig+poly+intxn vars
-        return predictors, lm, XP1, md, snames
-        #############################################################################
-    else:
+    #################################################################################
+    #####   CONVERT X-VARIABLES FROM POLY AND INTERACTION INTO ORIGINAL VARIABLES ###
+    #################################################################################
+    xnames = md.get_feature_names() ### xnames contains all x-only, Poly and Intxn variables in x-format
+    XP1 = pd.DataFrame(XP,index=orig_data_index, columns=xnames) ## XP1 has all the Xvars:incl orig+poly+intxn vars
+    x_vars = xnames[:n_orig_features]  ### x_vars contain x_variables such as 'x1'
+    #### Feature_xvar_dict will map the X_vars, Squared_vars and Intxn_vars back to  Text vars in one variable
+    feature_xvar_dict = dict(zip(x_vars,predictors)) ### 
+    if fit_flag:
         #### If there is fitting to be done, then you must do this ###
-        lst = snames[:n_orig_features]  ### lst contains x_variables corresponding to the original number
+        if Add_Poly == 1: #### This adds only Interaction variables => no Polynomials!
+            sq_vars = []    ### sq_vars contain only x-squared variables such as 'x^2'
+            intxn_vars = left_subtract(xnames, sq_vars+x_vars) ### intxn_vars contain interaction vars such as 'x1 x2'
+        elif Add_Poly == 2: #### This adds only Polynomial variables => no Interactions!
+            sq_vars = [x for x in xnames if '^2' in x]    ### sq_vars contain only x-squared variables such as 'x^2'
+            intxn_vars = [] ### intxn_vars contain interaction vars such as 'x1 x2'
+        elif Add_Poly == 3: #### This adds Both Interaction and Polynomial variables => Best of Both worlds!
+            sq_vars = [x for x in xnames if '^2' in x]    ### sq_vars contain only x-squared variables such as 'x^2'
+            intxn_vars = left_subtract(xnames, sq_vars+x_vars) ### intxn_vars contain interaction vars such as 'x1 x2'
         ####  It is now time to cut down the original x_variables to just squared variables and originals here ####
-        if Add_Poly == 2:
-            ### X_vars contains only x versions of original and squared variables only ####
-            X_vars = [x for x in snames if '^2' in x]    ### x_vars contains a short version
+        dict_vars = dict(zip(predictors,x_vars)) ### this is a dictionary mapping original variables and their x-variables
+        reverse_dict_vars = dict([(y,x) for (x,y) in dict_vars.items()]) ### this maps the x-vars to original vars 
+        ##### Now let's convert Interaction x_variables into their corresponding text variables 
+        intxn_text_vars = []
+        for each_item in intxn_vars:
+            if len(each_item.split(" ")) == 1:
+                intxn_text_vars.append(reverse_dict_vars[each_item])
+                feature_xvar_dict[each_item] = reverse_dict_vars[each_item]
+            elif len(each_item.split(" ")) == 2:
+                two_items_list = each_item.split(" ")
+                full_intxn_name = reverse_dict_vars[two_items_list[0]] +" "+ reverse_dict_vars[two_items_list[1]]
+                intxn_text_vars.append(full_intxn_name)
+                feature_xvar_dict[each_item] = full_intxn_name
+            else:
+                pass
+        ##### Now let's convert Squared x_variables into their corresponding text variables 
+        sq_text_vars = []
+        for each_sq_item in sq_vars:
+            if len(each_sq_item.split("^")) == 2:
+                two_item_list = each_sq_item.split("^")
+                full_sq_name = reverse_dict_vars[two_item_list[0]] +"^2"
+                sq_text_vars.append(full_sq_name)
+                feature_xvar_dict[each_sq_item] = full_sq_name
+            else:
+                pass
+        #### Now we need to combine the x_vars, Squared_vars and the Intxn_vars together as Text vars in one variable
+        full_x_vars = x_vars + sq_vars + intxn_vars
+        text_vars = predictors + sq_text_vars + intxn_text_vars #### text_vars now contains all the text version of x-variables
+        if len(text_vars) == len(full_x_vars):
+            print('Successfully transformed x-variables into text-variables after Polynomial transformations')
         else:
-            #### If Add_Poly is not 2, then you just excl the orig variables and take only the Poly and Intxn vars
-            X_vars = snames[n_orig_features:]
-        ##### Now let's convert the x_variables into text variables which is the original variable names
-        xvars = copy.deepcopy(X_vars)
-        dict_vars = dict(zip(predictors,lst)) ### this is only containing the original variables
-        #### Remember that the LHS and RHS of the next 2 lines should be the same: xvars. Don't change it!
-        for key,val in dict_vars.items():
-            #### this converts all the x_variables into Poly and Intxn of original variables ###
-            xvars = [re.sub(val+r'\b',key,xvars[x]) for x in range(len(xvars))]
-        #### Now Build a Data Frame containing containing x variables and their counterpart original variables here ####
-        text_vars = copy.deepcopy(xvars) #### text_vars now contains the text version of x variables
-        XP1X = XP1[X_vars]
-        XP2 = XP1[lst+X_vars]  ### XP2 has all the Xx variables from orig to polynomial+intxn vars
-        dfx = pd.DataFrame([X_vars, text_vars])
-        df = dfx.T
-        df.columns=['X Names','Interaction Variable Names']
-        ####   Use LassoCV or LogisticRegressionCV to Reduce Number of Variables using Regularization
+            print('Error: Not able to transform x-variables into text-variables. Continuing without Poly vars...')
+            return predictors, lm, XP1, md, x_vars
+        feature_textvar_dict  = dict([(y,x) for (x,y) in feature_xvar_dict.items()])
+        #### Now Build a Data Frame containing containing additional Poly and Intxn variables in x-format here ####
+        new_addx_vars = sq_vars+intxn_vars
+        if len(new_addx_vars) == 0:
+            print('Error: There are no squared or interaction vars to add. Continuing without Poly vars...')
+            return predictors, lm, XP1, md, x_vars
+        ####  We define 2 data frames: one for removing highly correlated vars and other for Lasso selection
+        XP2 = XP1[new_addx_vars].join(Y)
+        XP1X = XP1[new_addx_vars]
+        new_addtext_vars = [feature_xvar_dict[x] for x in new_addx_vars]
+        XP2.columns = new_addtext_vars+[targetvar]
+        XP1X.columns = new_addtext_vars 
+        ###################################################################################
+        ####    FAST FEATURE REDUCTION USING L1 REGULARIZATION FOR LARGE DATA SETS   ######
+        ####   Use LassoCV or LogisticRegressionCV to Reduce Variables using Regularization
+        ###################################################################################
         print('Building Comparison Model with only Poly and Interaction variables...')
         lm_p, _ = print_model_metrics(modeltype,lm,XP1X,Y,True)
+        ####  We need to build a dataframe to hold coefficients from the model for each variable ###
+        dfx = pd.DataFrame([new_addx_vars, new_addtext_vars])
+        df = dfx.T
+        df.columns=['X Names','Interaction Variable Names']
+        ##########  N O W   B U I L D  T H E  M O D E L ##################################        
         if modeltype == 'Regression':
             df['Coefficient Values'] = lm_p.coef_
         else:
@@ -2786,15 +2886,23 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
                     kind='bar',x='Interaction Variable Names',y='Coefficient Values',
                         title='All Variable Interactions and their Coefficients',figsize=(20,10))
             interactions = df90['Interaction Variable Names'].values.tolist()
-            print('%d Interaction and Polynomial variable(s) selected...' %len(interactions))
+            print('\nSelecting and Substituting %d Interaction and Polynomial variable(s) for numeric variables...' %len(interactions))
             sel_x_vars = df90["X Names"].values.tolist()
-        final_x_vars = lst+sel_x_vars
-        New_XP = XP2[final_x_vars]
-        finalvars = predictors + df[df["X Names"].isin(final_x_vars)][
-                                'Interaction Variable Names'].values.tolist()
+        ####### Now we have to put the full dataframe together with selected variables and original predictors!
+        #### DO NOT CHANGE THE NEXT LINE EVEN THOUGH IT MIGHT BE TEMPTING TO DO SO! It is correct!
+        final_x_vars = x_vars + sel_x_vars
+        final_text_vars = [feature_xvar_dict[x] for x in final_x_vars]
+        New_XP = XP1[final_x_vars]
+        New_XP.columns = final_text_vars
         #### New_XP will be the final dataframe that we will send with orig and poly/intxn variables
-        New_XP.columns = finalvars
-        return finalvars, lm_p, New_XP, md, final_x_vars
+        ########## R E M O V E    C O R R E L A T E D   V A R I A B L E S ################
+        final_text_vars = remove_variables_using_fast_correlation(New_XP,final_text_vars,
+                                corr_limit,verbose)
+        final_x_vars = [feature_textvar_dict[x] for x in final_text_vars]
+        return final_text_vars, lm_p, New_XP, md, final_x_vars
+    else:
+        #### Just return the transformed dataframe with all orig+poly+intxn vars 
+        return predictors, lm, XP1, md, x_vars
 ##################################################################################
 ## Import sklearn
 from sklearn.model_selection import cross_val_score,KFold, StratifiedKFold
@@ -2802,7 +2910,7 @@ def print_model_metrics(modeltype,reg,X,y,fit_flag=False,verbose=1):
     ### If fit_flag is set to True, then you must return a fitted model ###
     ###   Else you must return the cv_scores.mean only ####
     n_splits = 5
-    if verbose==1:
+    if verbose>0:
         print("Model Report :")
         print('    Number of Variables = ',X.shape[1])
     if modeltype == 'Regression':
@@ -2818,7 +2926,7 @@ def print_model_metrics(modeltype,reg,X,y,fit_flag=False,verbose=1):
         scv = StratifiedKFold(n_splits=n_splits, random_state=0, shuffle=True)
         ### use F1 weighted since it works on multiple classes as well as binary ##
         cv_scores = cross_val_score(reg,X,y.values.ravel(),cv=scv,scoring='f1_weighted')
-        if verbose:
+        if verbose>0:
             print("    CV Weighted F1 Score : %.4g +/- %.4g | Min = %.4g | Max = %.4g" % (
                 np.mean(cv_scores),np.std(cv_scores),
                  np.min(cv_scores),np.max(cv_scores)))
@@ -3518,8 +3626,8 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     """
         ######   This is where we do ENTROPY BINNING OF CONTINUOUS VARS ###########
         #### It is best to do Binning on ONLY on the top most variables from Important_Features!
-        #### Make sure that the Top 2-10 vars are all CONTINUOUS VARS! Otherwise Binning Waste!
-        ####    That ensures you get the Best Results!
+        #### Make sure that the Top 2-10 vars are all CONTINUOUS VARS! Otherwise Binning is Waste!
+        #### This method ensures you get the Best Results by generalizing on the top numeric vars!
     """
     seed = 99
     continuous_vars = copy.deepcopy(num_vars)
@@ -3544,7 +3652,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
             continuous_vars = continuous_vars[:50]
         print('Entropy Binning %d continuous variables...' %len(continuous_vars))
         new_bincols = []
-        ###   This is an Awesome Entropy Based Binning for Continuous Variables ###########
+        ###   This is an Awesome Entropy Based Binning Method for Continuous Variables ###########
         from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
         if modeltype == 'Regression':
             clf = DecisionTreeRegressor(criterion='mse',min_samples_leaf=2,
@@ -3590,7 +3698,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.478'
+    version_number = '0.1.480'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3602,7 +3710,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.478'
+    version_number = '0.1.480'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

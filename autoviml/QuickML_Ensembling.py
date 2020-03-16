@@ -22,6 +22,7 @@ import time
 import pdb
 import time
 import copy
+import operator
 #############################################################################
 def accu(results, y_cv):
     return (results==y_cv).astype(int).sum(axis=0)/(y_cv.shape[0])
@@ -100,10 +101,12 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             estimators.append(('Boosting',model8, metrics4))
         estimators_list = [(tuples[0],tuples[1]) for tuples in estimators]
         estimator_names = [tuples[0] for tuples in estimators]
+        estim_tuples = [(estimator_names[0], metrics1),(estimator_names[1],metrics2), (
+            estimator_names[2], metrics3), (estimator_names[3], metrics4)]
         if verbose > 1:
             print('QuickML_Ensembling Model results:')
-            print('    %s = %0.4f \n    %s = %0.4f\n    %s = %0.4f \n    %s = %0.4f' %(estimator_names[0], metrics1,
-                    estimator_names[1], metrics2, estimator_names[2], metrics3, estimator_names[3], metrics4))
+            for atuple in estim_tuples: 
+                    print('    %s = %0.4f' %atuple)
     else:
         if scoring == '':
             scoring = 'accuracy'
@@ -174,18 +177,26 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             estimators.append(('Boosting',model8, metrics4))
         estimators_list = [(tuples[0],tuples[1]) for tuples in estimators]
         estimator_names = [tuples[0] for tuples in estimators]
-        if verbose > 0:
-            print('Estimators and Metrics: %s' %estimators)
+        estim_tuples = [(estimator_names[0], metrics1),(estimator_names[1],metrics2), (
+            estimator_names[2], metrics3), (estimator_names[3], metrics4)]
         if not isinstance(y_test, str):
             if verbose > 1:
                 print('QuickML_Ensembling Model results:')
-                print('    %s = %0.4f \n    %s = %0.4f\n    %s = %0.4f \n    %s = %0.4f' %(estimator_names[0], metrics1,
-                        estimator_names[1], metrics2, estimator_names[2], metrics3, estimator_names[3], metrics4))
+                for atuple in estim_tuples: 
+                    print('    %s = %0.4f' %atuple)
         else:
             if verbose >= 1:
                 print('QuickML_Ensembling completed.')
     stacks = np.c_[results1,results2,results3,results4]
-    if verbose > 0:
-        print('    Time taken for Ensembling: %0.1f seconds' %(time.time()-start_time))
+    f1_stats = dict(estim_tuples)
+    try:
+        if scoring in ['logloss','rmse','mae','mape','RMSE','neg_mean_squared_error']:
+            best_model_name = min(f1_stats.items(), key=operator.itemgetter(1))[0]
+        else:
+            best_model_name = max(f1_stats.items(), key=operator.itemgetter(1))[0]
+        if verbose > 0:
+            print('Based on trying multiple models, Best type of algorithm for this data set is %s' %best_model_name)
+    except:
+        print('Could not detect best algorithm type from ensembling. Continuing...')
     return estimator_names, stacks
 #########################################################

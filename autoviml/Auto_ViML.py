@@ -715,6 +715,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                                                 fit_flag=True,verbose=verbose)
                 if len(left_subtract(train_sel,numvars)) > 0:
                     addl_vars = left_subtract(train_sel,numvars)
+                    #numvars = list(set(numvars).intersection(set(train_sel)))
                     ##### Print the additional Interxn and Poly variables here #######
                     if verbose >= 1:
                         print('    Intxn and Poly Vars are: %s' %addl_vars)
@@ -749,6 +750,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         test = test_red[train_sel].join(test[rem_vars])
                 else:
                     ####  NO new variables were added. so we can skip the rest of the stuff now ###
+                    #### This means the train_sel is the new set of numeric features selected by add_poly algorithm
+                    red_preds = train_sel+rem_vars
                     print('    No new variable was added by polynomial features...')
             else:
                 print('\nAdding Polynomial vars ignored since no numeric vars in data')

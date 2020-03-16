@@ -175,7 +175,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
         estimators_list = [(tuples[0],tuples[1]) for tuples in estimators]
         estimator_names = [tuples[0] for tuples in estimators]
         if verbose > 0:
-        print('Estimators and Metrics: %s' %estimators)
+            print('Estimators and Metrics: %s' %estimators)
         if not isinstance(y_test, str):
             if verbose > 1:
                 print('QuickML_Ensembling Model results:')

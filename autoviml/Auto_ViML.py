@@ -224,7 +224,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.484                                              #######
+    ######                               Version 0.1.485                                              #######
     #####   MOST STABLE VERSION: Faster Correlated Vars + better Add_Poly + Better Charts. March 15,2020#####
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -335,7 +335,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     catboost_limit = 0.4 #### The catboost_limit represents the percentage of num vars in data. ANy lower, CatBoost is used.
     cat_code_limit = 100 #### If the number of dummy variables to create in a data set exceeds this, CatBoost is the default Algorithm used
     one_hot_size = 100 #### This determines the max length of one_hot_max_size parameter of CatBoost algrithm
-    C_min = 10e-5  ### The lowest value of C used in Logistic Regression
+    C_min = 10e-3  ### The lowest value of C used in Logistic Regression
     C_max = 100  ### The highest value of C used in Logistic Regression
     Alpha_min = -3 #### The lowest value of Alpha in LOGSPACE that is used in CatBoost
     Alpha_max = 2 #### The highest value of Alpha in LOGSPACE that is used in Lasso or Ridge Regression
@@ -380,7 +380,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         no_iter=30
         early_stopping = 5
         test_size = 0.15
-        max_iter = 1000
+        max_iter = 10000
         if isinstance(Boosting_Flag,str):
             if Boosting_Flag.lower() == 'catboost':
                 max_estims = 5000
@@ -392,7 +392,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         if orig_train.shape[0] <= 1000:
             no_iter=20
             test_size = 0.1
-            max_iter = 250
+            max_iter = 4000
             if isinstance(Boosting_Flag,str):
                 if Boosting_Flag.lower() == 'catboost':
                     max_estims = 3000
@@ -403,7 +403,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         else:
             no_iter=30
             test_size = 0.1
-            max_iter = 700
+            max_iter = 7000
             if isinstance(Boosting_Flag,str):
                 if Boosting_Flag.lower() == 'catboost':
                     max_estims = 4000
@@ -591,7 +591,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     if model_name == 'XGBoost':
         #### This is only for XGBoost ###########
         if GPU_exists:
-            param['nthread'] = CPU_count
+            #param['nthread'] = CPU_count
             param['tree_method'] = 'gpu_hist'
             param['grow_policy'] = 'depthwise'
             param['max_depth'] = maxdepth
@@ -969,12 +969,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     if not Imbalanced_Flag:
                         c_params['Linear'] = {
                                     'C': np.linspace(C_min,C_max,100),
-                                    'solver' :[ 'lbfgs','saga', 'liblinear','newton-cg']
+                                    'solver' :['newton-cg'],# 'lbfgs', 'saga'],
                                         }
                     else:
                         c_params['Linear'] = {
                                     'C': np.linspace(C_min,C_max,100),
-                                    'solver' :[ 'lbfgs' ],#'saga', 'liblinear','newton-cg'
+                                    'solver' :['newton-cg'],# 'lbfgs', 'saga'],
                                     'class_weight':[None,'balanced'],
                                         }
                 c_params["Forests"] = {
@@ -1067,7 +1067,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         xgbm.set_params(**param)
                 elif Boosting_Flag is None:
                     #### I have set the Verbose to be False here since it produces too much output ###
-                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,tol=0.01,
+                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver='lbfgs',
                                              warm_start=False, max_iter=max_iter)
                 else:
                     xgbm = ExtraTreesClassifier(
@@ -1180,18 +1180,17 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         c_params['Linear'] = {
                                     'C': np.linspace(C_min,C_max,100),
                                 'class_weight':[None, 'balanced'],
-                                'solver': ['saga','lbfgs'],
                                 'multi_class': ['multinomial'],
                                 }
                     else:
                         c_params['Linear'] = {
                                     'C': np.linspace(C_min,C_max,100),
-                                    'solver': ['saga','lbfgs'],
-                                    'multi_class': ['multinomial'],
+                                    'solver' :['newton-cg'],# 'lbfgs', 'saga'],
+                                    'multi_class': ['ovr','multinomial'],
                                         }
                     #### I have set the Verbose to be False here since it produces too much output ###
-                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,
-                                              max_iter=max_iter, warm_start=False,tol=0.01
+                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver='lbfgs',
+                                              max_iter=max_iter, warm_start=False,
                                               )
                 else:
                     if hyper_param == 'GS':
@@ -3747,7 +3746,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.484'
+    version_number = '0.1.485'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3759,7 +3758,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.484'
+    version_number = '0.1.485'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

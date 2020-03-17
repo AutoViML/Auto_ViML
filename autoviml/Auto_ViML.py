@@ -224,7 +224,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.485                                              #######
+    ######                               Version 0.1.486                                              #######
     #####   MOST STABLE VERSION: Faster Correlated Vars + better Add_Poly + Better Charts. March 15,2020#####
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -709,7 +709,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             ## Since the data is already scaled, we set scaling to None here ##
             ### For train data we have to set the fit_flag to True   ####
             if len(numvars) > 1:
-                train_sel, lm, train_red,md,fin_xvars = add_poly_vars_select(train,numvars,
+                train_sel, lm, train_red,md,fin_xvars,feature_xvar_dict = add_poly_vars_select(train,numvars,
                                             each_target,modeltype,poly_degree,Add_Poly,md='',
                                                                 corr_limit=corr_limit, scaling='None',
                                                                 fit_flag=True,verbose=verbose)
@@ -736,18 +736,21 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     ######### Add Polynomial and Interaction variables to Test ################
                     ## Since the data is already scaled, we set scaling to None here ##
                     ### For Test data we have to set the fit_flag to False   ####
-                        _, _, test_x_vars,_,_ = add_poly_vars_select(test,numvars,each_target,
+                        _, _, test_x_df,_,_,_ = add_poly_vars_select(test,numvars,each_target,
                                                               modeltype,poly_degree,Add_Poly,md,
                                                               corr_limit, scaling='None', fit_flag=False,
                                                                verbose=verbose)
-                        test_red = test_x_vars[fin_xvars]
-                        #### test_red contain xvars with orig and poly/intxn variables
-                        ###  we need to convert it into orig text variables
-                        test_red.columns = train_sel
+                        ### we need to convert x_vars into text_vars in test_x_df using feature_xvar_dict
+                        test_x_vars = test_x_df.columns.tolist()
+                        test_text_vars = [feature_xvar_dict[x] for x in test_x_vars]
+                        test_x_df.columns = test_text_vars
+                        #### test_red contains reduced variables without orig but substituted poly/intxn variables
+                        test_red = test_x_df[subst_vars]
+                        #### we should now combined test_red with rem_vars so that it is the same shape as train
+                        test = test_red.join(test[rem_vars])
                         #### Now we should change train_sel to subst_vars since that is the new list of vars going forward
                         train_sel = copy.deepcopy(subst_vars)
                         numvars = copy.deepcopy(subst_vars)
-                        test = test_red[train_sel].join(test[rem_vars])
                 else:
                     ####  NO new variables were added. so we can skip the rest of the stuff now ###
                     #### This means the train_sel is the new set of numeric features selected by add_poly algorithm
@@ -2803,7 +2806,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     try:
         XP = md.transform(X) #### This transforms X into a Polynomial Order
     except MemoryError:
-        return predictors, lm, X, md, []
+        return predictors, lm, X, md, [], dict()
     #################################################################################
     #####   CONVERT X-VARIABLES FROM POLY AND INTERACTION INTO ORIGINAL VARIABLES ###
     #################################################################################
@@ -2856,13 +2859,13 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
             print('Successfully transformed x-variables into text-variables after Polynomial transformations')
         else:
             print('Error: Not able to transform x-variables into text-variables. Continuing without Poly vars...')
-            return predictors, lm, XP1, md, x_vars
+            return predictors, lm, XP1, md, x_vars,feature_xvar_dict
         feature_textvar_dict  = dict([(y,x) for (x,y) in feature_xvar_dict.items()])
         #### Now Build a Data Frame containing containing additional Poly and Intxn variables in x-format here ####
         new_addx_vars = sq_vars+intxn_vars
         if len(new_addx_vars) == 0:
             print('Error: There are no squared or interaction vars to add. Continuing without Poly vars...')
-            return predictors, lm, XP1, md, x_vars
+            return predictors, lm, XP1, md, x_vars,feature_xvar_dict
         ####  We define 2 data frames: one for removing highly correlated vars and other for Lasso selection
         XP2 = XP1[new_addx_vars].join(Y)
         XP1X = XP1[new_addx_vars]
@@ -2928,10 +2931,10 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
             print('Finally selecting %d variables after high-correlation test' %len(final_text_vars))
             if len(final_text_vars) <= 30:
                 print('    Selected variables are: %s' %final_text_vars)
-        return final_text_vars, lm_p, New_XP, md, final_x_vars
+        return final_text_vars, lm_p, New_XP, md, final_x_vars,feature_xvar_dict
     else:
         #### Just return the transformed dataframe with all orig+poly+intxn vars 
-        return predictors, lm, XP1, md, x_vars
+        return predictors, lm, XP1, md, x_vars,feature_xvar_dict
 ##################################################################################
 ## Import sklearn
 from sklearn.model_selection import cross_val_score,KFold, StratifiedKFold
@@ -3746,7 +3749,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.485'
+    version_number = '0.1.486'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3758,7 +3761,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.485'
+    version_number = '0.1.486'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -225,8 +225,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.487                                              #######
-    #####   MOST STABLE VERSION: Faster Correlated Vars + better Add_Poly + Better Charts. March 15,2020#####
+    ######                               Version 0.1.488                                              #######
+    #####   MOST STABLE VERSION: Faster Everything. Best Version to Download or Upgrade. March 15,2020 ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
@@ -340,13 +340,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     Alpha_max = 2 #### The highest value of Alpha in LOGSPACE that is used in Lasso or Ridge Regression
     #Cs = [0.001,0.005,0.01,0.05,0.1,0.25,0.5,1,2,4,6,10,20,30,40,50,100,150,200,400,800,1000,2000]  
     Cs = np.logspace(-2,3,40) ### The list of values of C used in Logistic Regression
-    solvers = ['saga'] ### Other solvers for Logistic Regression model: ['newton-cg','lbfgs','liblinear']
+    #### 'lbfgs' is the fastest one but doesnt provide accurate results. Newton-CG is slower but accurate!
+    #### SAGA is extremely slow. Even slower than Newton-CG. Liblinear is the fastest and as accurate as Newton-CG!
+    solvers = ['liblinear'] ### Other solvers for Logistic Regression model: ['newton-cg','lbfgs','saga','liblinear']
     n_steps = 6 ### number of estimator steps between 100 and max_estims
     max_depth = 10 ##### This limits the max_depth used in decision trees and other classifiers
     max_features = 10 #### maximum number of features in a random forest model or extra trees model
     warm_start = False ### This is to set the warm_start flag for the ExtraTrees models
     bootstrap = True #### Set this flag to control whether to bootstrap variables or not. False is default.
-    n_repeats = 2 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
+    n_repeats = 1 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
     if isinstance(Boosting_Flag,str):
         if Boosting_Flag.lower() == 'catboost':
@@ -993,8 +995,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 else:
                     c_params['Linear'] = {
                                     'C': Cs,
+                                'class_weight':[None, 'balanced'],
                                     'solver' : solvers,
-                                    'class_weight':[None,'balanced'],
                                         }
                 c_params["Forests"] = {
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets
@@ -1635,7 +1637,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     plot_xgb_metrics(model,eval_metric,eval_set,modeltype,'%s Results' %each_target,
                                     model_name)
             else:
-                 print('No evaluation metrics plot available for this model')
+                 print('No evaluation metrics plot available for this type of model')
         except:
             print('Could not plot Model Evaluation Results Metrics')
         print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
@@ -2112,10 +2114,11 @@ def plot_SHAP_values(m,X,modeltype,Boosting_Flag=False,matplotlib_flag=False,ver
     explainer = shap.TreeExplainer(m)
     shap_values = explainer.shap_values(X)
     if not Boosting_Flag is None:
-        # visualize the first prediction's explanation (use matplotlib=True to avoid Javascript)
-        if verbose > 0 and modeltype != 'Multi_Classification':
-            shap.summary_plot(shap_values, X, plot_type="violin");
-        if verbose > 1 and modeltype == 'Multi_Classification':
+        if Boosting_Flag:
+            # visualize the first prediction's explanation (use matplotlib=True to avoid Javascript)
+            if verbose > 0 and modeltype != 'Multi_Classification':
+                shap.summary_plot(shap_values, X, plot_type="violin");
+        if verbose >= 1:
             shap.summary_plot(shap_values, X, plot_type="bar");
     else:
         shap.summary_plot(shap_values, X, plot_type="bar")
@@ -3780,7 +3783,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.487'
+    version_number = '0.1.488'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3792,7 +3795,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.487'
+    version_number = '0.1.488'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -225,7 +225,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.488                                              #######
+    ######                               Version 0.1.489                                              #######
     #####   MOST STABLE VERSION: Faster Everything. Best Version to Download or Upgrade. March 15,2020 ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -684,6 +684,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     else:
         print('    Could not find any variables in your data set. Please check input and try again')
         return
+    ###########################################################################################
+    ### This is a minor test to make sure that Boolean vars are Integers if they are Numeric!
+    if len(var_df['num_bool_vars']) > 0:
+        ### Just make sure that numeric Boolean vars are set as Integer type -> otherwise CatBoost will blow up
+        for each_bool_num in var_df['num_bool_vars']:
+            start_train[each_bool_num] = start_train[each_bool_num].astype(int)
+            if type(start_test) != str:
+                start_test[each_bool_num] = start_test[each_bool_num].astype(int)
+    ######################################################################################    
     #########   Set your Refit Criterion here - if you want to maximize Precision or Recall do it here ##
     if modeltype == 'Regression':
         if scoring_parameter in ['log_loss', 'neg_mean_squared_error','mean_squared_error']:
@@ -2141,7 +2150,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     ####  Otherwise. XGBoost is pretty good at finding the best features whether cat or numeric !
     import xgboost as xgb
     max_depth = 8
-    max_cats = 30
+    max_cats = 50
     train = copy.deepcopy(train)
     preds = copy.deepcopy(preds)
     numvars = copy.deepcopy(numvars)
@@ -2168,19 +2177,33 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     if max_feats > max_cats:
         print('Mutual Information feature selection: out of %d categorical features...' %max_feats)
         if modeltype == 'Regression':
-            #sel_function = chi2
-            sel_function = mutual_info_regression
-            fs = SelectKBest(score_func=sel_function, k=max_feats)
-            fs.fit(train[catvars], train[target])
-            #### Select those with less than 0.05 p-value #####
-            cols_index = fs.scores_ != 0.0
+            try:
+                sel_function = mutual_info_regression
+                fs = SelectKBest(score_func=sel_function, k=max_feats)
+                fs.fit(train[catvars], train[target])
+                #### Select those with less than 0.05 p-value #####
+                cols_index = fs.scores_ != 0.0
+                print('Mutual Information feature selection: out of %d categorical features...' %max_feats)
+            except:
+                ### If the above fails because it returns None, then try Chi2 function
+                sel_function = chi2
+                fs = SelectKBest(score_func=sel_function, k=max_feats)
+                cols_index = fs.pvalues_ < 0.05
+                print('Chi Squared feature selection: out of %d categorical features...' %max_feats)
         else:
-            sel_function = mutual_info_classif
-            #sel_function = chi2
-            fs = SelectKBest(score_func=sel_function, k=max_feats)
-            fs.fit(train[catvars], train[target])
-            #### Select those with less than 0.05 p-value #####
-            cols_index = fs.pvalues_ < 0.05
+            try:
+                sel_function = mutual_info_classif
+                fs = SelectKBest(score_func=sel_function, k=max_feats)
+                fs.fit(train[catvars], train[target])
+                #### Select those with non-zero coefficient values #####
+                cols_index = fs.scores_ != 0.0
+                print('Mutual Information feature selection: out of %d categorical features...' %max_feats)
+            except:
+                ### If the above fails because it returns None, then try Chi2 function
+                sel_function = chi2
+                fs = SelectKBest(score_func=sel_function, k=max_feats)
+                cols_index = fs.pvalues_ < 0.05
+                print('Chi Squared feature selection: out of %d categorical features...' %max_feats)
         important_cats = np.array(catvars)[cols_index].tolist()
         print('    Selecting %d categorical features' %len(important_cats))
     elif max_feats <= 1:
@@ -3783,7 +3806,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.488'
+    version_number = '0.1.489'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3795,7 +3818,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.488'
+    version_number = '0.1.489'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

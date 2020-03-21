@@ -225,7 +225,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.489                                              #######
+    ######                               Version 0.1.490                                              #######
     #####   MOST STABLE VERSION: Faster Everything. Best Version to Download or Upgrade. March 15,2020 ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -705,7 +705,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         elif scoring_parameter in ['logloss', 'log_loss']:
             refit_metric = 'log_loss'
         elif scoring_parameter in ['recall', 'recall_score']:
-            refit_metric = 'precision'
+            refit_metric = 'recall'
         elif scoring_parameter in ['f1', 'f1_score','f1_weighted']:
             refit_metric = 'f1'
         elif scoring_parameter in ['accuracy', 'balanced_accuracy','balanced-accuracy']:
@@ -3558,7 +3558,7 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
         plt.ylabel('Precision')
         plt.ylim([0.0, 1.05])
         plt.xlim([0.0, 1.0])
-        plt.title('Precision-Recall curve: Avg.Precision={0:0.2f}, Avg F1={0:0.2f}'.format(
+        plt.title('Precision-Recall curve: Avg.Precision={0:0.2f}, Avg F1={1:0.2f}'.format(
                   average_precision,f_scores.mean()))
         plt.show();
         ###############################################################################
@@ -3806,7 +3806,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.489'
+    version_number = '0.1.490'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3818,7 +3818,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.489'
+    version_number = '0.1.490'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

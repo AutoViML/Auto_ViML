@@ -225,7 +225,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.490                                              #######
+    ######                               Version 0.1.491                                              #######
     #####   MOST STABLE VERSION: Faster Everything. Best Version to Download or Upgrade. March 15,2020 ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -2150,7 +2150,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     ####  Otherwise. XGBoost is pretty good at finding the best features whether cat or numeric !
     import xgboost as xgb
     max_depth = 8
-    max_cats = 50
+    max_cats = 150
     train = copy.deepcopy(train)
     preds = copy.deepcopy(preds)
     numvars = copy.deepcopy(numvars)
@@ -2187,6 +2187,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
             except:
                 ### If the above fails because it returns None, then try Chi2 function
                 sel_function = chi2
+                fs.fit(train[catvars], train[target])
                 fs = SelectKBest(score_func=sel_function, k=max_feats)
                 cols_index = fs.pvalues_ < 0.05
                 print('Chi Squared feature selection: out of %d categorical features...' %max_feats)
@@ -2202,6 +2203,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                 ### If the above fails because it returns None, then try Chi2 function
                 sel_function = chi2
                 fs = SelectKBest(score_func=sel_function, k=max_feats)
+                fs.fit(train[catvars], train[target])
                 cols_index = fs.pvalues_ < 0.05
                 print('Chi Squared feature selection: out of %d categorical features...' %max_feats)
         important_cats = np.array(catvars)[cols_index].tolist()
@@ -3806,7 +3808,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.490'
+    version_number = '0.1.491'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3818,7 +3820,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.490'
+    version_number = '0.1.491'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

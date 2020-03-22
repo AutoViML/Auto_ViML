@@ -36,12 +36,16 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
     """
     start_time = time.time()
     seed = 99
+    FOLDS = 5
     if len(X_train) <= 100000 or X_train.shape[1] < 50:
         NUMS = 100
-        FOLDS = 5
     else:
+        try:
+            X_train = X_train.sample(frac=0.30,random_state=99)
+            y_train = y_train[X_train.index]
+        except:
+            pass
         NUMS = 200
-        FOLDS = 10
     ## create Voting models
     estimators = []
     if modeltype == 'Regression':

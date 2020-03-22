@@ -225,7 +225,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.491                                              #######
+    ######                               Version 0.1.492                                              #######
     #####   MOST STABLE VERSION: Faster Everything. Best Version to Download or Upgrade. March 15,2020 ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -349,6 +349,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     warm_start = False ### This is to set the warm_start flag for the ExtraTrees models
     bootstrap = True #### Set this flag to control whether to bootstrap variables or not. False is default.
     n_repeats = 1 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
+    Bins = 30 ### This is for plotting probabilities in a histogram. For small data sets, 30 is enough.
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
     if isinstance(Boosting_Flag,str):
         if Boosting_Flag.lower() == 'catboost':
@@ -386,6 +387,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         early_stopping = 5
         test_size = 0.20
         max_iter = 10000
+        Bins = 100
         if isinstance(Boosting_Flag,str):
             if Boosting_Flag.lower() == 'catboost':
                 max_estims = 5000
@@ -1480,6 +1482,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 except:
                     best_f1 = f1_score(y_cv, y_pred)
                     m_thresh = 0.5
+                # retrieve just the probabilities for the positive class
+                pos_probs = y_proba[:, rare_class]
+                # create a histogram of the predicted probabilities
+                plt.hist(pos_probs, bins=Bins)
+                plt.title('Predictive Probabilities Distribution with suggested threshold in red')
+                plt.axvline(x=m_thresh, color='r', linestyle='--')
                 print("    Using threshold=0.5. However, %0.2f provides better F1=%0.2f for rare class..." %(m_thresh,best_f1))
                 ###y_pred = (y_proba[:,rare_class]>=m_thresh).astype(int)
                 y_pred = (y_proba[:,1]>0.5).astype(int)
@@ -3808,7 +3816,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.491'
+    version_number = '0.1.492'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3820,7 +3828,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.491'
+    version_number = '0.1.492'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

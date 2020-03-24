@@ -225,7 +225,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.492                                              #######
+    ######                               Version 0.1.493                                              #######
     #####   MOST STABLE VERSION: Faster Everything. Best Version to Download or Upgrade. March 15,2020 ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -1674,6 +1674,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 if model_name.lower() == 'catboost':
                     if verbose > 0:
                         import shap
+                        from catboost import Pool
                         shap_values = model.get_feature_importance(Pool(X_cv, label=y_cv,cat_features=imp_cats),type="ShapValues")
                         shap.initjs()
                         if modeltype != 'Multi_Classification':
@@ -2121,7 +2122,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #return model, imp_features_df.index.tolist(), trainm, testm
     return model, important_features, trainm, testm
 ###############################################################################
-from catboost import Pool
 def plot_SHAP_values(m,X,modeltype,Boosting_Flag=False,matplotlib_flag=False,verbose=0):
     import shap
     # load JS visualization code to notebook
@@ -3816,7 +3816,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 if __name__ == "__main__":
-    version_number = '0.1.492'
+    version_number = '0.1.493'
     print("""Running Auto_ViML version: %s. Call using:
      m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -3828,7 +3828,7 @@ if __name__ == "__main__":
             """ %version_number)
     print("To remove previous versions, perform 'pip uninstall autoviml'")
 else:
-    version_number = '0.1.492'
+    version_number = '0.1.493'
     print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

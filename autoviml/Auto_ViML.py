@@ -201,7 +201,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.494                                              #######
+    ######                               Version 0.1.495                                              #######
     #####   MOST STABLE VERSION: Faster Everything. Best Version to Download or Upgrade. March 15,2020 ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -2785,11 +2785,11 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     """
     orig_data_index = data.index
     if modeltype == 'Regression':
-        lm = LassoCV(alphas=np.logspace(-5,2,100),n_jobs=-1,max_iter=2000,
+        lm = LassoCV(alphas=np.logspace(-3,2,50),n_jobs=-1,max_iter=2000,
                  fit_intercept=True, normalize=False)
     else:
         lm = LogisticRegression(C=0.01,fit_intercept=True,
-                            max_iter=1000,solver='saga',n_jobs=-1,
+                            max_iter=2000,solver='newton-cg',n_jobs=-1,
                           penalty='l2',dual=False, random_state=0)
     predictors = copy.deepcopy(numvars)
     #### number of original features in data set ####
@@ -2830,11 +2830,23 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     try:
         XP = md.transform(X) #### This transforms X into a Polynomial Order
     except MemoryError:
-        return predictors, lm, X, md, [], dict()
+        return predictors, '', X, md, [], dict()
     #################################################################################
     #####   CONVERT X-VARIABLES FROM POLY AND INTERACTION INTO ORIGINAL VARIABLES ###
     #################################################################################
     xnames = md.get_feature_names() ### xnames contains all x-only, Poly and Intxn variables in x-format
+    if len(xnames) > 300:
+        max_iter = 5000
+    else:
+        max_iter = 2000
+    if modeltype == 'Regression':
+        lm = Lasso(alpha=0.001, max_iter=max_iter,
+                 fit_intercept=True, normalize=False)
+    else:
+        lm = LogisticRegression(C=0.01,fit_intercept=True,
+                            max_iter=max_iter,solver='newton-cg',n_jobs=-1,
+                          penalty='l2',dual=False, random_state=0)
+    ########### Here starts the conversion of X variables into Text feature variable names #####################
     XP1 = pd.DataFrame(XP,index=orig_data_index, columns=xnames) ## XP1 has all the Xvars:incl orig+poly+intxn vars
     x_vars = xnames[:n_orig_features]  ### x_vars contain x_variables such as 'x1'
     #### Feature_xvar_dict will map the X_vars, Squared_vars and Intxn_vars back to  Text vars in one variable
@@ -3778,7 +3790,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.494'
+version_number = '0.1.495'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

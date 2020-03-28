@@ -73,7 +73,7 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
                 estimator_length.append(1)
             else:
                 ####   Linear Models if Boosting is chosen #####
-                model6 = LassoCV(alphas=np.logspace(-10,-1,50), cv=scv,random_state=seed)
+                model6 = LassoCV(alphas=np.logspace(-5,-1,20), cv=scv,random_state=seed)
                 results = cross_val_predict(model6,X_train,y_train, cv=scv,n_jobs=-1)
                 estimators.append(('LassoCV Regularization',model6))
                 estimator_length.append(1)
@@ -133,7 +133,7 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
                 estimator_length.append(1)
             else:
                 ####   Linear Models if Boosting is chosen #####
-                model6 = LassoCV(alphas=np.logspace(-10,-1,50), cv=scv,random_state=seed)
+                model6 = LassoCV(alphas=np.logspace(-5,-1,20), cv=scv,random_state=seed)
                 results = model6.fit(X_train,y_train).predict(X_test)
                 estimators.append(('LassoCV Regularization',model6))
                 estimator_length.append(1)
@@ -175,7 +175,7 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
     #### Here is where we consolidate the estimator names and their results into one common list ###
     ls = []
     for x,y in dict(zip(estimator_names,estimator_length)).items():
-        els = [x+str(eachy) for eachy in range(y)]
+        els = [x+'_'+str(eachy) for eachy in range(y)]
         ls += els
     if verbose == 1:
         print('    Time taken for Stacking: %0.1f seconds' %(time.time()-start_time))

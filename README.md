@@ -12,7 +12,7 @@
 
 Automatically Build Variant Interpretable ML models fast!
 Auto_ViML is pronounced "auto vimal". Read this [medium article to learn how to use Auto_ViML](https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46).
-
+MAJOR UPGRADE: version 0.1.500 => pip install autoviml --upgrade
 ## Table of Contents
 
 - [Background](#background)

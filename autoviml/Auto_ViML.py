@@ -160,10 +160,18 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
     """
     start_train = copy.deepcopy(start_train)
     start_test = copy.deepcopy(start_test)
+    missing_flag = False
     if start_train[col].isnull().sum() > 0:
+        missing_flag = True
         if str_flag:
+            new_missing_col = col + '_Missing_Flag'
+            start_train[new_missing_col] = 0
+            start_train.loc[start_train[col].isnull(),new_missing_col]=1
             start_train[col] = start_train[col].fillna("NA", inplace=False).astype(str)
         else:
+            new_missing_col = col + '_Missing_Flag'
+            start_train[new_missing_col] = 0
+            start_train.loc[start_train[col].isnull(),new_missing_col]=1
             start_train[col] = start_train[col].fillna("NA", inplace=False).astype('category')
     train_categs = list(pd.unique(start_train[col].values))
     if not isinstance(start_test,str) :
@@ -174,10 +182,15 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
         dict_all = return_factorized_dict(train_categs)
     start_train[col] = start_train[col].map(dict_all)
     if not isinstance(start_test,str) :
+        if missing_flag:
+            start_test[new_missing_col] = 0
         if start_test[col].isnull().sum() > 0:
             if str_flag:
+                start_test.loc[start_test[col].isnull(),new_missing_col]=1                        
                 start_test[col] = start_test[col].fillna("NA", inplace=False).astype(str)
             else:
+                start_test[new_missing_col] = 0
+                start_test.loc[start_test[col].isnull(),new_missing_col]=1                        
                 start_test[col] = start_test[col].fillna("NA", inplace=False).astype('category')
         start_test[col] = start_test[col].map(dict_all)
     return start_train, start_test
@@ -201,8 +214,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.495                                              #######
-    #####   MOST STABLE VERSION: Faster Everything. Best Version to Download or Upgrade. March 15,2020 ######
+    ######                               Version 0.1.500                                              #######
+    #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
@@ -435,7 +448,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     except:
         print('Cannot find the Target variable in data set. Please check input and try again')
         return
-    print('\nPreparing data and target variable(s) for a %s model' %modeltype)
     for each_target in target:
         #### Make sure you don't move these 2 lines: they need to be reset for every target!
         ####   HyperOpt will not do Trials beyond max_evals - so only if you reset here, it will do it again.
@@ -464,8 +476,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 return
             ### This is for Classification Problems Only ########
             print('Shuffling the data set before training')
-            orig_train = orig_train.sample(frac=1.0, random_state=seed)
-            start_train = copy.deepcopy(orig_train)
+            start_train = orig_train.sample(frac=1.0, random_state=seed)
             scv = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=seed)
         if modeltype != 'Regression':
             rare_class = find_rare_class(orig_train[each_target].values,verbose=1)
@@ -491,21 +502,21 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 eval_metric="logloss"
                 objective = 'binary:logistic'
             ### Do Label Encoding when the Target Classes in each Label are Strings or Multi Class ###
-            if type(orig_train[each_target].values[0])==str or str(orig_train[each_target].dtype
-                            )=='category' or sorted(np.unique(orig_train[each_target].values))[0] != 0:
+            if type(start_train[each_target].values[0])==str or str(start_train[each_target].dtype
+                            )=='category' or sorted(np.unique(start_train[each_target].values))[0] != 0:
                 ### if the class is a string or if it has more than 2 classes, then use Factorizer!
-                label_dict[each_target]['values'] = orig_train[each_target].values
+                label_dict[each_target]['values'] = start_train[each_target].values
                 #### Factorizer is the easiest way to convert target in train and predictions in test
                 #### This takes care of some classes that are present in train and not in predictions
                 ### and vice versa. Hence it is better than Label Encoders which breaks when above happens.
-                train_targ_categs = list(orig_train[each_target].value_counts().index)
-                rare_class = find_rare_class(orig_train[each_target])
+                train_targ_categs = list(start_train[each_target].value_counts().index)
+                rare_class = find_rare_class(start_train[each_target])
                 if len(train_targ_categs) == 2:
                     majority_class = [x for x in train_targ_categs if x != rare_class]
                     dict_targ_all = {majority_class[0]: 0, rare_class: 1}
                 else:
                     dict_targ_all = return_factorized_dict(train_targ_categs)
-                start_train[each_target] = orig_train[each_target].map(dict_targ_all)
+                start_train[each_target] = start_train[each_target].map(dict_targ_all)
                 label_dict[each_target]['dictionary'] = copy.deepcopy(dict_targ_all)
                 label_dict[each_target]['transformer'] = dict([(v,k) for (k,v) in dict_targ_all.items()])
                 label_dict[each_target]['classes'] = copy.deepcopy(train_targ_categs)
@@ -514,21 +525,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 rare_class = find_rare_class(start_train[each_target].values)
             else:
                 ### Since the each_target here is already numeric, you don't have to modify it
-                rare_class = find_rare_class(orig_train[each_target].values)
-                label_dict[each_target]['values'] = orig_train[each_target].values
-                label_dict[each_target]['classes'] = np.unique(orig_train[each_target].values)
-                label_dict[each_target]['class_nums'] = np.unique(orig_train[each_target].values)
+                rare_class = find_rare_class(start_train[each_target].values)
+                label_dict[each_target]['values'] = start_train[each_target].values
+                label_dict[each_target]['classes'] = np.unique(start_train[each_target].values)
+                label_dict[each_target]['class_nums'] = np.unique(start_train[each_target].values)
                 label_dict[each_target]['transformer'] = []
                 label_dict[each_target]['dictionary'] = dict(zip(classes,classes))
                 print('    Target %s is already numeric. No transformation done.' %each_target)
-    ###########################################################################################
-    if orig_train.isnull().sum().sum() > 0:
-        ### If there are missing values in remaioning features print it here ####
-        top5 = orig_train.isnull().sum().sort_values(ascending=False).index.tolist()[:5]
-        print('Columns with most missing values: %s' %(
-                                        [x for x in top5 if orig_train[x].isnull().sum()>0]))
-        print('    and their missing value totals: %s' %([orig_train[x].isnull().sum() for x in
-                                                         top5 if orig_train[x].isnull().sum()>0]))
     ###########################################################################################
     ####  This is where we start doing the iterative hyper tuning parameters #####
     params_dict = defaultdict(list)
@@ -547,6 +550,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     numvars = var_df['continuous_vars']+var_df['int_vars']
     cat_vars = var_df['string_bool_vars']+var_df['discrete_string_vars']+var_df[
                             'cat_vars']+var_df['factor_vars']+var_df['num_bool_vars']
+    num_bool_vars = var_df['num_bool_vars']
     #######################################################################################
     preds = [x for x in orig_preds if x not in id_cols+del_cols+string_cols+target]
     if len(id_cols+del_cols+string_cols)== 0:
@@ -585,7 +589,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             param['predictor'] = 'gpu_predictor'
         else:
             #param['nthread'] = CPU_count
-            #param['tree_method'] = 'hist'
+            param['tree_method'] = None
             #param['grow_policy'] = 'depthwise'
             param['max_depth'] = max_depth
             #param['max_leaves'] = 0
@@ -605,11 +609,22 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             catboost_scoring = 'RMSE'
     else:
         validation_metric = copy.deepcopy(scoring_parameter)
-    ######  Fill Missing Values, Scale Data and Classify Variables Here ###
-    if len(preds) > 0:
+    ##########  D A T A    P R E P R O C E S S I N G     H E R E ##########################
+    print('#############     D A T A    P R E P A R A T I O N     #############')
+    if start_train.isnull().sum().sum() > 0:
+        print('Filling missing values with "missing" placeholder and adding a column for missing_flags')
+    else:
+        print('No Missing Values in train data set')
+    copy_preds = copy.deepcopy(preds)
+    missing_flag_cols = []
+    if len(copy_preds) > 0:
         dict_train = {}
-        for f in preds:
+        for f in copy_preds:
+            missing_flag = False
             if start_train[f].dtype == object:
+                if start_train[f].isnull().sum() > 0:
+                    new_missing_col = f + '_Missing_Flag'
+                    missing_flag = True
                 ####  This is the easiest way to label encode object variables in both train and test
                 #### This takes care of some categories that are present in train and not in test
                 ###     and vice versa
@@ -617,24 +632,61 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     print('    Alert! Mixed Data Types in %s column: %d data types. Fixed' %(
                                        f, len(start_train[f].apply(type).value_counts())))
                 start_train, start_test = convert_train_test_cat_col_to_numeric(start_train, start_test,f,True)
+                if missing_flag:
+                    cat_vars.append(new_missing_col)
+                    num_bool_vars.append(new_missing_col)
+                    preds.append(new_missing_col)                    
+                    missing_flag_cols.append(new_missing_col)                    
             elif start_train[f].dtype == np.int64 or start_train[f].dtype == np.int32 or start_train[f].dtype == np.int16:
                 ### if there are integer variables, don't scale them. Leave them as is.
                 fill_num = start_train[f].min() - 1
                 if start_train[f].isnull().sum() > 0:
+                    missing_flag = True
+                    new_missing_col = f + '_Missing_Flag'
+                    start_train[new_missing_col] = 0
+                    start_train.loc[start_train[f].isnull(),new_missing_col]=1
                     start_train[f] = start_train[f].fillna(fill_num).astype(int)
                 if type(orig_test) != str:
+                    if missing_flag:
+                        start_test[new_missing_col] = 0                       
                     if start_test[f].isnull().sum() > 0:
+                        start_test.loc[start_test[f].isnull(),new_missing_col]=1                        
                         start_test[f] = start_test[f].fillna(fill_num).astype(int)
+                if missing_flag:
+                    cat_vars.append(new_missing_col)
+                    num_bool_vars.append(new_missing_col)
+                    preds.append(new_missing_col)
+                    missing_flag_cols.append(new_missing_col)                    
             elif f in factor_cols:
+                if start_train[f].isnull().sum() > 0:
+                    new_missing_col = f + '_Missing_Flag'
+                    missing_flag = True
                 start_train, start_test = convert_train_test_cat_col_to_numeric(start_train, start_test,f,False)
+                if missing_flag:
+                    cat_vars.append(new_missing_col)
+                    num_bool_vars.append(new_missing_col)
+                    preds.append(new_missing_col)                    
+                    missing_flag_cols.append(new_missing_col)                    
             else:
                 ### for all numeric variables, fill missing values with 1 less than min.
                 fill_num = start_train[f].min() - 1
                 if start_train[f].isnull().sum() > 0:
+                    missing_flag = True
+                    new_missing_col = f + '_Missing_Flag'
+                    start_train[new_missing_col] = 0
+                    start_train.loc[start_train[f].isnull(),new_missing_col]=1
                     start_train[f] = start_train[f].fillna(fill_num)
                 if type(orig_test) != str:
+                    if missing_flag:
+                        start_test[new_missing_col] = 0                       
                     if start_test[f].isnull().sum() > 0:
+                        start_test.loc[start_test[f].isnull(),new_missing_col]=1                        
                         start_test[f] = start_test[f].fillna(fill_num)
+                if missing_flag:
+                    cat_vars.append(new_missing_col)
+                    num_bool_vars.append(new_missing_col)
+                    preds.append(new_missing_col)
+                    missing_flag_cols.append(new_missing_col)                    
                 ##### DO SCALING ON TRAIN HERE ############
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
@@ -650,21 +702,35 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     except:
                         start_test.loc[start_test[f]==np.inf,f]=0
                         start_test[f] = SS.fit_transform(start_test[f].values.reshape(-1,1))
-        if start_train[preds].isnull().sum().sum() > 0:
-            print('    Completed Missing Value Imputation and Scaling data...')
-        elif type(orig_test) != str:
-            if start_test[preds].isnull().sum().sum() > 0:
-                print('Test data still has some missing values. Fix it.')
+        ###########################################################################################
+        if orig_train.isnull().sum().sum() > 0:
+            ### If there are missing values in remaining features print it here ####
+            top5 = orig_train.isnull().sum().sort_values(ascending=False).index.tolist()[:5]
+            print('    Columns with most missing values: %s' %(
+                                            [x for x in top5 if orig_train[x].isnull().sum()>0]))
+            print('    and their missing value totals: %s' %([orig_train[x].isnull().sum() for x in
+                                                             top5 if orig_train[x].isnull().sum()>0]))
+            if start_train[copy_preds].isnull().sum().sum() == 0:
+                print('Completed missing value Imputation. No more missing values in train.')
+                if verbose >= 1:
+                    print('    %d new missing value columns added: %s' %(len(missing_flag_cols),missing_flag_cols))
             else:
-                print('Test data has no missing values...')
-        else:
-            print('    Completed Scaling of numeric data. There are no missing values in train')
+                print('Error: Unable to complete missing value imputation in train. Exiting...')
+                return
+        if type(orig_test) != str:
+            if start_test[copy_preds].isnull().sum().sum() > 0:
+                print('Test data still has some missing values. Fix it. Exiting...')
+                return
+            else:
+                print('Test data has no missing values. Continuing...')
+        ###########################################################################################
     else:
-        print('    Could not find any variables in your data set. Please check input and try again')
+        print('    Could not find any variables in your data set. Please check your dataset and try again')
         return
     ###########################################################################################
+    print('Completed Scaling of Train and Test Data using %s ...' %SS)
     ### This is a minor test to make sure that Boolean vars are Integers if they are Numeric!
-    if len(var_df['num_bool_vars']) > 0:
+    if len(num_bool_vars) > 0:
         ### Just make sure that numeric Boolean vars are set as Integer type -> otherwise CatBoost will blow up
         for each_bool_num in var_df['num_bool_vars']:
             start_train[each_bool_num] = start_train[each_bool_num].astype(int)
@@ -849,7 +915,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                           modeltype, Boosting_Flag, scoring_parameter,verbose)
             addcol, stacks2 = QuickML_Stacking(X_train,y_train,X_cv,
                           modeltype, Boosting_Flag, scoring_parameter,verbose)
-            ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
             X_train = X_train.join(pd.DataFrame(stacks1,index=X_train.index,
                                               columns=addcol))
             ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
@@ -1416,12 +1481,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         print('###########  S I N G L E  M O D E L   R E S U L T S #################')
         if modeltype != 'Regression':
             ############## This is for Classification Only !! ########################
-            if scoring_parameter == 'logloss' or scoring_parameter == 'neg_log_loss' :
-                print('{}-fold Cross Validation {} = {}'.format(n_splits, validation_metric, best_score))
-            elif scoring_parameter == '':
-                print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,'Accuracy', best_score*100))
+            if scoring_parameter in ['logloss','neg_log_loss','log_loss','log-loss','']:
+                print('{}-fold Cross Validation {} = {}'.format(n_splits, 'logloss', best_score))
+            elif scoring_parameter in ['accuracy','balanced-accuracy','balanced_accuracy','roc_auc','roc-auc',
+                                       'f1','precision','recall','average-precision','average_precision',
+                                      'weighted_f1','weighted-f1','AUC']:
+                print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,scoring_parameter, best_score*100))
             else:
-                print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,validation_metric, best_score*100))
+                print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,scoring_parameter, best_score))
         else:
             ######### This is for Regression only ###############
             if best_score < 0:
@@ -1470,13 +1537,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     m_thresh = 0.5
                 # retrieve just the probabilities for the positive class
                 pos_probs = y_proba[:, rare_class]
-                # create a histogram of the predicted probabilities
+                # create a histogram of the predicted probabilities for the Rare Class since it will help decide threshold
                 plt.hist(pos_probs, bins=Bins)
-                plt.title('Predictive Probabilities Distribution with suggested threshold in red')
+                plt.title("Model's Predictive Probabilitites Distribution for Rare Class with suggested threshold in red")
                 plt.axvline(x=m_thresh, color='r', linestyle='--')
                 print("    Using threshold=0.5. However, %0.2f provides better F1=%0.2f for rare class..." %(m_thresh,best_f1))
                 ###y_pred = (y_proba[:,rare_class]>=m_thresh).astype(int)
-                y_pred = (y_proba[:,1]>0.5).astype(int)
+                y_pred = (y_proba[:,rare_class]>0.5).astype(int)
             else:
                 y_proba = model.predict_proba(X_cv)
                 y_pred = model.predict(X_cv)
@@ -1484,14 +1551,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             y_pred = model.predict(X_cv)
         ###   This is where you print out the First Model's Results ########
         print('########################################################')
+        ##### This next step is very important since some models give series, others give arrays. Very painful!
+        if isinstance(y_pred,pd.Series):
+            y_pred = y_pred.values
+        if isinstance(y_cv,pd.Series):
+            y_cv = y_cv.values
         print('%s Model Prediction Results on Held Out CV Data Set:' %model_name)
         if modeltype == 'Regression':
-            rmsle_calculated_m = rmse(y_cv.values, y_pred)
-            print_regression_model_stats(y_cv.values, y_pred,'%s Model: Predicted vs Actual for %s'%(model_name,each_target))
+            rmsle_calculated_m = rmse(y_cv, y_pred)
+            print_regression_model_stats(y_cv, y_pred,'%s Model: Predicted vs Actual for %s'%(model_name,each_target))
         else:
             if model_name == 'Forests':
                 print('    OOB Score = %0.3f' %model.oob_score_)
-            rmsle_calculated_m = (y_cv.values==y_pred).astype(int).sum(axis=0)/(y_cv.shape[0])
+            rmsle_calculated_m = (y_cv==y_pred).astype(int).sum(axis=0)/(y_cv.shape[0])
             if len(classes) == 2:
                 print('    Regular Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
             rmsle_calculated_m = balanced_accuracy_score(y_cv,y_pred)
@@ -1522,7 +1594,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     y_pred = subm[cols].mean(axis=1)
                     print('#############################################################################')
                     performed_ensembling = True
-                    print_regression_model_stats(y_cv.values, y_pred.values,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
+                    #### Since we have a new ensembled y_pred, make sure it is series or array before printing it!
+                    if isinstance(y_pred,pd.Series):
+                        print_regression_model_stats(y_cv, y_pred.values,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
+                    else:
+                        print_regression_model_stats(y_cv, y_pred,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
                 except:
                     print('Could not complete Ensembling predictions on held out data due to Error')
         else:
@@ -1559,6 +1635,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         y_pred = (subm[cols].mean(axis=1)).astype(int)
                     print('#############################################################################')
                     performed_ensembling = True
+                    ##### This next step is very important since some models give series, others give arrays. Very painful!
+                    if isinstance(y_pred,pd.Series):
+                        y_pred = y_pred.values
                 except:
                     print('Could not complete Ensembling predictions on held out data due to Error')
             else:
@@ -1598,7 +1677,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     count += 1
         if not Stacking_Flag and performed_ensembling:
             if modeltype == 'Regression':
-                rmsle_calculated_f = rmse(y_cv.values, y_pred.values)
+                rmsle_calculated_f = rmse(y_cv, y_pred)
                 print('After multiple models, Ensemble Model Results:')
                 print('    RMSE Score = %0.5f' %(rmsle_calculated_f,))
                 print('#############################################################################')
@@ -1614,8 +1693,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 rare_pct = y_cv[y_cv==rare_class].shape[0]/y_cv.shape[0]
                 print('    Balanced Accuracy Score = %0.3f%%' %(
                         rmsle_calculated_f*100))
-                print(classification_report(y_cv.values,y_pred.values))
-                print(confusion_matrix(y_cv.values,y_pred.values))
+                print(classification_report(y_cv,y_pred))
+                print(confusion_matrix(y_cv,y_pred))
                 print('#############################################################################')
                 if rmsle_calculated_f > rmsle_calculated_m:
                     print('Ensembling Models is better than Single Model for this data set.')
@@ -1717,11 +1796,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     train_cluster, test_cluster = Transform_KM_Features(train[important_features], train[each_target], test[important_features])
             #### Now make sure that the cat features are either string or integers ######
             train[km_label] = train_cluster
-            test[km_label] = test_cluster
+            if not isinstance(test, str):
+                test[km_label] = test_cluster
             #X_train.drop(each_target,axis=1,inplace=True)
             for imp_cat in imp_cats:
                 train[imp_cat] = train[imp_cat].astype(int)
-                test[imp_cat] = test[imp_cat].astype(int)
+                if not isinstance(test, str):
+                    test[imp_cat] = test[imp_cat].astype(int)
             important_features = [x for x in list(train) if x not in [each_target]]
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:
@@ -1732,10 +1813,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             addcol, stacks1 = QuickML_Stacking(train[important_features],train[each_target],'',
                           modeltype, Boosting_Flag, scoring_parameter,verbose)
             ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
+            #### The reason we add the word "Partial" is to show that these Stacking results are from Partial data!
+            addcols = ['Partial_Input_'+x for x in addcol]
+            ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
             train = train.join(pd.DataFrame(stacks1,index=train.index,
-                                              columns=addcol))
+                                              columns=addcols))
             ##### Leaving multiple columns for Stacking is best! Do not do the average of predictions!
-            print('    Adding %d Stacking feature(s) to training data' %len(addcol))
+            print('    Adding %d Stacking feature(s) to training data' %len(addcols))
             if not isinstance(orig_test, str):
                 ### In order to avoid overfitting, we are going to learn from a small sample of data
                 ### That is why we are using X_train to train on and using it to predict on X_test
@@ -1743,14 +1827,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                           modeltype, Boosting_Flag, scoring_parameter,verbose)
                 ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
                 test = test.join(pd.DataFrame(stacks2,index=test.index,
-                                                  columns=addcol))
+                                                  columns=addcols))
                 ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
                 #test = test.join(pd.DataFrame(stacks2.mean(axis=1).round().astype(int),
                 #                             columns=[addcol],index=test.index))
-            #important_features.append(addcol)
             ######  We make sure that we remove too many features that are highly correlated ! #####
             #addcol = remove_variables_using_fast_correlation(train,addcol,corr_limit,verbose)
-            important_features += addcol
+            important_features += addcols
         ############################################################################################
         if len(important_features) == 0:
             print('No important features found. Using all input features...')
@@ -1852,233 +1935,232 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 ### if for some reason id columns are not available, then do without it
                 testm = test[red_preds]
             X_test = testm[red_preds]
-            y_pred = model.predict(X_test)
-            if modeltype == 'Regression':
-                ########   This is for Regression Problems Only ###########
-                ######  If Stacking_ Flag is False, then we do Ensembling #######
-                if not Stacking_Flag:
-                    try:
-                        subm = pd.DataFrame()
-                        #### This is for Ensembling  Only #####
-                        #### In Test data verbose is set to zero since no results can be obtained!
-                        models_list, ensembles = QuickML_Ensembling(X_train, y_train, X_test, '',
-                                                  modeltype=modeltype, Boosting_Flag=Boosting_Flag,
-                                                   scoring='', verbose=0)
-                        models_list.append(model_name)
-                        for models, each in zip(models_list, range(len(models_list))):
-                            new_col = each_target+'_'+models+'_predictions'
-                            if each+1 == len(models_list):
-                                subm[new_col] = y_pred
-                                testm[new_col] = y_pred
-                            else:
-                                subm[new_col] = ensembles[:,each]
-                                testm[new_col] = ensembles[:,each]
-                            new_cols.append(new_col)
-                        ### After this, y_pred is a Series from now on. You need y_pred.values  ####
-                        y_pred = subm[new_cols].mean(axis=1)
-                        new_col = each_target+'_Ensembled_predictions'
-                        testm[new_col] = y_pred.values
-                        new_cols.append(new_col)
-                        print('Completed Ensemble predictions on held out data')
-                        if not isinstance(sample_submission, str):
-                            sample_submission[each_target] = y_pred
-                    except:
-                        print('Could not complete Ensembling predictions on held out data due to Error')
-                else:
-                    if not isinstance(sample_submission, str):
-                        sample_submission[each_target] = y_pred
-            else:
-                ########   This is for both Binary and Multi Classification Problems ###########
-                y_proba = model.predict_proba(X_test)
-                if len(classes) <= 2:
-                    print('Test Data predictions using Threshold = 0.5')
-                    y_pred = (y_proba[:,1]>0.5).astype(int)
-                if len(label_dict[each_target]['transformer']) == 0:
-                    ### if there is no transformer, then leave the predicted classes as is
-                    classes = label_dict[each_target]['classes']
-                    ######  If Stacking_Flag is False, then we do Ensembling #######
-                    if not Stacking_Flag:
-                        ### Ensembling is not done when the model name is CatBoost ####
-                        subm = pd.DataFrame()
-                        #### This is for Ensembling  Only #####
-                        #### In Test data verbose is set to zero since no results can be obtained!
-                        if len(classes) == 2:
-                            models_list, ensembles = QuickML_Ensembling(X_train, y_train, X_test, '',
-                                                      modeltype='Binary_Classification', Boosting_Flag=Boosting_Flag,
-                                                       scoring='', verbose=0)
-                        else:
-                            models_list, ensembles = QuickML_Ensembling(X_train, y_train, X_test, '',
-                                                      modeltype='Multi_Classification', Boosting_Flag=Boosting_Flag,
-                                                       scoring='', verbose=0)
-                        models_list.append(model_name)
-                        for models, each in zip(models_list, range(len(models_list))):
-                            new_col = each_target+'_'+models+'_predictions'
-                            if each+1 == len(models_list):
-                                subm[new_col] = y_pred
-                                testm[new_col] = y_pred
-                            else:
-                                subm[new_col] = ensembles[:,each]
-                                testm[new_col] = ensembles[:,each]
-                            new_cols.append(new_col)
-                        ### After this, y_pred is a Series from now on. You need y_pred.values  ####
-                        if len(classes) <= 2:
-                            y_pred = (subm[cols].mean(axis=1)>0.5).astype(int)
-                        else:
-                            y_pred = (subm[cols].mean(axis=1)).astype(int)
-                    for each_class in classes:
-                        try:
-                            new_col = each_target+'_proba_'+str(each_class)
-                            count = int(label_dict[each_target]['dictionary'][each_class])
-                            testm[new_col] = y_proba[:,count]
-                            new_cols.append(new_col)
-                        except:
-                            new_col = each_target+'_proba_'+each_class
-                            count = int(label_dict[each_target]['dictionary'][each_class])
-                            testm[new_col] = y_proba[:,count]
-                            new_cols.append(new_col)
-                    if not Stacking_Flag:
-                        new_col = each_target+'_Ensembled_predictions'
-                        try:
-                            testm[new_col] = y_pred.values
-                        except:
-                            testm[new_col] = y_pred
-                    else:
-                        new_col = each_target+'_Stacked_predictions'
-                        testm[new_col] = y_pred
-                    new_cols.append(new_col)
-                else:
-                    ### if there is a transformer, then convert the predicted classes to orig classes
-                    classes = label_dict[each_target]['classes']
-                    dic = label_dict[each_target]['dictionary']
-                    transformer = label_dict[each_target]['transformer']
-                    class_nums = label_dict[each_target]['class_nums']
-                    for each_class in classes:
-                        try:
-                            new_col = each_target+'_proba_'+str(each_class)
-                            count = label_dict[each_target]['dictionary'][each_class]
-                            testm[new_col] = y_proba[:,count]
-                            new_cols.append(new_col)
-                        except:
-                            new_col = each_target+'_proba_'+each_class
-                            count = label_dict[each_target]['dictionary'][each_class]
-                            testm[new_col] = y_proba[:,count]
-                            new_cols.append(new_col)
-                    ######  If Stacking_ Flag is False, then we do Ensembling #######
-                    if not Stacking_Flag:
-                        subm = pd.DataFrame()
-                        #### This is for Ensembling  Only #####
-                        if len(classes) == 2:
-                            models_list, ensembles = QuickML_Ensembling(X_train, y_train, X_test, '',
-                                                      modeltype='Binary_Classification', Boosting_Flag=Boosting_Flag,
-                                                       scoring='', verbose=verbose)
-                        else:
-                            models_list, ensembles = QuickML_Ensembling(X_train, y_train, X_test, '',
-                                                      modeltype='Multi_Classification', Boosting_Flag=Boosting_Flag,
-                                                       scoring='', verbose=verbose)
-                        models_list.append(model_name)
-                        for models, each in zip(models_list, range(len(models_list))):
-                            new_col = each_target+'_'+models+'_predictions'
-                            if each+1 == len(models_list):
-                                subm[new_col] = y_pred
-                                testm[new_col] = pd.Series(y_pred).map(transformer).values
-                            else:
-                                subm[new_col] = ensembles[:,each]
-                                testm[new_col] = pd.Series(ensembles[:,each]).map(transformer).values
-                            new_cols.append(new_col)
-                        ### After this, y_pred is a Series from now on. You need y_pred.values  ####
-                        if len(classes) <= 2:
-                            y_pred = (subm[cols].mean(axis=1)>0.5).astype(int)
-                        else:
-                            y_pred = (subm[cols].mean(axis=1)).astype(int)
-                        print('########################################################')
-                        print('Completed Ensemble predictions on held out data')
-                        new_col = each_target+'_Ensembled_predictions'
-                    else:
-                        print('########################################################')
-                        print('Completed Stacked predictions on held out data')
-                        new_col = each_target+'_Stacked_predictions'
-                    try:
-                        testm[new_col] = pd.Series(y_pred).map(transformer).values
-                    except:
-                        testm[new_col] = pd.Series(y_pred.ravel()).map(transformer).values
-                    new_cols.append(new_col)
-                    if not isinstance(sample_submission, str):
-                        try:
-                            sample_submission[each_target] = pd.Series(y_pred.values).map(transformer).values
-                        except:
-                            sample_submission[each_target] = pd.Series(y_pred).map(transformer).values
-            ##  Write the test and submission files to disk ###
-            if not isinstance(testm, str):
-                try:
-                    write_file_to_folder(testm, each_target, each_target+'_'+modeltype+'_'+'test_modified.csv')
-                except:
-                    print('Error: Not able to write test file to disk. Skipping...')
-            if not isinstance(sample_submission, str):
-                print('    Saving sample_submission...')
-                sample_submission[each_target] = y_pred
-                sample_submission = pd.concat([sample_submission,testm[new_cols]], axis=1)
-                #####   D R A W   K D E  P L O T S   FOR PROBABILITY OF PREDICTIONS - very useful! #########
-                if modeltype != 'Regression':
-                    probacols = [x for x in new_cols if 'proba' in x]
-                    if verbose >= 2:
-                        sample_submission[probacols].plot(kind='kde',figsize=(10,6),
-                                                     title='Predictive Probability Density Chart')
-                #############################################################################################
-                try:
-                    write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
-                except:
-                    print('Error: Not able to write submission file to disk. Skipping...')
-            else:
-                sample_submission = pd.concat([orig_test,testm[new_cols]], axis=1)
-                try:
-                    write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
-                except:
-                    print('Error: Not able to write submission file to disk. Skipping...')
-                #####   D R A W   K D E  P L O T S   FOR PROBABILITY OF PREDICTIONS - very useful! #########
-                if modeltype != 'Regression':
-                    probacols = [x for x in new_cols if 'proba' in x]
-                    if verbose >= 1:
-                        sample_submission[probacols].plot(kind='kde',figsize=(10,6),
-                                                     title='Predictive Probability Density Chart ')
-                #############################################################################################
-            try:
-                write_file_to_folder(trainm, each_target, each_target+'_'+modeltype+'_'+'train_modified.csv')
-            except:
-                print('Error: Not able to write train modified file to disk. Skipping...')
         else:
             ##### If there is no Test file, then do a final prediction on Train itself ###
-            testm = trainm[red_preds]
-            X_test = copy.deepcopy(testm)
-            if modeltype == 'Regression':
-                y_pred = model.predict(X_test)
-                trainm[each_target+'_predictions'] = y_pred
+            orig_index = orig_train.index
+            trainm = train.reindex(index = orig_index)
+            testm = orig_train[id_cols].join(trainm[red_preds])
+            X_test = testm[red_preds]
+        if modeltype == 'Regression':
+            y_pred = model.predict(X_test)
+            ##### This next step is very important since some models give series, others give arrays. Very painful!
+            if isinstance(y_pred,pd.Series):
+                y_pred = y_pred.values
+            ########   This is for Regression Problems Only ###########
+            ######  If Stacking_ Flag is False, then we do Ensembling #######
+            if not Stacking_Flag:
+                try:
+                    subm = pd.DataFrame()
+                    #### This is for Ensembling  Only #####
+                    #### In Test data verbose is set to zero since no results can be obtained!
+                    models_list, ensembles = QuickML_Ensembling(X, y, X_test, '',
+                                              modeltype=modeltype, Boosting_Flag=Boosting_Flag,
+                                               scoring='', verbose=0)
+                    models_list.append(model_name)
+                    for models, each in zip(models_list, range(len(models_list))):
+                        new_col = each_target+'_'+models+'_predictions'
+                        if each+1 == len(models_list):
+                            subm[new_col] = y_pred
+                            testm[new_col] = y_pred
+                        else:
+                            subm[new_col] = ensembles[:,each]
+                            testm[new_col] = ensembles[:,each]
+                        new_cols.append(new_col)
+                    ### After this, y_pred is a Series from now on. You need y_pred.values  ####
+                    y_pred = subm[new_cols].mean(axis=1)
+                    ##### This next step is very important since some models give series, others give arrays. Very painful!
+                    if isinstance(y_pred,pd.Series):
+                        y_pred = y_pred.values
+                    new_col = each_target+'_Ensembled_predictions'
+                    testm[new_col] = y_pred
+                    new_cols.append(new_col)
+                    print('Completed Ensemble predictions on held out data')
+                except:
+                    print('Could not complete Ensembling predictions on held out data due to Error')
             else:
-                y_proba = model.predict_proba(X_test)
-                #y_proba = model.predict_proba(trainm[red_preds].values)
-                if type(label_dict[each_target]['transformer']) == str:
-                    ### if there is no transformer, then leave the predicted classes as is
-                    y_pred = y_proba.argmax(axis=1)
-                    ### After this, y_pred is an array from now on. No .values needed ####
-                    trainm[each_target+'_predictions'] = y_pred
+                stack_cols, stacksfinal = QuickML_Stacking(X, y, X_test,
+                              modeltype=modeltype, Boosting_Flag=Boosting_Flag,
+                              scoring_parameter=scoring_parameter,verbose=verbose)
+                new_col = each_target+'_Stacked_'+stack_cols[0].split("_")[0]+'_predictions'
+                if len(stack_cols) == 1:
+                    testm[new_col] = stacksfinal
                 else:
-                    dic = label_dict[each_target]['dictionary']
-                    transformer = label_dict[each_target]['transformer']
-                    ### To transform to original classes you need the dictionary, than map column and fill
-                    ## new classes with some "unknown value"
-                    try:
-                        y_pred = pd.Series(y_proba.argmax(axis=1)).map(transformer)
-                    except:
-                        y_pred = np.zeros(y_proba.shape[0])
-                        print('Could not transform test predictions to original classes')
-                    ### After this, y_pred is an array from now on. No .values needed ####
-                    trainm[each_target+'_predictions'] = y_pred
+                    #### Just average the predictions from each stacked model into a final pred
+                    testm[new_col] = stacksfinal.mean(axis=1)
+            if not isinstance(sample_submission, str):
+                sample_submission[each_target] = y_pred
+            #### If there is a test file, it probably doesn't have target, so add predictions to it!
+            testm[each_target+'_predictions'] = y_pred
+        else:
+            proba_cols = []
+            ########   This is for both Binary and Multi Classification Problems ###########
+            y_proba = model.predict_proba(X_test)
+            if len(classes) <= 2:
+                if (y_proba[:,rare_class]>m_thresh).astype(int).mean()==0 or (y_proba[:,rare_class]>m_thresh).astype(int).mean()==1:
+                    ### If the model is predicting all 0's or all 1's, you need to use a regular threshold
+                    m_thresh = 0.5
+                    print('    Test Data predictions using regular Threshold = %0.3f' %m_thresh)
+                else:
+                    ### If the model is well with the modified threshold, then you use the modified threshold!
+                    print('    Test Data predictions using modified Threshold = %0.3f' %m_thresh)
+                y_pred = (y_proba[:,rare_class]>m_thresh).astype(int)
+            else:
+                ##### For multi-class, just make predictions of multiple classes here #######
+                y_pred = model.predict(X_test)
+            ##### This next step is very important since some models give series, others give arrays. Very painful!
+            if isinstance(y_pred,pd.Series):
+                y_pred = y_pred.values
+            #########   T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
+            if len(label_dict[each_target]['transformer']) == 0:
+                ### if there is no transformer, then leave the predicted classes as is
+                classes = label_dict[each_target]['classes']
+                ##### If there is no transformer, you can just predict the classes as is and save it here ###
+                testm[each_target+'_predictions'] = y_pred
+                ######  If Stacking_Flag is False, then we do Ensembling #######
+                if not Stacking_Flag:
+                    ### Ensembling is not done when the model name is CatBoost ####
+                    subm = pd.DataFrame()
+                    #### This is for Ensembling  Only #####
+                    #### In Test data verbose is set to zero since no results can be obtained!
+                    if len(classes) == 2:
+                        models_list, ensembles = QuickML_Ensembling(X, y, X_test, '',
+                                                  modeltype='Binary_Classification', Boosting_Flag=Boosting_Flag,
+                                                   scoring='', verbose=0)
+                    else:
+                        models_list, ensembles = QuickML_Ensembling(X, y, X_test, '',
+                                                  modeltype='Multi_Classification', Boosting_Flag=Boosting_Flag,
+                                                   scoring='', verbose=0)
+                    models_list.append(model_name)
+                    for models, each in zip(models_list, range(len(models_list))):
+                        new_col = each_target+'_'+models+'_predictions'
+                        if each+1 == len(models_list):
+                            subm[new_col] = y_pred
+                            testm[new_col] = y_pred
+                        else:
+                            subm[new_col] = ensembles[:,each]
+                            testm[new_col] = ensembles[:,each]
+                        new_cols.append(new_col)
+                ### You will need to create probabilities for each class here  ####
+                for each_class in classes:
+                    if isinstance(each_class, str):
+                        proba_col = each_target+'_proba_'+each_class
+                    else:
+                        proba_col = each_target+'_proba_'+str(each_class)
+                    count = int(label_dict[each_target]['dictionary'][each_class])
+                    testm[proba_col] = y_proba[:,count]
+                    proba_cols.append(proba_col)
+                if not Stacking_Flag:
+                    new_col = each_target+'_Ensembled_predictions'
+                    if len(classes) <= 2:
+                        ensem_pred = (subm[new_cols].mean(axis=1)>m_thresh).astype(int)
+                    else:
+                        ensem_pred = (subm[new_cols].mean(axis=1)).astype(int)
+                else:
+                    stack_cols, stacksfinal = QuickML_Stacking(X, y, X_test,
+                                       modeltype, Boosting_Flag,scoring_parameter,verbose)
+                    new_col = each_target+'_Stacked_'+stack_cols[0].split("_")[0]+'_predictions'
+                    ensem_pred = np.argmax(stacksfinal,axis=1)
+                ##### This next step is very important since some models give series, others give arrays. Very painful!
+                if isinstance(ensem_pred,pd.Series):
+                    ensem_pred = ensem_pred.values
+                testm[new_col] = ensem_pred
+                new_cols.append(new_col)
+            else:
+                ### if there is a transformer, then you must convert the predicted classes to orig classes
+                classes = label_dict[each_target]['classes']
+                dic = label_dict[each_target]['dictionary']
+                transformer = label_dict[each_target]['transformer']
+                class_nums = label_dict[each_target]['class_nums']
+                ##### If there is a transformer, you must convert predictions to original classes
+                testm[each_target+'_predictions'] = pd.Series(y_pred).map(transformer).values
+                for each_class in classes:
+                    if isinstance(each_class, str):
+                        proba_col = each_target+'_proba_'+each_class
+                    else:
+                        proba_col = each_target+'_proba_'+str(each_class)
+                    count = label_dict[each_target]['dictionary'][each_class]
+                    testm[proba_col] = y_proba[:,count]
+                    proba_cols.append(proba_col)
+                ######  If Stacking_ Flag is False, then we do Ensembling #######
+                if not Stacking_Flag:
+                    subm = pd.DataFrame()
+                    #### This is for Ensembling  Only #####
+                    if len(classes) == 2:
+                        models_list, ensembles = QuickML_Ensembling(X, y, X_test, '',
+                                                  modeltype='Binary_Classification', Boosting_Flag=Boosting_Flag,
+                                                   scoring='', verbose=verbose)
+                    else:
+                        models_list, ensembles = QuickML_Ensembling(X, y, X_test, '',
+                                                  modeltype='Multi_Classification', Boosting_Flag=Boosting_Flag,
+                                                   scoring='', verbose=verbose)
+                    models_list.append(model_name)
+                    for models, each in zip(models_list, range(len(models_list))):
+                        new_col = each_target+'_'+models+'_predictions'
+                        if each+1 == len(models_list):
+                            subm[new_col] = y_pred
+                            testm[new_col] = pd.Series(y_pred).map(transformer).values
+                        else:
+                            subm[new_col] = ensembles[:,each]
+                            testm[new_col] = pd.Series(ensembles[:,each]).map(transformer).values
+                        new_cols.append(new_col)
+                    ### After this, y_pred is a Series from now on. You need y_pred.values  ####
+                    if len(classes) <= 2:
+                        ensem_pred = (subm[new_cols].mean(axis=1)>m_thresh).astype(int)
+                    else:
+                        ensem_pred = (subm[new_cols].mean(axis=1)).astype(int)
+                    print('########################################################')
+                    ##### This next step is very important since some models give series, others give arrays. Very painful!
+                    if isinstance(ensem_pred,pd.Series):
+                        ensem_pred = ensem_pred.values
+                    print('Completed Ensemble predictions on held out data')
+                    new_col = each_target+'_Ensembled_predictions'
+                else:
+                    stack_cols, stacksfinal = QuickML_Stacking(X, y, X_test,
+                                       modeltype, Boosting_Flag,scoring_parameter,verbose)
+                    new_col = each_target+'_Stacked_'+stack_cols[0].split("_")[0]+'_predictions'
+                    ensem_pred = np.argmax(stacksfinal,axis=1)
+                    print('########################################################')
+                    print('Completed Stacked predictions on held out data')
+                testm[new_col] = pd.Series(ensem_pred).map(transformer).values
+                new_cols.append(new_col)
+                if not isinstance(sample_submission, str):
+                    sample_submission[each_target] = pd.Series(y_pred).map(transformer).values
+        ##  Write the test and submission files to disk ###
+        if not isinstance(testm, str):
             try:
-                write_file_to_folder(trainm, each_target, each_target+'_'+modeltype+'_'+'train_modified.csv')
+                write_file_to_folder(testm, each_target, each_target+'_'+modeltype+'_'+'test_modified.csv')
+                #####   D R A W   K D E  P L O T S   FOR PROBABILITY OF PREDICTIONS - very useful! #########
+                if modeltype != 'Regression':
+                    if verbose >= 2:
+                        testm[proba_cols].plot(kind='kde',figsize=(10,6),
+                                                     title='Predictive Probability Density Chart')
+                        plt.axvline(x=m_thresh, color='r', linestyle='--')
             except:
-                print('Error: Not able to write train modified file to disk. Skipping...')
-            testm = copy.deepcopy(trainm)
-            #### We do Ensembling only if there is a Test file. Otherwise, we don't!
-            print('    No Ensembling of models done since there is no Test file given.')
+                print('    Error: Not able to save test file. Skipping...')
+        if not isinstance(sample_submission, str):
+            print('    Saving Output files...')
+            sample_submission[each_target] = y_pred
+            #### Commented out the next line since it is not necessary to bloat the sample submission file ##
+            #sample_submission = pd.concat([sample_submission,testm[new_cols]], axis=1)
+            #############################################################################################
+            try:
+                write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
+            except:
+                print('    Error: Not able to save submission file. Skipping...')
+        else:
+            sample_submission = testm[id_cols+[each_target+'_predictions']]
+            try:
+                write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
+            except:
+                print('    Error: Not able to save submission file. Skipping...')
+            #############################################################################################
+        try:
+            #### Bring trainm back to its original index ###################
+            orig_index = orig_train.index
+            trainm = train.reindex(index = orig_index)
+            write_file_to_folder(trainm, each_target, each_target+'_'+modeltype+'_'+'train_modified.csv')
+        except:
+            print('    Error: Not able to save train modified file. Skipping...')
         ### In case of multi-label models, we will reset the start train and test dataframes to contain new features created
         start_train = start_train[target].join(start_train[orig_red_preds])
         if not isinstance(orig_test, str):
@@ -2226,6 +2308,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                 seed=1)
             eval_metric = 'mlogloss'
     ####   This is where you start to Iterate on Finding Important Features ################
+    save_xgb = copy.deepcopy(model_xgb)
     train_p = train[preds]
     if train_p.shape[1] < 10:
         iter_limit = 2
@@ -2234,6 +2317,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     print('Current number of predictors = %d ' %(train_p.shape[1],))
     print('    Finding Important Features using Boosted Trees algorithm...')
     for i in range(0,train_p.shape[1],iter_limit):
+        new_xgb = copy.deepcopy(save_xgb)
         print('        using %d variables...' %(train_p.shape[1]-i))
         if train_p.shape[1]-i < iter_limit:
             X = train_p.iloc[:,i:]
@@ -2248,14 +2332,15 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                 model_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,eval_set=eval_set,
                                     eval_metric=eval_metric,verbose=False)
             except:
-                print('XGB is Erroring. Check if there are missing values in your data and try again...')
-                return [], []
+                new_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,eval_set=eval_set,
+                                    eval_metric=eval_metric,verbose=False)
+                print('XGB has a bug in version xgboost 1.02. Try to install version 0.90 or 1.10 - continuing...')
             try:
                 [important_features.append(x) for x in list(pd.concat([pd.Series(model_xgb.feature_importances_
                         ),pd.Series(list(X_train.columns.values))],axis=1).rename(columns={0:'importance',1:'column'
                     }).sort_values(by='importance',ascending=False)[:25]['column'])]
             except:
-                print('Model training error in find top feature...')
+                print('Finding top features using XGB is crashing. Continuing with all predictors...')
                 important_features = copy.deepcopy(preds)
                 return important_features, [], []
         else:
@@ -2268,8 +2353,12 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                 X_train, X_cv, y_train, y_cv = train_test_split(X, y,
                                                             test_size=test_size, random_state=seed)
             eval_set = [(X_train,y_train),(X_cv,y_cv)]
-            model_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,
-                          eval_set=eval_set,eval_metric=eval_metric,verbose=False)
+            try:
+                model_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,
+                              eval_set=eval_set,eval_metric=eval_metric,verbose=False)
+            except:
+                new_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,
+                              eval_set=eval_set,eval_metric=eval_metric,verbose=False)
             try:
                 [important_features.append(x) for x in list(pd.concat([pd.Series(model_xgb.feature_importances_
                         ),pd.Series(list(X_train.columns.values))],axis=1).rename(columns={0:'importance',1:'column'
@@ -3525,10 +3614,10 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
         plt.figure(figsize=figsize)
         try:
             ### This works for Logistic Regression and other Linear Models ####
-            precision, recall, _ = precision_recall_curve(y_test.values, y_score)
+            precision, recall, _ = precision_recall_curve(y_test, y_score)
         except:
             ### This works for Non Linear Models such as Forests and XGBoost #####
-            precision, recall, _ = precision_recall_curve(y_test.values, y_score[:,1])
+            precision, recall, _ = precision_recall_curve(y_test, y_score[:,1])
 
         # In matplotlib < 1.5, plt.fill_between does not have a 'step' argument
         step_kwargs = ({'step': 'post'}
@@ -3790,7 +3879,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.495'
+version_number = '0.1.500'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

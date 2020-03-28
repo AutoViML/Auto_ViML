@@ -124,7 +124,8 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
                 metrics1 = 0
             estimators.append(('Bagging',model5, metrics1))
         else:
-            model5 = LogisticRegressionCV(Cs=np.linspace(0.01,100,20),cv=scv,scoring=scoring,
+            model5 = LogisticRegressionCV(Cs=np.linspace(0.01,100,20),solver='liblinear',
+                                          cv=scv,scoring=scoring,
                                           random_state=seed)
             results1 = model5.fit(X_train,y_train).predict(X_test)
             if not isinstance(y_test, str):

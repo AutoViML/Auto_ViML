@@ -36,6 +36,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from sklearn.model_selection import RepeatedKFold, RepeatedStratifiedKFold
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 
 from autoviml.QuickML_Stacking import QuickML_Stacking
 from autoviml.Transform_KM_Features import Transform_KM_Features
@@ -214,7 +215,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.500                                              #######
+    ######                               Version 0.1.501                                              #######
     #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -336,7 +337,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     max_depth = 10 ##### This limits the max_depth used in decision trees and other classifiers
     max_features = 10 #### maximum number of features in a random forest model or extra trees model
     warm_start = True ### This is to set the warm_start flag for the ExtraTrees models
-    bootstrap = True #### Set this flag to control whether to bootstrap variables or not. False is default.
+    bootstrap = True #### Set this flag to control whether to bootstrap variables or not. 
     n_repeats = 1 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
     Bins = 30 ### This is for plotting probabilities in a histogram. For small data sets, 30 is enough.
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
@@ -968,7 +969,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 "criterion" : ['mse','mae'],
                                 },
                         "Linear": {
-                            'alpha': np.logspace(-5,Alpha_max,100),
+                            'alpha': np.logspace(-5,3),
                                 },
                         "XGBoost": {
                                 'max_depth': [2,5,max_depth],
@@ -989,13 +990,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 "criterion" : ['mse','mae'],
                                 },
                         "Linear": {
-                            'alpha': np.logspace(-5,Alpha_max,100),
+                            'alpha': np.logspace(-5,3), 
                                 },
                         "XGBoost": {
                                 'max_depth': [2,5,max_depth],
                                 'gamma': [0,1,2,4,8,16,32],
                                 "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
-                                'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
+                                'learning_rate': [0.05, 0.10, 0.30, 0.5],
                                 },
                         "CatBoost": {
                                 'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
@@ -1016,9 +1017,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     xgbm.set_params(**param)
             elif Boosting_Flag is None:
                 #xgbm = Lasso(max_iter=max_iter,random_state=seed)
-                xgbm = Ridge(max_iter=max_iter,random_state=seed)
+                xgbm = Lasso(max_iter=max_iter,random_state=seed)
             else:
-                xgbm = ExtraTreesRegressor(
+                xgbm = RandomForestRegressor(
                                 **{
                                 'bootstrap': bootstrap, 'n_jobs': -1, 'warm_start': warm_start,
                                 'random_state':seed,'min_samples_leaf':2,
@@ -1033,7 +1034,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 c_params['XGBoost'] = {
                                             'max_depth': [2,5,max_depth],
                                             'gamma': [0,1,2,4,8,16,32],
-                                'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
+                                'learning_rate': [0.05, 0.10, 0.30, 0.5],
                                     "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
                                     }
                 c_params["CatBoost"] = {
@@ -1061,7 +1062,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             else:
                 c_params['XGBoost'] = {
                                 'max_depth': [2,5,max_depth],
-                                'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
+                                'learning_rate': [0.05, 0.1, 0.30, 0.5],
                                 'gamma': [0,1,2,4,8,16,32],
                                 "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
                                     }
@@ -1149,7 +1150,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                                 fit_intercept=True,
                                              warm_start=warm_start, max_iter=max_iter)
                 else:
-                    xgbm = ExtraTreesClassifier(
+                    xgbm = RandomForestClassifier(
                                 **{
                                 'bootstrap': bootstrap, 'n_jobs': -1, 'warm_start': warm_start,
                                 'random_state':seed,'min_samples_leaf':2,'oob_score':True,
@@ -1288,7 +1289,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                     "criterion":['gini','entropy'],
                                     #'class_weight':[None,'balanced']
                                                 }
-                    xgbm = ExtraTreesClassifier(bootstrap=bootstrap, oob_score=True,warm_start=warm_start,
+                    xgbm = RandomForestClassifier(bootstrap=bootstrap, oob_score=True,warm_start=warm_start,
                                             n_estimators=100,max_depth=3,
                                             min_samples_leaf=2,max_features='auto',
                                           random_state=seed,n_jobs=-1)
@@ -1394,6 +1395,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         ################################################################################################################################
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
+        ##
         if Imbalanced_Flag:
             if modeltype == 'Regression':
                 ###########  In case someone sets the Imbalanced_Flag mistakenly to True and it is Regression, you must set it to False ######
@@ -1541,7 +1543,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 plt.hist(pos_probs, bins=Bins)
                 plt.title("Model's Predictive Probabilitites Distribution for Rare Class with suggested threshold in red")
                 plt.axvline(x=m_thresh, color='r', linestyle='--')
-                print("    Using threshold=0.5. However, %0.2f provides better F1=%0.2f for rare class..." %(m_thresh,best_f1))
+                print("    Using threshold=0.5. However, %0.3f provides better F1=%0.2f for rare class..." %(m_thresh,best_f1))
                 ###y_pred = (y_proba[:,rare_class]>=m_thresh).astype(int)
                 y_pred = (y_proba[:,rare_class]>0.5).astype(int)
             else:
@@ -1742,10 +1744,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         from catboost import Pool
                         shap_values = model.get_feature_importance(Pool(X_cv, label=y_cv,cat_features=imp_cats),type="ShapValues")
                         shap.initjs()
+                        shap_df = pd.DataFrame(np.c_[X_cv.values,y_cv],columns=[list(X_cv)+[each_target]])
                         if modeltype != 'Multi_Classification':
-                            shap.summary_plot(shap_values, X_cv.join(y_cv),plot_type="violin")
+                            shap.summary_plot(shap_values, shap_df, plot_type="violin")
                         else:
-                            shap.summary_plot(shap_values[:,:,0], X_cv.join(y_cv), plot_type="violin")
+                            shap.summary_plot(shap_values[:,:,0], shap_df, plot_type="violin")
                     if verbose > 1 and modeltype != 'Multi_Classification':
                         ### Dont draw this for multiclassification since it is the same plot as the previous one ####
                         shap.initjs()
@@ -2001,7 +2004,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     m_thresh = 0.5
                     print('    Test Data predictions using regular Threshold = %0.3f' %m_thresh)
                 else:
-                    ### If the model is well with the modified threshold, then you use the modified threshold!
+                    ### If the model is good with the modified threshold, then you use the modified threshold!
                     print('    Test Data predictions using modified Threshold = %0.3f' %m_thresh)
                 y_pred = (y_proba[:,rare_class]>m_thresh).astype(int)
             else:
@@ -3879,7 +3882,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.500'
+version_number = '0.1.501'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

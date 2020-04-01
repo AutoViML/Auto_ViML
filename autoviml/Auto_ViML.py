@@ -215,7 +215,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.501                                              #######
+    ######                               Version 0.1.503                                              #######
     #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -589,12 +589,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             param['updater'] = 'grow_gpu_hist'
             param['predictor'] = 'gpu_predictor'
         else:
-            #param['nthread'] = CPU_count
-            param['tree_method'] = None
-            #param['grow_policy'] = 'depthwise'
-            param['max_depth'] = max_depth
-            #param['max_leaves'] = 0
-            param['verbosity'] = 0
+            pass
     elif model_name.lower() == 'catboost':
         if model_class == 'Binary-Class':
             catboost_scoring = 'Accuracy'
@@ -972,10 +967,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             'alpha': np.logspace(-5,3),
                                 },
                         "XGBoost": {
-                                'max_depth': [2,5,max_depth],
-                                'gamma': [0,1,2,4,8,16,32],
-                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
-                                'learning_rate': [0.05, 0.10, 0.30, 0.5],
+                                        'learning_rate': np.linspace(0.1,0.5,5),
+                                        'gamma': np.linspace(0, 32,7).astype(int),
                                 },
                         "CatBoost": {
                                 'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
@@ -993,10 +986,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             'alpha': np.logspace(-5,3), 
                                 },
                         "XGBoost": {
-                                'max_depth': [2,5,max_depth],
-                                'gamma': [0,1,2,4,8,16,32],
-                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
-                                'learning_rate': [0.05, 0.10, 0.30, 0.5],
+                                        'learning_rate': np.linspace(0.1,0.5,5),
+                                        'gamma': np.linspace(0, 32,7).astype(int),
                                 },
                         "CatBoost": {
                                 'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
@@ -1012,7 +1003,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                            early_stopping_rounds=250,boosting_type='Plain')
                 else:
                     xgbm = XGBRegressor(seed=seed,n_jobs=-1,random_state=seed,subsample=subsample,
-                                         colsample_bytree=col_sub_sample,
+                                         colsample_bytree=col_sub_sample,n_estimators=max_estims,
                                         objective=objective)
                     xgbm.set_params(**param)
             elif Boosting_Flag is None:
@@ -1032,10 +1023,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             # Create regularization hyperparameter distribution with 50 C values ####
             if hyper_param == 'GS':
                 c_params['XGBoost'] = {
-                                            'max_depth': [2,5,max_depth],
-                                            'gamma': [0,1,2,4,8,16,32],
-                                'learning_rate': [0.05, 0.10, 0.30, 0.5],
-                                    "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
+                                        'learning_rate': np.linspace(0.1,0.5,5),
+                                        'gamma': np.linspace(0, 32,7).astype(int),
                                     }
                 c_params["CatBoost"] = {
                                 'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
@@ -1061,10 +1050,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                             }
             else:
                 c_params['XGBoost'] = {
-                                'max_depth': [2,5,max_depth],
-                                'learning_rate': [0.05, 0.1, 0.30, 0.5],
-                                'gamma': [0,1,2,4,8,16,32],
-                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
+                                        'learning_rate': np.linspace(0.1,0.5,5),
+                                        'gamma': np.linspace(0, 32,7).astype(int),
                                     }
                 c_params["CatBoost"] = {
                                     'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
@@ -1141,7 +1128,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                            early_stopping_rounds=250,boosting_type='Plain')
                     else:
                         xgbm = XGBClassifier(seed=seed,n_jobs=-1, random_state=seed,subsample=subsample,
-                                         colsample_bytree=col_sub_sample,
+                                         colsample_bytree=col_sub_sample,n_estimators=max_estims,
                                      objective=objective)
                         xgbm.set_params(**param)
                 elif Boosting_Flag is None:
@@ -1230,17 +1217,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     # Create regularization hyperparameter distribution using uniform distribution
                     if hyper_param == 'GS':
                         c_params['XGBoost'] = {
-                                            'max_depth': [2,5,max_depth],
-                                            'gamma': [0,1,2,4,8,16,32],
-                                        'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
-                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
+                                        'learning_rate': np.linspace(0.1,0.5,5),
+                                        'gamma': np.linspace(0, 32,7).astype(int),
                                     }
                     else:
                         c_params['XGBoost'] = {
-                                            'learning_rate': [0.10, 0.2, 0.30, 0.4, 0.5],
-                                                'max_depth': [2,5,max_depth],
-                                                'gamma': [0,1,2,4,8,16,32],
-                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
+                                        'learning_rate': np.linspace(0.1,0.5,5),
+                                        'gamma': np.linspace(0, 32,7).astype(int),
                                     }
                     if model_name.lower() == 'catboost':
                         xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
@@ -1250,7 +1233,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 metric_period = 100,
                                early_stopping_rounds=250,boosting_type='Plain')
                     else:
-                        xgbm = XGBClassifier(seed=seed,n_jobs=-1, random_state=seed,subsample=subsample,
+                        xgbm = XGBClassifier(seed=seed,n_jobs=-1, random_state=seed,n_estimators=max_estims,
+                                             subsample=subsample,
                                          colsample_bytree=col_sub_sample,
                                          num_class= len(classes),
                                      objective=objective)
@@ -1395,7 +1379,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
         ################################################################################################################################
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
-        ##
+        ####
         if Imbalanced_Flag:
             if modeltype == 'Regression':
                 ###########  In case someone sets the Imbalanced_Flag mistakenly to True and it is Regression, you must set it to False ######
@@ -3882,7 +3866,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.501'
+version_number = '0.1.503'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

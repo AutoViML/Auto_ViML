@@ -215,7 +215,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.503                                              #######
+    ######                               Version 0.1.504                                              #######
     #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -1997,6 +1997,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             ##### This next step is very important since some models give series, others give arrays. Very painful!
             if isinstance(y_pred,pd.Series):
                 y_pred = y_pred.values
+            else:
+                ### In a small number of cases, it's an array but has a shape of 1.
+                ### This causes errors later. Hence I have to make it a single array.
+                try:
+                    if y_pred.shape[1] == 1:
+                        y_pred = y_pred.ravel()
+                except:
+                    pass
             #########   T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
             if len(label_dict[each_target]['transformer']) == 0:
                 ### if there is no transformer, then leave the predicted classes as is
@@ -3866,7 +3874,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.503'
+version_number = '0.1.504'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

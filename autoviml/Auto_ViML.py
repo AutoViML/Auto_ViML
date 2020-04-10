@@ -97,7 +97,7 @@ def check_if_GPU_exists():
     try:
         from tensorflow.python.client import device_lib
         dev_list = device_lib.list_local_devices()
-        len(dev_list)
+        print('Number of GPUs = %d' %len(dev_list))
         for i in range(len(dev_list)):
             if 'GPU' == dev_list[i].device_type:
                 GPU_exists = True
@@ -215,7 +215,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.504                                              #######
+    ######                               Version 0.1.505                                              #######
     #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -576,6 +576,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     else:
         model_name = 'Forests'
     #####   Set the Scoring Parameters here based on each model and preferences of user ##############
+    cpu_params = {}
     if model_name == 'XGBoost':
         #### This is only for XGBoost ###########
         if GPU_exists:
@@ -589,7 +590,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             param['updater'] = 'grow_gpu_hist'
             param['predictor'] = 'gpu_predictor'
         else:
-            pass
+            cpu_params['tree_method'] = 'auto'
+            cpu_params['grow_policy'] = 'depthwise'
+            cpu_params['max_depth'] = max_depth
+            cpu_params['max_leaves'] = 0
+            cpu_params['verbosity'] = 0
+            cpu_params['gpu_id'] = 0
+            cpu_params['updater'] = None
+            cpu_params['predictor'] = 'cpu_predictor'
     elif model_name.lower() == 'catboost':
         if model_class == 'Binary-Class':
             catboost_scoring = 'Accuracy'
@@ -1127,10 +1135,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             metric_period = 100,
                            early_stopping_rounds=250,boosting_type='Plain')
                     else:
-                        xgbm = XGBClassifier(seed=seed,n_jobs=-1, random_state=seed,subsample=subsample,
-                                         colsample_bytree=col_sub_sample,n_estimators=max_estims,
-                                     objective=objective)
-                        xgbm.set_params(**param)
+                        xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
+                            colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
+                            max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=max_estims,
+                            n_jobs=-1, nthread=None, objective=objective,
+                            random_state=1, reg_alpha=0.5, reg_lambda=0.5, scale_pos_weight=1,
+                            seed=1)
+                        eval_metric = 'logloss'
                 elif Boosting_Flag is None:
                     #### I have set the Verbose to be False here since it produces too much output ###
                     xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver='lbfgs',
@@ -1233,12 +1244,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                 metric_period = 100,
                                early_stopping_rounds=250,boosting_type='Plain')
                     else:
-                        xgbm = XGBClassifier(seed=seed,n_jobs=-1, random_state=seed,n_estimators=max_estims,
-                                             subsample=subsample,
-                                         colsample_bytree=col_sub_sample,
-                                         num_class= len(classes),
-                                     objective=objective)
-                        xgbm.set_params(**param)
+                        xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
+                                    colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
+                            max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=max_estims,
+                            n_jobs=-1, nthread=None, objective=objective,
+                            random_state=1, reg_alpha=0.5, reg_lambda=0.5, scale_pos_weight=1,
+                            num_class= len(classes),
+                            seed=1)
+                        eval_metric = 'mlogloss'
                 elif Boosting_Flag is None:
                     if Imbalanced_Flag:
                         c_params['Linear'] = {
@@ -1356,7 +1369,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         data_dim = data_dim*one_hot_size/len(preds)
                         print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/(300000.*CPU_count)))
                     else:
-                        print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/(6000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/(60000.*CPU_count)))
                 elif Boosting_Flag is None:
                     #### A Linear model is usually the fastest ###########
                     print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/(5000.*CPU_count)))
@@ -1368,7 +1381,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         data_dim = data_dim*one_hot_size/len(preds)
                         print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/(3000000.*CPU_count)))
                     else:
-                        print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/(6000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/(60000.*CPU_count)))
                 elif Boosting_Flag is None:
                     print('Using %s Model, Estimated Training time = %0.1f mins' %(model_name,data_dim/(50000.*CPU_count)))
                 else:
@@ -1394,6 +1407,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                                            Boosting_Flag, eval_metric,
                                            modeltype, model_name,training=True,
                                            minority_class=rare_class,imp_cats=imp_cats,
+                                           GPU_exists=GPU_exists, params = cpu_params,
                                            verbose=verbose)
                     if isinstance(model, str):
                         model = copy.deepcopy(gs)
@@ -1403,8 +1417,21 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                         if Boosting_Flag:
                             if model_name == 'XGBoost':
                                 #### Set the Verbose to 0 since we don't want too much output ##
-                                model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
-                                    eval_metric=eval_metric,eval_set=eval_set,verbose=0)
+                                try:
+                                    model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
+                                        eval_metric=eval_metric,eval_set=eval_set,verbose=0)
+                                except:
+                                    #### On Colab, even though GPU exists, many people don't turn it on. 
+                                    ####  In that case, XGBoost blows up when gpu_predictor is used.
+                                    ####  This is to turn it back to cpu_predictor in case GPU errors!
+                                    if GPU_exists:
+                                        print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
+                                        model.estimator.set_params(**params)
+                                        model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
+                                            eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                                    else:
+                                        model.fit(X_train,y_train,
+                                            eval_metric=eval_metric, verbose=False)                                    
                             else:
                                 try:
                                     model.fit(X_train, y_train,
@@ -1434,9 +1461,22 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                 model = copy.deepcopy(gs)
                 if Boosting_Flag:
                     if model_name == 'XGBoost':
-                        #### Set the Verbose to 0 since we don't want too much output ##
-                        model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
-                                eval_metric=eval_metric,eval_set=eval_set,verbose=0)
+                        try:
+                            #### Set the Verbose to 0 since we don't want too much output ##
+                            model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
+                                    eval_metric=eval_metric,eval_set=eval_set,verbose=0)
+                        except:
+                            #### On Colab, even though GPU exists, many people don't turn it on. 
+                            ####  In that case, XGBoost blows up when gpu_predictor is used.
+                            ####  This is to turn it back to cpu_predictor in case GPU errors!
+                            if GPU_exists:
+                                print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
+                                model.estimator.set_params(**params)
+                                model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
+                                    eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                            else:
+                                model.fit(X_train,y_train,
+                                    eval_metric=eval_metric, verbose=False)
                     else:
                         try:
                             model.fit(X_train, y_train, cat_features=imp_cats,
@@ -1552,10 +1592,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             rmsle_calculated_m = (y_cv==y_pred).astype(int).sum(axis=0)/(y_cv.shape[0])
             if len(classes) == 2:
                 print('    Regular Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
+                y_probas = model.predict_proba(X_cv)[:,rare_class]
+                print_classification_model_stats(y_cv, y_probas, m_thresh)
+            else:
+                ###### Use a nice classification matrix printing module here #########
+                print('    Balanced Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
+                print(classification_report(y_cv,y_pred))
+                print(confusion_matrix(y_cv, y_pred))
             rmsle_calculated_m = balanced_accuracy_score(y_cv,y_pred)
-            print('    Balanced Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
-            print(classification_report(y_cv,y_pred))
-            print(confusion_matrix(y_cv, y_pred))
         ######      SET BEST PARAMETERS HERE ######
         ### Find what the order of best params are and set the same as the original model ###
         ## This is where we set the best parameters from training to the model ####
@@ -1847,7 +1891,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                     model = downsampling_with_model_training(X,y, eval_set, model,
                                       Boosting_Flag, eval_metric,modeltype, model_name,
                                       training=True, minority_class=rare_class,
-                                      imp_cats=imp_cats,
+                                      imp_cats=imp_cats, 
+                                      GPU_exists=GPU_exists, params=cpu_params,
                                       verbose=verbose)
                     if isinstance(model, str):
                         #### If downsampling model failed, it will just be an empty string, so you can try regular model ###
@@ -3437,6 +3482,7 @@ warnings.filterwarnings(action='ignore', category=DataConversionWarning)
 def downsampling_with_model_training(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
                                         modeltype, model_name,
                                      training=True,minority_class=1,imp_cats=[],
+                                     GPU_exists=False, params={},
                                      verbose=0):
     """
     #########    DOWNSAMPLING OF MAJORITY CLASS AND TRAINING IN SMALL BATCH SIZES  ###############
@@ -3470,12 +3516,25 @@ def downsampling_with_model_training(X_df,y_df,eval_set,model,Boosting_Flag,eval
         if Boosting_Flag:
             if model_name == 'XGBoost':
                 early_stopping = 5
-                if eval_set==[()]:
-                    model.fit(X_df,y_df,
-                        eval_metric=eval_metric, verbose=False)
-                else:
-                    model.fit(X_df,y_df, early_stopping_rounds=early_stopping,
-                        eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                try:
+                    if eval_set==[()]:
+                        model.fit(X_df,y_df,
+                            eval_metric=eval_metric, verbose=False)
+                    else:
+                        model.fit(X_df,y_df, early_stopping_rounds=early_stopping,
+                            eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                except:
+                    #### On Colab, even though GPU exists, many people don't turn it on. 
+                    ####  In that case, XGBoost blows up when gpu_predictor is used.
+                    ####  This is to turn it back to cpu_predictor in case GPU errors!
+                    if GPU_exists:
+                        print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
+                        model.estimator.set_params(**params)
+                        model.fit(X_df,y_df, early_stopping_rounds=early_stopping,
+                            eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                    else:
+                        model.fit(X_df,y_df,
+                            eval_metric=eval_metric, verbose=False)
             else:
                 early_stopping = 250
                 if eval_set == [()]:
@@ -3515,18 +3574,31 @@ def downsampling_with_model_training(X_df,y_df,eval_set,model,Boosting_Flag,eval
                 if Boosting_Flag:
                     if model_name == 'XGBoost':
                         early_stopping = 5
-                        if eval_set==[()]:
-                            model.fit(X_df,y_df,
-                                eval_metric=eval_metric, verbose=False)
-                        else:
-                            model.fit(X_df,y_df, early_stopping_rounds=early_stopping,
-                                eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                        try:
+                            if eval_set==[()]:
+                                model.fit(X_train,y_train,
+                                    eval_metric=eval_metric, verbose=False)
+                            else:
+                                model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
+                                    eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                        except:
+                            #### On Colab, even though GPU exists, many people don't turn it on. 
+                            ####  In that case, XGBoost blows up when gpu_predictor is used.
+                            ####  This is to turn it back to cpu_predictor in case GPU errors!
+                            if GPU_exists:
+                                print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
+                                model.estimator.set_params(**params)
+                                model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
+                                    eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                            else:
+                                model.fit(X_train,y_train,
+                                    eval_metric=eval_metric, verbose=False)
                     else:
                         early_stopping = 250
                         if eval_set == [()]:
-                            model.fit(X_df,y_df, cat_features=imp_cats, use_best_model=False)
+                            model.fit(X_train,y_train, cat_features=imp_cats, use_best_model=False)
                         else:
-                            model.fit(X_df,y_df, cat_features=imp_cats,
+                            model.fit(X_train,y_train, cat_features=imp_cats,
                                         eval_set=eval_set, use_best_model=True, plot=True)
                     if verbose >= 1:
                         print('             Batch Training completed' )
@@ -3714,6 +3786,35 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
         plt.legend(lines, labels, loc='lower left', prop=dict(size=10))
         plt.show();
 ######################################################################################
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import balanced_accuracy_score
+def print_classification_model_stats(y_true,y_probas,m_thresh=0.5):
+    """
+    This prints classification metrics in a nice format.
+    """
+    # Use this to Test Classification Problems Only ####
+    try:
+        print('Balanced Accuracy = %0.2f%% with Regular Threshold = %0.2f' %(
+            100*balanced_accuracy_score(y_true, (y_probas>0.5).astype(int)),0.5))
+        print('Confusion Matrix:')
+        print(confusion_matrix(y_true, (y_probas>0.5).astype(int)))
+        print(classification_report(y_true, (y_probas>0.5).astype(int)))
+        print('#####################################################################')
+        print('Balanced Accuracy = %0.2f%% with Alternative Threshold = %0.2f' %(
+            100*balanced_accuracy_score(y_true, (y_probas>m_thresh).astype(int)),m_thresh))
+        print('Confusion Matrix:')
+        print(confusion_matrix(y_true, (y_probas>m_thresh).astype(int)))
+        print(classification_report(y_true, (y_probas>m_thresh).astype(int)))
+        reg_acc = balanced_accuracy_score(y_true, (y_probas>0.5).astype(int))
+        mod_acc = balanced_accuracy_score(y_true, (y_probas>m_thresh).astype(int))
+        if  reg_acc >= mod_acc :
+            return reg_acc
+        else:
+            return mod_acc
+    except:
+        print('Error: printing classification model metrics. Continuing...')
+        return 0
+#####################################################################
 def print_regression_model_stats(actuals, predicted, title='Model'):
     """
     This program prints and returns MAE, RMSE, MAPE.
@@ -3874,7 +3975,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.504'
+version_number = '0.1.505'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

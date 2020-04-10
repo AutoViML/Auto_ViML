@@ -215,7 +215,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.505                                              #######
+    ######                               Version 0.1.506                                              #######
     #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -589,15 +589,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
             param['gpu_id'] = 0
             param['updater'] = 'grow_gpu_hist'
             param['predictor'] = 'gpu_predictor'
-        else:
-            cpu_params['tree_method'] = 'auto'
-            cpu_params['grow_policy'] = 'depthwise'
-            cpu_params['max_depth'] = max_depth
-            cpu_params['max_leaves'] = 0
-            cpu_params['verbosity'] = 0
-            cpu_params['gpu_id'] = 0
-            cpu_params['updater'] = None
-            cpu_params['predictor'] = 'cpu_predictor'
+        ##### WE should keep CPU params as backup in case GPU fails!
+        cpu_params['tree_method'] = 'auto'
+        cpu_params['grow_policy'] = 'depthwise'
+        cpu_params['max_depth'] = max_depth
+        cpu_params['max_leaves'] = 0
+        cpu_params['verbosity'] = 0
+        cpu_params['gpu_id'] = 0
+        cpu_params['updater'] = None
+        cpu_params['predictor'] = 'cpu_predictor'
     elif model_name.lower() == 'catboost':
         if model_class == 'Binary-Class':
             catboost_scoring = 'Accuracy'
@@ -1141,7 +1141,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             n_jobs=-1, nthread=None, objective=objective,
                             random_state=1, reg_alpha=0.5, reg_lambda=0.5, scale_pos_weight=1,
                             seed=1)
-                        eval_metric = 'logloss'
+                        xgbm.set_params(**param)
                 elif Boosting_Flag is None:
                     #### I have set the Verbose to be False here since it produces too much output ###
                     xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver='lbfgs',
@@ -1251,7 +1251,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='GS', feat
                             random_state=1, reg_alpha=0.5, reg_lambda=0.5, scale_pos_weight=1,
                             num_class= len(classes),
                             seed=1)
-                        eval_metric = 'mlogloss'
+                        xgbm.set_params(**param)
                 elif Boosting_Flag is None:
                     if Imbalanced_Flag:
                         c_params['Linear'] = {
@@ -3975,7 +3975,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.505'
+version_number = '0.1.506'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

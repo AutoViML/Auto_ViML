@@ -174,10 +174,23 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
             start_train[new_missing_col] = 0
             start_train.loc[start_train[col].isnull(),new_missing_col]=1
             start_train[col] = start_train[col].fillna("NA", inplace=False).astype('category')
-    train_categs = list(pd.unique(start_train[col].values))
+    if len(start_train[col].apply(type).value_counts()) > 1:
+        print('    Alert! Mixed Data Types in Train data set %s column with %d data types. Fixing it...' %(
+                                       col, len(start_train[col].apply(type).value_counts())))
+        train_categs = start_train[col].value_counts().index.tolist()
+    else:
+        train_categs = np.unique(start_train[col]).tolist()
     if not isinstance(start_test,str) :
-        test_categs = list(pd.unique(start_test[col].values))
-        categs_all = train_categs+test_categs
+        if len(start_test[col].apply(type).value_counts()) > 1:
+            print('    Alert! Mixed Data Types in Test data set %s column with %d data types. Fixing it...' %(
+                                           col, len(start_test[col].apply(type).value_counts())))
+            test_categs = start_test[col].value_counts().index.tolist()
+            test_categs = [x if isinstance(x,str)  else str(x) for x in test_categs]
+            start_test[col] = start_test[col].astype(str).values
+        else:
+            test_categs = np.unique(start_test[col]).tolist()
+    if not isinstance(start_test,str) :
+        categs_all = np.unique( train_categs + test_categs).tolist()
         dict_all =  return_factorized_dict(categs_all)
     else:
         dict_all = return_factorized_dict(train_categs)
@@ -215,7 +228,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.507                                              #######
+    ######                               Version 0.1.508                                              #######
     #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -644,9 +657,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 ####  This is the easiest way to label encode object variables in both train and test
                 #### This takes care of some categories that are present in train and not in test
                 ###     and vice versa
-                if len(start_train[f].apply(type).value_counts()) > 1:
-                    print('    Alert! Mixed Data Types in %s column: %d data types. Fixed' %(
-                                       f, len(start_train[f].apply(type).value_counts())))
                 start_train, start_test = convert_train_test_cat_col_to_numeric(start_train, start_test,f,True)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
@@ -4001,7 +4011,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.507'
+version_number = '0.1.508'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

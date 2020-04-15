@@ -181,6 +181,13 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
     else:
         train_categs = np.unique(start_train[col]).tolist()
     if not isinstance(start_test,str) :
+        if start_test[col].isnull().sum() > 0:
+            start_test[new_missing_col] = 0
+            start_test.loc[start_test[col].isnull(),new_missing_col]=1                        
+            if str_flag:
+                start_test[col] = start_test[col].fillna("NA", inplace=False).astype(str)
+            else:
+                start_test[col] = start_test[col].fillna("NA", inplace=False).astype('category')
         if len(start_test[col].apply(type).value_counts()) > 1:
             print('    Alert! Mixed Data Types in Test data set %s column with %d data types. Fixing it...' %(
                                            col, len(start_test[col].apply(type).value_counts())))
@@ -196,16 +203,6 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
         dict_all = return_factorized_dict(train_categs)
     start_train[col] = start_train[col].map(dict_all)
     if not isinstance(start_test,str) :
-        if missing_flag:
-            start_test[new_missing_col] = 0
-        if start_test[col].isnull().sum() > 0:
-            if str_flag:
-                start_test.loc[start_test[col].isnull(),new_missing_col]=1                        
-                start_test[col] = start_test[col].fillna("NA", inplace=False).astype(str)
-            else:
-                start_test[new_missing_col] = 0
-                start_test.loc[start_test[col].isnull(),new_missing_col]=1                        
-                start_test[col] = start_test[col].fillna("NA", inplace=False).astype('category')
         start_test[col] = start_test[col].map(dict_all)
     return start_train, start_test
 #############################################################################################################
@@ -228,7 +225,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.508                                              #######
+    ######                               Version 0.1.509                                              #######
     #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -4011,7 +4008,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.508'
+version_number = '0.1.509'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -162,6 +162,7 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
     start_train = copy.deepcopy(start_train)
     start_test = copy.deepcopy(start_test)
     missing_flag = False
+    new_missing_col = ''
     if start_train[col].isnull().sum() > 0:
         missing_flag = True
         if str_flag:
@@ -182,12 +183,24 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
         train_categs = np.unique(start_train[col]).tolist()
     if not isinstance(start_test,str) :
         if start_test[col].isnull().sum() > 0:
+            #### IN some rare cases, Test data has missing values while Train data doesn.t
+            #### This section is take care of those rare cases. We need to create a missing col
+            ####  We need to create that missing flag column in both train and test in that case
+            if not missing_flag:
+                missing_flag = True
+                new_missing_col = col + '_Missing_Flag'
+                start_train[new_missing_col] = 0
+            #####  THis is to take care of Missing_Flag in start_test data set!!
             start_test[new_missing_col] = 0
             start_test.loc[start_test[col].isnull(),new_missing_col]=1                        
             if str_flag:
                 start_test[col] = start_test[col].fillna("NA", inplace=False).astype(str)
             else:
                 start_test[col] = start_test[col].fillna("NA", inplace=False).astype('category')
+        else:
+            #### In some rare cases, there is missing values in train but not in test data!
+            #### In those cases, we need to create a new_missing_col in test data in addition to train 
+            start_test[new_missing_col] = 0            
         if len(start_test[col].apply(type).value_counts()) > 1:
             print('    Alert! Mixed Data Types in Test data set %s column with %d data types. Fixing it...' %(
                                            col, len(start_test[col].apply(type).value_counts())))
@@ -204,7 +217,7 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
     start_train[col] = start_train[col].map(dict_all)
     if not isinstance(start_test,str) :
         start_test[col] = start_test[col].map(dict_all)
-    return start_train, start_test
+    return start_train, start_test, missing_flag, new_missing_col
 #############################################################################################################
 def flatten_list(list_of_lists):
     final_ls = []
@@ -225,7 +238,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.509                                              #######
+    ######                               Version 0.1.510                                              #######
     #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -648,13 +661,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         for f in copy_preds:
             missing_flag = False
             if start_train[f].dtype == object:
-                if start_train[f].isnull().sum() > 0:
-                    new_missing_col = f + '_Missing_Flag'
-                    missing_flag = True
                 ####  This is the easiest way to label encode object variables in both train and test
                 #### This takes care of some categories that are present in train and not in test
                 ###     and vice versa
-                start_train, start_test = convert_train_test_cat_col_to_numeric(start_train, start_test,f,True)
+                start_train, start_test,missing_flag,new_missing_col = convert_train_test_cat_col_to_numeric(start_train, start_test,f,True)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
@@ -681,10 +691,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     preds.append(new_missing_col)
                     missing_flag_cols.append(new_missing_col)                    
             elif f in factor_cols:
-                if start_train[f].isnull().sum() > 0:
-                    new_missing_col = f + '_Missing_Flag'
-                    missing_flag = True
-                start_train, start_test = convert_train_test_cat_col_to_numeric(start_train, start_test,f,False)
+                start_train, start_test,missing_flag,new_missing_col = convert_train_test_cat_col_to_numeric(start_train, start_test,f,False)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
@@ -740,6 +747,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             else:
                 print('Error: Unable to complete missing value imputation in train. Exiting...')
                 return
+        ####################################################################################
         if type(orig_test) != str:
             if start_test[copy_preds].isnull().sum().sum() > 0:
                 print('Test data still has some missing values. Fix it. Exiting...')
@@ -2081,8 +2089,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         y_pred = y_pred.ravel()
                 except:
                     pass
-            #########   T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
             if len(label_dict[each_target]['transformer']) == 0:
+            #########  NO   T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
                 ### if there is no transformer, then leave the predicted classes as is
                 classes = label_dict[each_target]['classes']
                 ##### If there is no transformer, you can just predict the classes as is and save it here ###
@@ -2136,7 +2144,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     ensem_pred = ensem_pred.values
                 testm[new_col] = ensem_pred
                 new_cols.append(new_col)
+                if not isinstance(sample_submission, str):
+                    sample_submission[each_target] = y_pred
             else:
+            #########    T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
                 ### if there is a transformer, then you must convert the predicted classes to orig classes
                 classes = label_dict[each_target]['classes']
                 dic = label_dict[each_target]['dictionary']
@@ -2208,9 +2219,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         plt.axvline(x=m_thresh, color='r', linestyle='--')
             except:
                 print('    Error: Not able to save test file. Skipping...')
-        if not isinstance(sample_submission, str):
             print('    Saving Output files...')
-            sample_submission[each_target] = y_pred
             #### Commented out the next line since it is not necessary to bloat the sample submission file ##
             #sample_submission = pd.concat([sample_submission,testm[new_cols]], axis=1)
             #############################################################################################
@@ -4008,7 +4017,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.509'
+version_number = '0.1.510'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

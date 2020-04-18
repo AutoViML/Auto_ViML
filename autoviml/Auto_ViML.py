@@ -41,6 +41,7 @@ from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from autoviml.QuickML_Stacking import QuickML_Stacking
 from autoviml.Transform_KM_Features import Transform_KM_Features
 from autoviml.QuickML_Ensembling import QuickML_Ensembling
+from autoviml.Auto_NLP import Auto_NLP
 import xgboost as xgb
 import sys
 ##################################################################################
@@ -238,7 +239,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.510                                              #######
+    ######                               Version 0.1.600                                              #######
     #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
     ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
     #########################################################################################################
@@ -365,6 +366,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     bootstrap = True #### Set this flag to control whether to bootstrap variables or not. 
     n_repeats = 1 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
     Bins = 30 ### This is for plotting probabilities in a histogram. For small data sets, 30 is enough.
+    top_nlp_features = 25 ### This sets a limit on the number of features added by each NLP transformer!
     print('##############  D A T A   S E T  A N A L Y S I S  #######################')
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
     if isinstance(Boosting_Flag,str):
@@ -579,7 +581,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     var_df = classify_columns(orig_train[orig_preds], verbose)
     #####       Classify Columns   ################
     id_cols = var_df['id_vars']
-    string_cols = var_df['nlp_vars']+var_df['date_vars']
+    nlp_columns = var_df['nlp_vars']
+    string_cols = var_df['date_vars']
     del_cols = var_df['cols_delete']
     factor_cols = var_df['factor_vars']
     numvars = var_df['continuous_vars']+var_df['int_vars']
@@ -659,6 +662,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     if len(copy_preds) > 0:
         dict_train = {}
         for f in copy_preds:
+            if f in nlp_columns:
+                #### YOu have to skip this for NLP columns ##############
+                continue
             missing_flag = False
             if start_train[f].dtype == object:
                 ####  This is the easiest way to label encode object variables in both train and test
@@ -805,6 +811,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ####  This is where we set the orig train data set with multiple labels to the new start_train
         ####     start_train has the new features added or reduced with the multi targets in one cycle
         ###      That way, we start each train with one target, and then reset it with multi target
+        #############################################################################################
         train = start_train[[each_target]+red_preds]
         if type(orig_test) != str:
             test = start_test[red_preds]
@@ -866,6 +873,18 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ### if there are no Polynomial vars, then all numeric variables are selected
             train_sel = copy.deepcopy(numvars)
         #########     SELECT IMPORTANT FEATURES HERE   #############################
+        ################  A U T O   N L P  P R O C E S S I N G   B E G I N S    H E R E !!! ####
+        for nlp_column in nlp_columns:
+            train1, test1, best_nlp_transformer = Auto_NLP(nlp_column,
+                                            train, test, each_target, scoring_parameter, 
+                                            seed, modeltype,top_nlp_features)
+            red_preds = [x for x in list(train1) if x not in [each_target]]
+            train = train1[red_preds+[each_target]]
+            if not isinstance(orig_test, str):
+                test = test1[red_preds]    
+        ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####
+        ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
+        train_sel = np.array(red_preds)[(train[red_preds].dtypes==float).values]
         if feature_reduction:
             important_features,num_vars, imp_cats = find_top_features_xgb(train,red_preds,train_sel,
                                                          each_target,
@@ -1430,7 +1449,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################################################################################################################################
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
-        ####  pdb.set_trace()
+        ########### pdb.set_trace()
         if Imbalanced_Flag:
             if modeltype == 'Regression':
                 ###########  In case someone sets the Imbalanced_Flag mistakenly to True and it is Regression, you must set it to False ######
@@ -2678,10 +2697,10 @@ def classify_columns(df_preds, verbose=0):
             train[col] = train[col].fillna('  ')
             if train[col].map(lambda x: len(x) if type(x)==str else 0).mean(
                 ) >= 50 and len(train[col].value_counts()
-                        ) < len(train) and col not in string_bool_vars:
+                        ) <= len(train) and col not in string_bool_vars:
                 var_df.loc[var_df['index']==col,'nlp_strings'] = 1
             elif len(train[col].value_counts()) > cat_limit and len(train[col].value_counts()
-                        ) < len(train) and col not in string_bool_vars:
+                        ) <= len(train) and col not in string_bool_vars:
                 var_df.loc[var_df['index']==col,'discrete_strings'] = 1
             elif len(train[col].value_counts()) > cat_limit and len(train[col].value_counts()
                         ) == len(train) and col not in string_bool_vars:
@@ -4017,7 +4036,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.510'
+version_number = '0.1.600'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

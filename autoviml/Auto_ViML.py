@@ -239,9 +239,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.600                                              #######
-    #####   MAJOR UPGRADE: Faster Everything. Best Version to Download or Upgrade. March 25,2020       ######
-    ######          Auto_VIMAL with HyperOpt is approximately 3X Faster than Auto_ViML.               #######
+    ######                               Version 0.1.601                                              #######
+    #####   MAJOR UPGRADE: Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
+    ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
     #                                                                                                 #######
@@ -876,7 +876,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################  A U T O   N L P  P R O C E S S I N G   B E G I N S    H E R E !!! ####
         for nlp_column in nlp_columns:
             train1, test1, best_nlp_transformer = Auto_NLP(nlp_column,
-                                            train, test, each_target, scoring_parameter, 
+                                            train, test, each_target, refit_metric, 
                                             seed, modeltype,top_nlp_features)
             red_preds = [x for x in list(train1) if x not in [each_target]]
             train = train1[red_preds+[each_target]]
@@ -4036,7 +4036,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.600'
+version_number = '0.1.601'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

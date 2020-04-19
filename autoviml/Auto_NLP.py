@@ -90,8 +90,12 @@ def tokenize_test_by_metric(model, X_train, X_cv, y_train, y_cv,
     print('Features: ', X_train_dtm.shape[1])
     print_sparse_stats(X_train_dtm)
     X_cv_dtm = vect.transform(X_cv)
-    model.fit(X_train_dtm, y_train)
-    y_preds = model.predict(X_cv_dtm)
+    try:
+        model.fit(X_train_dtm, y_train)
+        y_preds = model.predict(X_cv_dtm)
+    except:
+        model.fit(X_train_dtm.toarray(), y_train)
+        y_preds = model.predict(X_cv_dtm.toarray())
     # calculate return_scoreval for score_type
     metric_val = return_scoreval(metric, y_cv, y_preds, '', modeltype)
     print('%s Metrics for %s = %0.2f' %(metric, X_train.shape,
@@ -161,14 +165,15 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
             max_features = data.shape[1]*10
         except:
             max_features =  data.shape[0]
-    print('\n####################################################################################')
+    print('\n              A U T O            N L P             P R O C E S S I N G ')
+    print('####################################################################################')
     print('Generating new features for NLP column = %s using NLP Transformers' %col)
     print('    However only the top %d generated features will be selected' %max_features)
     print('    Cleaning text in %s before doing transformation...' %col)
     start_time = time.time()
     ####### CLEAN THE DATA FIRST ###################################
     data[col] =  data[col].map(remove_html).map(remove_punctuations).map(expand_text)
-    #### To make removing stop words fast we need to run it through a vectorizer!
+    #### To make removing stop words fast we need to run it through a vectorizer! THIS IS TOO SLOW!
     #remover = lambda txt: txt if txt not in stopwords.words('english') else ""
     #vectorized_func = np.vectorize(remover)
     #vectorized_func = np.vectorize(remove_stopwords)
@@ -216,7 +221,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
         print('Vectorizer with Lemma and Min_df skipped')
 
     print('\n# Using TFIDF vectorizer with min_df and max_features')
-    if modeltype == 'Classification':
+    if modeltype != 'Regression':
         tvec = TfidfVectorizer( max_features=int(max_features*0.5), 
                                 stop_words='english', ngram_range=(1, 3), min_df=min_df, binary=True)
     else:
@@ -226,10 +231,10 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
                                       y_test, target, metric,
                                         tvec, seed, modeltype)
     ######## Once you have built 3 different transformers it is time to compare them
-    if modeltype != 'Regression':
+    if modeltype.endswith('Classification'):
         best_vec = pd.Series(all_vecs).idxmax()
     else:
-        if modeltype.endswith('Classification'):
+        if modeltype == 'Regression':
             best_vec = pd.Series(all_vecs).idxmin()
         else:
             print('Error: Modeltype not recognized. You must choose Classification or Regression or None')
@@ -239,8 +244,9 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     return best_vec, all_models[best_vec], data_dtm, min_df
 
 ############################################################################
+from sklearn.metrics import balanced_accuracy_score
 def return_scoreval(scoretype, y_true, y_preds, y_proba, modeltype):
-    if modeltype == 'Classification':
+    if modeltype.endswith('Classification'):
         if scoretype == 'f1':
             try:
                 scoreval = f1_score(y_true, y_preds)
@@ -251,8 +257,8 @@ def return_scoreval(scoretype, y_true, y_preds, y_proba, modeltype):
             try:
                 scoreval = roc_auc_score(y_true, y_proba)
             except:
-                scoreval = 0
-                print('Single class present. No ROC-AUC computed')
+                scoreval = balanced_accuracy_score(y_true, y_preds)
+                print('Multi-class problem. Instead of ROC-AUC, Balanced Accuracy computed')
         elif scoretype == 'precision':
             try:
                 scoreval = precision_score(y_true, y_preds)
@@ -263,6 +269,11 @@ def return_scoreval(scoretype, y_true, y_preds, y_proba, modeltype):
                 scoreval = recall_score(y_true, y_preds)
             except:
                 scoreval = recall_score(y_true, y_preds, average='micro')
+        elif scoretype in ['balanced_accuracy','accuracy','balanced-accuracy']:
+            try:
+                scoreval = balanced_accuracy_score(y_true, y_preds)
+            except:
+                scoreval = accuracy(y_true, y_preds)
         else:
             print('Scoring Type not Recognized - selecting default as F1.')
             scoretype == 'f1'
@@ -276,9 +287,14 @@ def return_scoreval(scoretype, y_true, y_preds, y_proba, modeltype):
                 scoreval = np.sqrt(mean_squared_error(y_true, y_preds))
             except:
                 scoreval = 0
+        elif scoretype == 'mae':
+            try:
+                scoreval = np.sqrt(mean_absolute_error(y_true, y_preds))
+            except:
+                scoreval = 0
         else:
             print('Scoring Type not Recognized.')
-            scoretype == 'abs'
+            scoretype == 'mae'
             scoreval = mean_absolute_error(y_true, y_preds)
     return scoreval
 ######### Print the % count of each class in a Target variable  #####
@@ -356,7 +372,11 @@ def select_top_features_from_vectorizer(X, vectorizer,top_n=25):
     print('Combined best features array shape: %s' %(best_features_array.shape,))
     return best_df
 
-####################################################################
+#########################################################################################
+from xgboost.sklearn import XGBClassifier
+from xgboost.sklearn import XGBRegressor
+from sklearn.naive_bayes import GaussianNB
+import xgboost as xgb
 def Auto_NLP(nlp_column, train, test, target, score_type,
                             seed, modeltype,top_num_features=25):
     """
@@ -376,6 +396,13 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
     test = copy.deepcopy(test)
     start_time = time.time()
     min_df=0.1
+    max_depth = 8
+    subsample =  0.5
+    col_sub_sample = 0.5
+    test_size = 0.2
+    seed = 1
+    early_stopping = 5
+    #############   THIS IS WHERE WE START PROCESSING NLP COLUMNS #####################
     if type(nlp_column) == str:
         pass
     elif type(nlp_column) == list:
@@ -389,15 +416,19 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
         if len(Counter(train[target])) > 2:
             model = MultinomialNB()
         else:
-            model = LogisticRegression()
+            model = GaussianNB()
         best_nlp_vect, model, train_dtm, min_df = select_best_nlp_vectorizer(model, train, nlp_column, target,
                     score_type, seed, modeltype,min_df)
     elif modeltype == 'Regression':
-        if train.shape[0] < 100000:
-            model = RandomForestRegressor(n_estimators=50, max_depth=6,random_state=seed)
+        if float(xgb.__version__[0])<1:
+            objective = 'reg:linear'
         else:
-            model = BaggingRegressor(n_estimators=200,max_samples=0.1,random_state=seed)
-            best_nlp_vect, model, train_dtm, min_df = select_best_nlp_vectorizer(model, train, nlp_column, target,
+            objective = 'reg:squarederror'
+        model = XGBRegressor( n_estimators=100,subsample=subsample,objective=objective,
+                                colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
+                                 seed=1,n_jobs=-1,random_state=1)
+        ####   This is where you start to Iterate on Finding Important Features ################
+        best_nlp_vect, model, train_dtm, min_df = select_best_nlp_vectorizer(model, train, nlp_column, target,
                             score_type, seed, modeltype,min_df)
     else:
         #### Just complete the transform of NLP column and return the transformed data ####
@@ -460,7 +491,8 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
         test_source = nlp_data[nlp_data['source']=='Test']
         test_source = test_source.drop([target,'source'],axis=1)
         test_best = test_best.join(test_source[nlp_result_columns])
-    print('    Completed Auto_NLP. Time taken %0.1f minutes' %((time.time()-start_time)/60))
+    print('         A U T O   N L P  C O M P L E T E D. Time taken %0.1f minutes' %((time.time()-start_time)/60))
+    print('####################################################################################')
     train_full = train.drop(nlp_column, axis=1, inplace=False).join(train_best,rsuffix='_OVERLAPPING_COLUMN_DELETE')
     train_full = train_full.drop('source',axis=1)
     if type(test) != str:
@@ -561,7 +593,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.10'
+version_number = '0.0.11'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(nlp_column, train, test, target, score_type, seed, modeltype)""" %version_number)
 ########################################################################

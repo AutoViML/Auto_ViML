@@ -239,7 +239,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.601                                              #######
+    ######                               Version 0.1.602                                              #######
     #####   MAJOR UPGRADE: Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -516,7 +516,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             start_train = orig_train.sample(frac=1.0, random_state=seed)
             scv = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=seed)
         if modeltype != 'Regression':
-            rare_class = find_rare_class(orig_train[each_target].values,verbose=1)
+            rare_class_orig = find_rare_class(orig_train[each_target].values,verbose=1)
             ### Perfrom Label Transformation only for Classification Problems ####
             classes = np.unique(orig_train[each_target])
             if first_time:
@@ -547,7 +547,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 #### This takes care of some classes that are present in train and not in predictions
                 ### and vice versa. Hence it is better than Label Encoders which breaks when above happens.
                 train_targ_categs = list(start_train[each_target].value_counts().index)
-                rare_class = find_rare_class(start_train[each_target])
                 if len(train_targ_categs) == 2:
                     majority_class = [x for x in train_targ_categs if x != rare_class]
                     dict_targ_all = {majority_class[0]: 0, rare_class: 1}
@@ -557,7 +556,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 label_dict[each_target]['dictionary'] = copy.deepcopy(dict_targ_all)
                 label_dict[each_target]['transformer'] = dict([(v,k) for (k,v) in dict_targ_all.items()])
                 label_dict[each_target]['classes'] = copy.deepcopy(train_targ_categs)
-                label_dict[each_target]['class_nums'] = list(dict_targ_all.values())
+                class_nums = list(dict_targ_all.values())
+                label_dict[each_target]['class_nums'] = copy.deepcopy(class_nums)
                 print('String or Multi Class target: %s transformed as follows: %s' %(each_target,dict_targ_all))
                 rare_class = find_rare_class(start_train[each_target].values)
             else:
@@ -565,10 +565,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 rare_class = find_rare_class(start_train[each_target].values)
                 label_dict[each_target]['values'] = start_train[each_target].values
                 label_dict[each_target]['classes'] = np.unique(start_train[each_target].values)
-                label_dict[each_target]['class_nums'] = np.unique(start_train[each_target].values)
+                class_nums = np.unique(start_train[each_target].values)
+                label_dict[each_target]['class_nums'] = copy.deepcopy(class_nums)
                 label_dict[each_target]['transformer'] = []
                 label_dict[each_target]['dictionary'] = dict(zip(classes,classes))
                 print('    Target %s is already numeric. No transformation done.' %each_target)
+            if rare_class != 1:
+                print('Alert! Rare Class is NOT 1 but %s in this data set' %rare_class)
     ###########################################################################################
     ####  This is where we start doing the iterative hyper tuning parameters #####
     params_dict = defaultdict(list)
@@ -1607,8 +1610,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             y_pred = model.predict(X_cv)
             if len(classes) <= 2:
                 print('Finding Best Threshold for Highest F1 Score...')
-                ###precision, recall, thresholds = precision_recall_curve(y_cv, y_proba[:,rare_class])
-                precision, recall, thresholds = precision_recall_curve(y_cv, y_proba[:,1])
+                precision, recall, thresholds = precision_recall_curve(y_cv, y_proba[:,rare_class])
+                #precision, recall, thresholds = precision_recall_curve(y_cv, y_proba[:,1])
                 try:
                     f1 = (2*precision*recall)/(precision+recall)
                     f1 = np.nan_to_num(f1)
@@ -1623,11 +1626,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 # create a histogram of the predicted probabilities for the Rare Class since it will help decide threshold
                 plt.figure()
                 plt.hist(pos_probs, bins=Bins)
-                plt.title("Model's Predictive Probabilitites Distribution for Rare Class with suggested threshold in red")
+                plt.title("Model's Predictive Probabilitites for Rare Class=%s with suggested threshold in red" %rare_class_orig)
                 plt.axvline(x=m_thresh, color='r', linestyle='--')
                 print("    Using threshold=0.5. However, %0.3f provides better F1=%0.2f for rare class..." %(m_thresh,best_f1))
                 ###y_pred = (y_proba[:,rare_class]>=m_thresh).astype(int)
-                y_pred = (y_proba[:,rare_class]>0.5).astype(int)
+                predicted = copy.deepcopy(y_proba)
+                predicted [:,0] = (predicted [:,0] <= m_thresh).astype('int')
+                predicted [:,1] = (predicted [:,1] > m_thresh).astype('int')
+                if m_thresh != 0.5:
+                    y_pred = predicted[:,rare_class]
             else:
                 y_proba = model.predict_proba(X_cv)
                 y_pred = model.predict(X_cv)
@@ -1647,12 +1654,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         else:
             if model_name == 'Forests':
                 print('    OOB Score = %0.3f' %model.oob_score_)
-            rmsle_calculated_m = (y_cv==y_pred).astype(int).sum(axis=0)/(y_cv.shape[0])
             rmsle_calculated_m = balanced_accuracy_score(y_cv,y_pred)
             if len(classes) == 2:
-                print('    Regular Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
-                y_probas = model.predict_proba(X_cv)[:,rare_class]
-                rmsle_calculated_m = print_classification_model_stats(y_cv, y_probas, m_thresh)
+                print('    Regular Accuracy Score = %0.1f%%' %(accuracy_score(y_cv,y_pred)*100))
+                predicted = model.predict_proba(X_cv)
+                rmsle_calculated_m = print_classification_model_stats(y_cv, model.predict(X_cv), predicted, m_thresh)
             else:
                 ###### Use a nice classification matrix printing module here #########
                 print('    Balanced Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
@@ -1732,13 +1738,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print('No Ensembling of models done since Stacking_Flag = True ')
             if verbose >= 1:
                 try:
+                    plot_classification_results(model,X_cv, y_cv, y_pred, classes, class_nums, each_target )
+                except:
                     Draw_ROC_MC_ML(model, X_cv, y_cv, each_target, model_name, verbose)
-                except:
-                    print('    Could not draw ROC AUC curve')
-                try:
                     Draw_MC_ML_PR_ROC_Curves(model,X_cv,y_cv)
-                except:
-                    print('    Could not draw Precision-Recall ROC AUC curve')
             #### In case there are special scoring_parameter requests, you can print it here!
             if scoring_parameter == 'roc_auc' or scoring_parameter == 'auc':
                 if len(classes) == 2:
@@ -2085,15 +2088,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             proba_cols = []
             ########   This is for both Binary and Multi Classification Problems ###########
             y_proba = model.predict_proba(X_test)
+            y_pred = model.predict(X_test)
+            predicted = copy.deepcopy(y_proba)
             if len(classes) <= 2:
-                if (y_proba[:,rare_class]>m_thresh).astype(int).mean()==0 or (y_proba[:,rare_class]>m_thresh).astype(int).mean()==1:
+                predicted [:,0] = (predicted [:,0] <= m_thresh).astype('int')
+                predicted [:,1] = (predicted [:,1] > m_thresh).astype('int')
+                if predicted[:,rare_class].mean()==0 or predicted[:,rare_class].mean()==1:
                     ### If the model is predicting all 0's or all 1's, you need to use a regular threshold
                     m_thresh = 0.5
-                    print('    Test Data predictions using regular Threshold = %0.3f' %m_thresh)
+                    print('    Making test Data predictions using regular Threshold = %0.3f' %m_thresh)
                 else:
                     ### If the model is good with the modified threshold, then you use the modified threshold!
-                    print('    Test Data predictions using modified Threshold = %0.3f' %m_thresh)
-                y_pred = (y_proba[:,rare_class]>m_thresh).astype(int)
+                    print('    Making test Data predictions using modified Threshold = %0.3f' %m_thresh)
+                    y_pred = predicted[:,rare_class]
             else:
                 ##### For multi-class, just make predictions of multiple classes here #######
                 y_pred = model.predict(X_test)
@@ -2109,7 +2116,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 except:
                     pass
             if len(label_dict[each_target]['transformer']) == 0:
-            #########  NO   T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
+                #########  NO   T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
                 ### if there is no transformer, then leave the predicted classes as is
                 classes = label_dict[each_target]['classes']
                 ##### If there is no transformer, you can just predict the classes as is and save it here ###
@@ -3217,11 +3224,14 @@ import pandas as pd
 def Draw_ROC_MC_ML(model, X_test, y_true, target, model_name, verbose=0):
     figsize = (10, 6)
     y_proba = model.predict_proba(X_test)
+    predicted = copy.deepcopy(y_proba)
+    threshold = 0.50
     y_pred = model.predict(X_test)
     fpr = dict()
     tpr = dict()
     roc_auc = dict()
     iterations = 0
+    rare_class = find_rare_class(y_true)
     if isinstance(target,str):
         target = [target]
     for targ in target:
@@ -3237,10 +3247,11 @@ def Draw_ROC_MC_ML(model, X_test, y_true, target, model_name, verbose=0):
                 pass
         if n_classes == 2:
             ### Always set rare_class to 1 when there are only 2 classes for drawing ROC Curve!
-            rare_class = 1
             y_test = copy.deepcopy(y_true)
+            predicted [:,0] = (predicted [:,0] <= threshold).astype('int')
+            predicted [:,1] = (predicted [:,1] > threshold).astype('int')
+            y_pred = predicted[:,rare_class]
         else:
-            rare_class = find_rare_class(y_true)
             y_test = label_binarize(y_true, classes)
         try:
             if n_classes > 2:
@@ -3847,31 +3858,58 @@ def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
         plt.legend(lines, labels, loc='lower left', prop=dict(size=10))
         plt.show();
 ######################################################################################
+from sklearn.metrics import plot_confusion_matrix, plot_precision_recall_curve,plot_roc_curve
+from sklearn.metrics import classification_report
+import matplotlib.pyplot as plt
+import seaborn as sns
+def plot_classification_results(m, X_true, y_true, y_pred, labels, target_names, each_target):
+    try:
+        fig, axes = plt.subplots(2,2,figsize=(12,12))
+        plot_confusion_matrix(m, X_true, y_true, values_format='.0f', ax=axes[0,0])
+        axes[0,0].set_title('Confusion Matrix: %s' %each_target)
+        plot_roc_curve(m, X_true, y_true, ax=axes[0,1])
+        axes[0,1].set_title('ROC AUC Curve: %s' %each_target)
+        plot_precision_recall_curve(m, X_true, y_true, ax=axes[1,0])
+        axes[1,0].set_title('PR AUC Curve %s' %each_target)
+        y_pred = m.predict(X_true)
+        clf_report = classification_report(y_true,
+                                           y_pred,
+                                           labels=labels,
+                                           target_names=target_names,
+                                           output_dict=True)
+        sns.heatmap(pd.DataFrame(clf_report).iloc[:, :].T, annot=True,ax=axes[1,1],fmt='0.2f');
+        axes[1,1].set_title('Classification Report: %s' %each_target)
+    except:
+        print('Error: could not plot classification results. Continuing...')
+
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.metrics import balanced_accuracy_score
-def print_classification_model_stats(y_true,y_probas,m_thresh=0.5):
+def print_classification_model_stats(y_true, y_pred, predicted, m_thresh=0.5):
     """
-    This prints classification metrics in a nice format.
+    This prints classification metrics in a nice format only for binary classes
     """
     # Use this to Test Classification Problems Only ####
     try:
-        print('Balanced Accuracy = %0.2f%% with Regular Threshold = %0.2f' %(
-            100*balanced_accuracy_score(y_true, (y_probas>0.5).astype(int)),0.5))
-        print('Confusion Matrix:')
-        print(confusion_matrix(y_true, (y_probas>0.5).astype(int)))
-        print(classification_report(y_true, (y_probas>0.5).astype(int)))
+        rare_class = find_rare_class(y_true)
+        reg_acc = [0,0]
+        for i,threshold in zip(range(2), [0.5, m_thresh]):
+            predicted [:,0] = (predicted [:,0] < threshold).astype('int')
+            predicted [:,1] = (predicted [:,1] >= threshold).astype('int')
+            if threshold != 0.5:
+                y_pred = predicted[:,rare_class]
+            print('Balanced Accuracy = %0.2f%% with Threshold = %0.2f' %(
+                100*balanced_accuracy_score(y_true, y_pred),threshold))    
+            print('Confusion Matrix:')
+            print(confusion_matrix(y_true, y_pred))
+            print(classification_report(y_true, y_pred))
+            reg_acc[i] = balanced_accuracy_score(y_true, y_pred)
         print('#####################################################################')
-        print('Balanced Accuracy = %0.2f%% with Alternative Threshold = %0.2f' %(
-            100*balanced_accuracy_score(y_true, (y_probas>m_thresh).astype(int)),m_thresh))
-        print('Confusion Matrix:')
-        print(confusion_matrix(y_true, (y_probas>m_thresh).astype(int)))
-        print(classification_report(y_true, (y_probas>m_thresh).astype(int)))
-        reg_acc = balanced_accuracy_score(y_true, (y_probas>0.5).astype(int))
-        mod_acc = balanced_accuracy_score(y_true, (y_probas>m_thresh).astype(int))
-        if  reg_acc >= mod_acc :
-            return reg_acc
+        if  reg_acc[0] >= reg_acc[1] :
+            print('Regular threshold = %0.2f is better' %0.5)
+            return reg_acc[0]
         else:
-            return mod_acc
+            print('Modified threshold = %0.2f is better' %m_thresh)
+            return reg_acc[1]
     except:
         print('Error: printing classification model metrics. Continuing...')
         return 0
@@ -4036,7 +4074,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.601'
+version_number = '0.1.602'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -4044,7 +4082,7 @@ print("""Imported Auto_ViML version: %s. Call using:
                             hyper_param='RS',feature_reduction=True,
                              Boosting_Flag=None,Binning_Flag=False,
                             Add_Poly=0, Stacking_Flag=False,Imbalanced_Flag=False,
-                            verbose=0)
+                            verbose=1)
             """ %version_number)
 print("To remove previous versions, perform 'pip uninstall autoviml'")
 print('To get the latest version, perform "pip install autoviml --no-cache-dir --ignore-installed"')

@@ -47,9 +47,6 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             pass
         NUMS = 200
     ## create Voting models
-    if X_train.isnull().sum().sum() > 0:
-        X_train = X_train.fillna(0)
-        X_test = X_test.fillna(0)
     estimators = []
     if modeltype == 'Regression':
         if scoring == '':

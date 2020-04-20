@@ -142,6 +142,13 @@ def print_sparse_stats(X_dtm):
     print ('    Density: %.2f%%' % (100.0 * X_dtm.nnz /
                                  (X_dtm.shape[0] * X_dtm.shape[1])))
 ############################################################################
+def left_subtract(l1,l2):
+    lst = []
+    for i in l1:
+        if i not in l2:
+            lst.append(i)
+    return lst
+################################################################################
 from sklearn.feature_extraction import text 
 def select_best_nlp_vectorizer(model, data, col, target, metric,
                     seed, modeltype,min_df):
@@ -165,10 +172,10 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
             max_features = data.shape[1]*10
         except:
             max_features =  data.shape[0]
-    print('\n              A U T O            N L P             P R O C E S S I N G ')
-    print('####################################################################################')
+    print('    A U T O - N L P   P R O C E S S I N G  O N   N L P   C O L U M N = %s ' %col)
+    print('#################################################################################')
     print('Generating new features for NLP column = %s using NLP Transformers' %col)
-    print('    However only the top %d generated features will be selected' %max_features)
+    print('    However min_df and max_features = %d will limit too many features from being generated' %max_features)
     print('    Cleaning text in %s before doing transformation...' %col)
     start_time = time.time()
     ####### CLEAN THE DATA FIRST ###################################
@@ -344,7 +351,7 @@ def select_top_features_from_vectorizer(X, vectorizer,top_n=25):
     else:
         #### If the shape of the TFIDF array is huge in the thousands of terms,
         ####   then you select the top 25 terms in 1-gram and 2-gram that make sense.
-        print('Transformed data...')
+        print('    Transformed data...')
         iteration = 1
         ls = []
         best_features_array = XA[:]
@@ -402,6 +409,13 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
     test_size = 0.2
     seed = 1
     early_stopping = 5
+    train_index = train.index
+    ######################################
+    if isinstance(nlp_column, str):
+        cols_excl_nlp_cols = [x for x in list(train) if x not in  [nlp_column]]
+    else:
+        cols_excl_nlp_cols = [x for x in list(train) if x not in nlp_column]
+    nlp_result_columns = []
     #############   THIS IS WHERE WE START PROCESSING NLP COLUMNS #####################
     if type(nlp_column) == str:
         pass
@@ -438,6 +452,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
     #### Now that the Best VECTORIZER has been selected, transform Train and Test and return vectorized dataframes
     train_best = select_top_features_from_vectorizer(train_dtm, best_nlp_vect, top_num_features)
     if type(test) != str:
+        test_index = test.index
         #### If test data is given, then convert it into a Vectorized frame using best vectorizer
         test_dtm = best_nlp_vect.transform(test[nlp_column])
         test_best = select_top_features_from_vectorizer(test_dtm, best_nlp_vect, top_num_features)
@@ -446,19 +461,29 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
     #### best contains the entire data rows with the top X features of a Vectorizer
     #### from an NLP analysis. This means that you can add these top NLP features to
     #### your data set and start performing your classification or regression.
-    print('Completed NLP_Column_Vectorizer. Time taken = %0.1f minutes' %((time.time()-start_time)/60))
+    #################################################################################
+    nlp_result_columns = left_subtract(list(train_best), cols_excl_nlp_cols)
+    print('Completed selecting the best NLP transformer. Time taken = %0.1f minutes' %((time.time()-start_time)/60))
+    train_best = train_best.set_index(train_index)
+    #################################################################################
     #### train_best contains the entire data rows with the top X features of a Vectorizer
     #### from an NLP analysis. This means that you can add these top NLP features to
     #### your data set and start performing your classification or regression.
-    train['source'] = 'Train'
+    train_best = train_best.fillna(0)
+    train_nlp = train.join(train_best,rsuffix='NLP_token_added')
+    train_nlp['auto_nlp_source'] = 'Train'
     if type(test) != str:
-        test[target] = 0
-        test['source'] = 'Test'
-        nlp_data = train.append(test)
+        test_best = test_best.set_index(test_index)
+        test_best = test_best.fillna(0)
+        test_nlp = test.join(test_best, rsuffix='NLP_token_added')
+        test_nlp[target] = 0
+        test_nlp['auto_nlp_source'] = 'Test'
+        nlp_data = train_nlp.append(test_nlp)
     else:
-        nlp_data = copy.deepcopy(train)
+        nlp_data = copy.deepcopy(train_nlp)
     #### Now let's do a combined transformation of NLP column
-    nlp_data, nlp_result_columns = create_summary_of_nlp_cols(nlp_data, nlp_column)
+    nlp_data, nlp_summary_cols = create_summary_of_nlp_cols(nlp_data, nlp_column)
+    nlp_result_columns += nlp_summary_cols
     #### next create parts-of-speech tagging ####
     if len(nlp_data) <= 10000:
         ### VADER is accurate but very SLOOOWWW. Do not do this for Large data sets ##############
@@ -470,36 +495,27 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
         senti_cols = [nlp_column+'_text_sentiment', nlp_column+'_senti_polarity',
                                 nlp_column+'_senti_subjectivity',nlp_column+'_overall_sentiment']
         start_time2 = time.time()
-        nlp_data[senti_cols[0]] = nlp_data[nlp_column].map(detect_sentiment)
-        nlp_data[senti_cols[1]] = nlp_data[nlp_column].map(calculate_line_sentiment,'polarity')
-        nlp_data[senti_cols[2]] = nlp_data[nlp_column].map(calculate_line_sentiment,'subjectivity')
-        nlp_data[senti_cols[3]] = nlp_data[nlp_column].map(calculate_paragraph_sentiment)
+        nlp_data[senti_cols[0]] = nlp_data[nlp_column].map(detect_sentiment).fillna(0)
+        nlp_data[senti_cols[1]] = nlp_data[nlp_column].map(calculate_line_sentiment,'polarity').fillna(0)
+        nlp_data[senti_cols[2]] = nlp_data[nlp_column].map(calculate_line_sentiment,'subjectivity').fillna(0)
+        nlp_data[senti_cols[3]] = nlp_data[nlp_column].map(calculate_paragraph_sentiment).fillna(0)
         nlp_result_columns += senti_cols
         print('    Added %d columns using TextBlob Sentiment Analyzer. Time Taken = %d seconds' %(
                                     len(senti_cols), time.time()-start_time2))
     ##### Just do a fillna of all NLP columns in case there are some NA's in them ###########
-    nlp_data[nlp_result_columns] = nlp_data[nlp_result_columns].apply(lambda x: x.fillna(0)
-                            if x.dtype.kind in 'biufc' else x.fillna('missing'))
-    print('Number of new columns created using NLP = %d' %(len(nlp_result_columns)))
+    #nlp_data[nlp_result_columns] = nlp_data[nlp_result_columns].apply(lambda x: x.fillna(0)
+    #                        if x.dtype.kind in 'biufc' else x.fillna('missing'))
     ######### Split it back into train_best and test_best ##########
-    train_source = nlp_data[nlp_data['source']=='Train']
-    train_source = train_source.drop('source',axis=1)
-    train_best = train_best.join(train_source[nlp_result_columns])
+    train_source = nlp_data[nlp_data['auto_nlp_source']=='Train']
+    train_full = train_source.drop(['auto_nlp_source',nlp_column],axis=1)
     if type(test) == str:
-        test_best = ''
+        test_full = ''
     else:
-        test_source = nlp_data[nlp_data['source']=='Test']
-        test_source = test_source.drop([target,'source'],axis=1)
-        test_best = test_best.join(test_source[nlp_result_columns])
+        test_source = nlp_data[nlp_data['auto_nlp_source']=='Test']
+        test_full = test_source.drop([target,'auto_nlp_source',nlp_column],axis=1)
+    print('Number of new columns created using NLP = %d' %(len(nlp_result_columns)))
     print('         A U T O   N L P  C O M P L E T E D. Time taken %0.1f minutes' %((time.time()-start_time)/60))
     print('####################################################################################')
-    train_full = train.drop(nlp_column, axis=1, inplace=False).join(train_best,rsuffix='_OVERLAPPING_COLUMN_DELETE')
-    train_full = train_full.drop('source',axis=1)
-    if type(test) != str:
-        test_full = test.drop(nlp_column, axis=1, inplace=False).join(test_best,rsuffix='_OVERLAPPING_COLUMN_DELETE')
-        test_full = test_full.drop('source',axis=1)
-    else:
-        test_full = ''
     return train_full, test_full, best_nlp_vect
 ##############################################################################################
 def calculate_line_sentiment(text,senti_type='polarity'):
@@ -514,7 +530,10 @@ def calculate_line_sentiment(text,senti_type='polarity'):
 ########################################################################
 #### Do a sentiment analysis of whole review text rather than line by line ##
 def calculate_paragraph_sentiment(text):
-    return TextBlob(text).sentiment.polarity
+    try:
+        return TextBlob(text.decode('utf-8')).sentiment.polarity
+    except:
+        return TextBlob(text).sentiment.polarity
 ########################################################################
 ########## define a function that accepts text and returns the polarity
 def detect_sentiment(text):
@@ -543,13 +562,13 @@ def add_sentiment(data, nlp_column):
     data[nlp_column+'_vader_neu'] = 0
     data[nlp_column+'_vader_compound'] = 0
     data[nlp_column+'_vader_neg'] = data[nlp_column].map(
-                    lambda txt: analyzer.polarity_scores(txt)['neg'])
+                    lambda txt: analyzer.polarity_scores(txt)['neg']).fillna(0)
     data[nlp_column+'_vader_pos'] = data[nlp_column].map(
-                    lambda txt: analyzer.polarity_scores(txt)['pos'])
+                    lambda txt: analyzer.polarity_scores(txt)['pos']).fillna(0)
     data[nlp_column+'_vader_neutral'] = data[nlp_column].map(
-                    lambda txt: analyzer.polarity_scores(txt)['neu'])
+                    lambda txt: analyzer.polarity_scores(txt)['neu']).fillna(0)
     data[nlp_column+'_vader_compound'] = data[nlp_column].map(
-                    lambda txt: analyzer.polarity_scores(txt)['compound'])
+                    lambda txt: analyzer.polarity_scores(txt)['compound']).fillna(0)
     cols = [nlp_column+'_vader_neg',nlp_column+'_vader_pos',nlp_column+'_vader_neu',nlp_column+'_vader_compound']
     print('    Created %d new columns using SentinmentIntensityAnalyzer. Time taken = %d seconds' %(len(cols),time.time()-start_time))
     return data, cols
@@ -561,11 +580,11 @@ def create_summary_of_nlp_cols(data, col,verbose=0):
     in order for the column to be relevant to the target.
     This can also be a Business question. It may help us in building a better predictive model.
     """
-    data[col+"_num_of_words"] = data[col].apply(lambda x : len(str(x).split()))
-    if verbose == 1:
+    data[col+"_num_of_words"] = data[col].apply(lambda x : len(str(x).split())).fillna(0)
+    if verbose >= 1:
         plot_nlp_column(data[col+"_num_of_words"],"words")
-    data[col+"_num_of_chars"] = data[col].apply(lambda x : len(str(x)))
-    if verbose == 1:
+    data[col+"_num_of_chars"] = data[col].apply(lambda x : len(str(x))).fillna(0)
+    if verbose >= 1:
         plot_nlp_column(data[col+"_num_of_chars"],"characters")
     return data, [col+"_num_of_words",col+"_num_of_chars"]
 #############################################################################
@@ -593,7 +612,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.11'
+version_number = '0.0.12'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(nlp_column, train, test, target, score_type, seed, modeltype)""" %version_number)
 ########################################################################

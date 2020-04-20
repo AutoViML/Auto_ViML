@@ -8,5 +8,4 @@ scikit-learn
 catboost
 shap
 textblob
-nltk
 vaderSentiment

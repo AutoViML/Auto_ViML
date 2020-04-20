@@ -37,12 +37,8 @@ from sklearn.preprocessing import LabelEncoder
 ### For NLP problems
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer, TfidfVectorizer
 from textblob import TextBlob, Word
-from nltk.stem.snowball import SnowballStemmer
-from nltk.tokenize import WordPunctTokenizer
-from nltk.tokenize import PunktSentenceTokenizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 import regex as re
-from nltk.corpus import stopwords
 import string
 
 #### For Classification problems
@@ -108,7 +104,6 @@ def split_into_lemmas(text):
     words = TextBlob(text).words
     return [word.lemmatize() for word in words]
 ############################################################################
-from nltk.corpus import stopwords
 def strip_out_special_chars(txt):
     return re.compile("[^\w']|_").sub(" ",txt)
 #Simple text cleaning functions that are very fast!
@@ -130,6 +125,7 @@ def remove_stopwords(txt):
     Takes in an array, so it is very fast. But must be Vectorized!!
     1. Removes all stopwords
     """
+    from nltk.corpus import stopwords
     return " ".join([txt if txt not in stopwords.words('english') else ""])
 ############################################################################
 def print_sparse_stats(X_dtm):
@@ -611,7 +607,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.13'
+version_number = '0.0.14'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(nlp_column, train, test, target, score_type, seed, modeltype)""" %version_number)
 ########################################################################

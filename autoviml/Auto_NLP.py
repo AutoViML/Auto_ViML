@@ -67,7 +67,6 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn import model_selection, metrics   #Additional sklearn functions
 from sklearn.model_selection import GridSearchCV   #Performing grid search
 from sklearn.model_selection import cross_val_predict, cross_val_score
-from blagging import BlaggingClassifier
 from sklearn.model_selection import KFold, StratifiedKFold, cross_val_score
 from sklearn.metrics import auc, roc_auc_score, roc_curve, precision_recall_curve
 from sklearn.svm import SVC
@@ -612,7 +611,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.12'
+version_number = '0.0.13'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(nlp_column, train, test, target, score_type, seed, modeltype)""" %version_number)
 ########################################################################

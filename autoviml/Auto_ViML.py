@@ -239,7 +239,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.605                                              #######
+    ######                               Version 0.1.606                                              #######
     #####   MAJOR UPGRADE: Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -548,8 +548,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 ### and vice versa. Hence it is better than Label Encoders which breaks when above happens.
                 train_targ_categs = list(start_train[each_target].value_counts().index)
                 if len(train_targ_categs) == 2:
-                    majority_class = [x for x in train_targ_categs if x != rare_class]
-                    dict_targ_all = {majority_class[0]: 0, rare_class: 1}
+                    majority_class = [x for x in train_targ_categs if x != rare_class_orig]
+                    dict_targ_all = {majority_class[0]: 0, rare_class_orig: 1}
                 else:
                     dict_targ_all = return_factorized_dict(train_targ_categs)
                 start_train[each_target] = start_train[each_target].map(dict_targ_all)
@@ -571,7 +571,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 label_dict[each_target]['dictionary'] = dict(zip(classes,classes))
                 print('    Target %s is already numeric. No transformation done.' %each_target)
             if rare_class != 1:
-                print('Alert! Rare Class is NOT 1 but %s in this data set' %rare_class)
+                print('Alert! Rare Class is not 1 but %s in this data set' %rare_class)
     ###########################################################################################
     ####  This is where we start doing the iterative hyper tuning parameters #####
     params_dict = defaultdict(list)
@@ -875,19 +875,44 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         else:
             ### if there are no Polynomial vars, then all numeric variables are selected
             train_sel = copy.deepcopy(numvars)
-        #########     SELECT IMPORTANT FEATURES HERE   #############################
         ################  A U T O   N L P  P R O C E S S I N G   B E G I N S    H E R E !!! ####
-        for nlp_column in nlp_columns:
-            train1, test1, best_nlp_transformer = Auto_NLP(nlp_column,
-                                            train, test, each_target, refit_metric, 
-                                            seed, modeltype,top_nlp_features)
-            red_preds = [x for x in list(train1) if x not in [each_target]]
-            train = train1[red_preds+[each_target]]
-            if not isinstance(orig_test, str):
-                test = test1[red_preds]    
+        if len(nlp_columns) > 0:
+            for nlp_column in nlp_columns:
+                nlp_column_train = train[nlp_column].values
+                if not isinstance(orig_test, str):
+                    nlp_column_test = test[nlp_column].values
+                train1, test1, best_nlp_transformer = Auto_NLP(nlp_column,
+                                                train, test, each_target, refit_metric, 
+                                                seed, modeltype,top_nlp_features)
+                ########################################################################
+                if KMeans_Featurizer:
+                    ##### Do a clustering of word vectors from each NLP_column. This gives great results!
+                    tfidf_term_array = create_tfidf_terms(nlp_column_train, best_nlp_transformer,is_train=True)
+                    num_clusters = int(np.sqrt(len(tfidf_term_array['terms']))/2)
+                    if num_clusters < 2:
+                        num_clusters = 2
+                    ##### Always set verbose to 0 since we don't want too much detail from KMeans running - too verbose!
+                    km = KMeans(n_clusters=num_clusters, random_state=seed, verbose=0)
+                    kme, cluster_labels = return_cluster_labels(km, tfidf_term_array, num_clusters,is_train=True)
+                    if isinstance(nlp_column, str):
+                        cluster_col = nlp_column + '_word_cluster_label'
+                    else:
+                        cluster_col = str(nlp_column) + '_word_cluster_label'
+                    train1[cluster_col] = cluster_labels
+                    print ('Creating one new column: %s using selected NLP technique...' %cluster_col)
+                    if not isinstance(orig_test, str):
+                        tfidf_term_array_test = create_tfidf_terms(nlp_column_test, best_nlp_transformer,is_train=False)
+                        _, cluster_labels_test = return_cluster_labels(kme, tfidf_term_array_test, num_clusters, is_train=False)
+                        test1[cluster_col] = cluster_labels_test
+                ####### Make sure you include the above new columns created in the predictor variables! 
+                red_preds = [x for x in list(train1) if x not in [each_target]]
+                train = train1[red_preds+[each_target]]
+                if not isinstance(orig_test, str):
+                    test = test1[red_preds]
         ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####
         ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
         train_sel = np.array(red_preds)[(train[red_preds].dtypes==float).values]
+        #########     SELECT IMPORTANT FEATURES HERE   #############################
         if feature_reduction:
             important_features,num_vars, imp_cats = find_top_features_xgb(train,red_preds,train_sel,
                                                          each_target,
@@ -1452,7 +1477,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################################################################################################################################
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
-        ########### pdb.set_trace()
         if Imbalanced_Flag:
             if modeltype == 'Regression':
                 ###########  In case someone sets the Imbalanced_Flag mistakenly to True and it is Regression, you must set it to False ######
@@ -1461,9 +1485,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 ####### Imbalanced with Classification #################
                 try:
                     print('##################  Imbalanced Flag Set  ############################')
-                    print('Imbalanced Class Training using Majority Class Downsampling method...')
+                    print('Imbalanced Class Training using SMOTE oversampling method...')
                     #### The model is the downsampled model Trained on downsampled data sets. ####
-                    model = downsampling_with_model_training(X_train,y_train,eval_set, gs,
+                    model = training_with_SMOTE(X_train,y_train,eval_set, gs,
                                            Boosting_Flag, eval_metric,
                                            modeltype, model_name,training=True,
                                            minority_class=rare_class,imp_cats=imp_cats,
@@ -1631,7 +1655,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print("    Using threshold=0.5. However, %0.3f provides better F1=%0.2f for rare class..." %(m_thresh,best_f1))
                 ###y_pred = (y_proba[:,rare_class]>=m_thresh).astype(int)
                 predicted = copy.deepcopy(y_proba)
-                predicted [:,0] = (predicted [:,0] <= m_thresh).astype('int')
+                predicted [:,0] = (predicted [:,0] >= (1-m_thresh)).astype('int')
                 predicted [:,1] = (predicted [:,1] > m_thresh).astype('int')
                 if m_thresh != 0.5:
                     y_pred = predicted[:,rare_class]
@@ -1949,7 +1973,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     if model_name.lower() == 'catboost':
                         print('    Setting best params for CatBoost model')
                         model = xgbm.set_params(**best_params)
-                    model = downsampling_with_model_training(X,y, eval_set, model,
+                    model = training_with_SMOTE(X,y, eval_set, model,
                                       Boosting_Flag, eval_metric,modeltype, model_name,
                                       training=True, minority_class=rare_class,
                                       imp_cats=imp_cats, 
@@ -2091,7 +2115,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             y_pred = model.predict(X_test)
             predicted = copy.deepcopy(y_proba)
             if len(classes) <= 2:
-                predicted [:,0] = (predicted [:,0] <= m_thresh).astype('int')
+                predicted [:,0] = (predicted [:,0] >= (1-m_thresh)).astype('int')
                 predicted [:,1] = (predicted [:,1] > m_thresh).astype('int')
                 if predicted[:,rare_class].mean()==0 or predicted[:,rare_class].mean()==1:
                     ### If the model is predicting all 0's or all 1's, you need to use a regular threshold
@@ -2373,6 +2397,8 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         final_list = copy.deepcopy(numvars)
     print('    Adding %s categorical variables to reduced numeric variables  of %d' %(
                             len(important_cats),len(final_list)))
+    if  isinstance(final_list,np.ndarray):
+        final_list = final_list.tolist()
     preds = final_list+important_cats
     #######You must convert category variables into integers ###############
     for important_cat in important_cats:
@@ -3248,7 +3274,7 @@ def Draw_ROC_MC_ML(model, X_test, y_true, target, model_name, verbose=0):
         if n_classes == 2:
             ### Always set rare_class to 1 when there are only 2 classes for drawing ROC Curve!
             y_test = copy.deepcopy(y_true)
-            predicted [:,0] = (predicted [:,0] <= threshold).astype('int')
+            predicted [:,0] = (predicted [:,0] >= (1-m_thresh)).astype('int')
             predicted [:,1] = (predicted [:,1] > threshold).astype('int')
             y_pred = predicted[:,rare_class]
         else:
@@ -3355,6 +3381,33 @@ def Draw_ROC_MC_ML(model, X_test, y_true, target, model_name, verbose=0):
             plt.legend(labels,loc="lower right")
             plt.show();
 
+###################################################################################
+from sklearn.cluster import KMeans
+####  These functions are for creating word cluster labels using each NLP column if it exists
+def cluster_using_k_means(km, tfidf_matrix, num_clusters, is_train=True):
+    print ("    Running k-means on NLP token matrix to create " + str(num_clusters) + " word clusters.")
+    if is_train:
+        clusters = km.fit_predict(tfidf_matrix)
+    else:
+        clusters = km.predict(tfidf_matrix)
+    return km, clusters
+
+def create_tfidf_terms(list_X, tfidf_vectorizer,is_train=True):
+    tfidf_vectorizer.max_features = 5000
+    if is_train:
+        tfidf_matrix = tfidf_vectorizer.fit_transform(list_X)
+    else:
+        tfidf_matrix = tfidf_vectorizer.transform(list_X)
+    print ('    Number of terms created :' + str(len(tfidf_vectorizer.get_feature_names())))
+    return {
+        'tfidf_matrix' : tfidf_matrix ,
+        'terms' : tfidf_vectorizer.get_feature_names()
+    }
+
+def return_cluster_labels(km, tfid_terms, num_cluster, is_train):
+    X_terms = tfid_terms['tfidf_matrix']
+    km, cluster = cluster_using_k_means(km, X_terms, num_cluster, is_train)
+    return km, cluster
 ###################################################################################
 def split_data_new(trainfile, testfile, target,sep, modeltype='Regression', randomstate=0):
     """
@@ -3551,151 +3604,79 @@ warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
 warnings.filterwarnings(action='ignore', category=DataConversionWarning)
 ####################################################################################
-def downsampling_with_model_training(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
+from imblearn.over_sampling import SMOTE
+def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
                                         modeltype, model_name,
                                      training=True,minority_class=1,imp_cats=[],
                                      GPU_exists=False, params={},
                                      verbose=0):
     """
-    #########    DOWNSAMPLING OF MAJORITY CLASS AND TRAINING IN SMALL BATCH SIZES  ###############
-    #### One of the worst things you can do with imbalanced classes is to train all rows at once!
-    ####  Hence this is one way to train a model in such cases with repeated samples of pos-class
-    ####  along with batches of neg-class and get the model to differentiate between 2 classes.
+    #########    OVERSAMPLING OF MINORITY CLASS AND TRAINING  SIZES  ###############
+    ####  SMOTE (Synthetic Minority Oversampling Technique) works well with imbalanced classes.
+    ####  This is a great way to train a model in such cases with repeated samples of rare-class
+    ####  along with batches of majority class and get the model to differentiate between 2 classes.
     #########    MAKE SURE YOU TUNE THE DEFAULTS GIVEN HERE!  ###############
     """
-    df = X_df.join(y_df)
+    seed = 99
+    start_time = time.time()
+    if y_df.value_counts()[minority_class] <= 6: 
+        #### Because SMOTE has default as 6, if you have less than 6 samples in your rare-class, 
+        ####   then you have to reduce the number of k_neighbors to something smaller than rare_class samples
+        smote = SMOTE(random_state=seed,sampling_strategy='all', k_neighbors=2, n_jobs=-1)
+    else:
+        smote = SMOTE(random_state=seed,sampling_strategy='all',k_neighbors=6, n_jobs=-1)
     model = copy.deepcopy(model)
-    downsampled_list = []
     df_target = y_df.name
-    train_preds = [x for x in list(df) if x not in [df_target]]
-    ccounts = Counter(y_df)   # Get class counts
+    train_preds = X_df.columns.tolist()
     # Identify minority and majority classes
     # Get indices of each class
-    print('Rare Class = %s' %minority_class)
-    train_size = df.shape[0]
-    df_pos = df[y_df==minority_class]
-    df_neg = df[y_df!=minority_class]
-    n_minority = ccounts[minority_class]
-    rare_pct = n_minority/y_df.shape[0]
+    print('    Rare Class = %s' %minority_class)
+    rare_pct = y_df.value_counts(1)[minority_class]
     print('    Pct of Rare Class in data = %0.2f%%' %(rare_pct*100))
-    #### Remember that if you increase the denominator, you get small batch sizes and too many iter
-    ###  Small batch sizes do not give good results and with Class_Weights they give terrible results.
-    #### Instead keep the denominator small such as 10 and do not use any class_weights at all!
-    n_iter = int(min(np.ceil(0.1/rare_pct),20))
-    print('    Number of iterations for training =  %d' %n_iter)
-    if n_iter == 1:
-        print('This is not an Imbalanced data set. Training in one batch...')
-        if Boosting_Flag:
-            if model_name == 'XGBoost':
-                early_stopping = 5
-                try:
-                    if eval_set==[()]:
-                        model.fit(X_df,y_df,
-                            eval_metric=eval_metric, verbose=False)
-                    else:
-                        model.fit(X_df,y_df, early_stopping_rounds=early_stopping,
-                            eval_metric=eval_metric,eval_set=eval_set,verbose=False)
-                except:
-                    #### On Colab, even though GPU exists, many people don't turn it on. 
-                    ####  In that case, XGBoost blows up when gpu_predictor is used.
-                    ####  This is to turn it back to cpu_predictor in case GPU errors!
-                    if GPU_exists:
-                        print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
-                        model.estimator.set_params(**params)
-                        model.fit(X_df,y_df, early_stopping_rounds=early_stopping,
-                            eval_metric=eval_metric,eval_set=eval_set,verbose=False)
-                    else:
-                        model.fit(X_df,y_df,
-                            eval_metric=eval_metric, verbose=False)
-            else:
-                early_stopping = 250
-                if eval_set == [()]:
-                    model.fit(X_df,y_df, cat_features=imp_cats,plot=False)
-                else:
-                    model.fit(X_df,y_df, cat_features=imp_cats,
-                                eval_set=eval_set, use_best_model=True, plot=True)
-        else:
-            model.fit(X_df,y_df)
-        return model
-    batch_size = int(df_neg.shape[0]/n_iter)
-    print('  Rare Class Batch Size = %d' %n_minority)
-    print('  Majority Class Batch Size = %d' %batch_size)
-    for each_iter in range(n_iter):
-        start_time = time.time()
-        majority_egs_idx = df_pos.index
-        # We undersample the majority class so they're somewhat balanced
-        # THis is where you train the model with 90/10 Pos/Neg Sample Ratio ##
-        begin_row = each_iter*batch_size
-        end_row = begin_row + batch_size
-        train_batch = df_neg.iloc[begin_row:end_row].append(df_pos)
-        rare_pct = train_batch[train_batch[df_target]==minority_class].shape[0]/train_batch.shape[0]
-        if verbose >= 1:
-            print('     %d. Training Batch Size = %s' %((each_iter+1),train_batch.shape[0]))
-            print('        Training Batch incident rate: %0.1f%%' %(rare_pct*100))
-        if training:
-            ####  DO NOT USE CLASS WEIGHTS! THEY ARE A BLUNT INSTRUMENT! SAMPLE WEIGHTS ARE BETTER!
-            #classes = [0,1]
-            #wt = compute_class_weight("balanced", classes, train_batch[df_target])
-            ### If using the plain model, use this next line ####
-            #model.set_params(**{'class_weight':dict(zip(classes,wt))})
-            ### If using GridSearchCV use the next line
-            #model.estimator.set_params(**{'class_weight':dict(zip(classes,wt))})
-            try:
-                X_train = train_batch[train_preds]
-                y_train = train_batch[df_target]
-                if Boosting_Flag:
-                    if model_name == 'XGBoost':
-                        early_stopping = 5
-                        try:
-                            if eval_set==[()]:
-                                model.fit(X_train,y_train,
-                                    eval_metric=eval_metric, verbose=False)
-                            else:
-                                model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
-                                    eval_metric=eval_metric,eval_set=eval_set,verbose=False)
-                        except:
-                            #### On Colab, even though GPU exists, many people don't turn it on. 
-                            ####  In that case, XGBoost blows up when gpu_predictor is used.
-                            ####  This is to turn it back to cpu_predictor in case GPU errors!
-                            if GPU_exists:
-                                print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
-                                model.estimator.set_params(**params)
-                                model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
-                                    eval_metric=eval_metric,eval_set=eval_set,verbose=False)
-                            else:
-                                model.fit(X_train,y_train,
-                                    eval_metric=eval_metric, verbose=False)
-                    else:
-                        early_stopping = 250
-                        if eval_set == [()]:
-                            model.fit(X_train,y_train, cat_features=imp_cats, use_best_model=False)
-                        else:
-                            model.fit(X_train,y_train, cat_features=imp_cats,
-                                        eval_set=eval_set, use_best_model=True, plot=True)
-                    if verbose >= 1:
-                        print('             Batch Training completed' )
-                        print('        Time Taken = %0.0f (in seconds)' %(
-                                        time.time()-start_time))
-                else:
-                    try:
-                        model.fit(X_train,y_train)
-                    except:
-                        model.set_params(warm_start=False)
-                        model.fit(X_train,y_train)
-                    if verbose >= 1:
-                        print('             Batch Training completed' )
-                        print('        Time Taken = %0.0f (in seconds)' %(
-                                        time.time()-start_time))
-            except:
-                print('Error in training batch...continuing')
-                downsampled_list.append(train_batch)
-                return ''
-        else:
-            downsampled_list.append(train_batch)
-    if not training:
-        return downsampled_list
+    if rare_pct > 0.10:
+        print('This is not an Imbalanced data set. No need to use SMOTE but continuing...')
     else:
-        return model
+        print("Using SMOTE's over-sampling techniques to make the %d classes balanced..." %len(np.unique(y_df)))
+    #### With SMOTE Oversampling, just one batch of training is enough and gives great results!
+    X_train_ovr, y_train_ovr = smote.fit_sample(X_df, y_df)
+    print('    SMOTE completed. Actual time taken = %0.0f seconds' %(time.time()-start_time))
+    print('##################  Training Imbalanced data now...  ################')
+    train_ovr = pd.DataFrame(X_train_ovr, columns=train_preds)
+    train_ovr[df_target] = y_train_ovr
+    train_ovr[df_target].value_counts(1).plot(kind='bar',title='Distribution of classes after SMOTE')
+    if Boosting_Flag:
+        if model_name == 'XGBoost':
+            early_stopping = 5
+            try:
+                if eval_set==[()]:
+                    model.fit(X_train_ovr, y_train_ovr,
+                        eval_metric=eval_metric, verbose=False)
+                else:
+                    model.fit(X_train_ovr, y_train_ovr, early_stopping_rounds=early_stopping,
+                        eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+            except:
+                #### On Colab, even though GPU exists, many people don't turn it on. 
+                ####  In that case, XGBoost blows up when gpu_predictor is used.
+                ####  This is to turn it back to cpu_predictor in case GPU errors!
+                if GPU_exists:
+                    print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
+                    model.estimator.set_params(**params)
+                    model.fit(X_train_ovr, y_train_ovr, early_stopping_rounds=early_stopping,
+                        eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                else:
+                    model.fit(X_train_ovr, y_train_ovr,
+                        eval_metric=eval_metric, verbose=False)
+        else:
+            early_stopping = 250
+            if eval_set == [()]:
+                model.fit(X_train_ovr, y_train_ovr, cat_features=imp_cats,plot=False)
+            else:
+                model.fit(X_train_ovr, y_train_ovr, cat_features=imp_cats,
+                            eval_set=eval_set, use_best_model=True, plot=True)
+    else:
+        model.fit(X_train_ovr, y_train_ovr)
+    print('Imbalanced class training completed.')
+    return model
 ##############################################################################################
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -3893,7 +3874,7 @@ def print_classification_model_stats(y_true, y_pred, predicted, m_thresh=0.5):
         rare_class = find_rare_class(y_true)
         reg_acc = [0,0]
         for i,threshold in zip(range(2), [0.5, m_thresh]):
-            predicted [:,0] = (predicted [:,0] < threshold).astype('int')
+            predicted [:,0] = (predicted [:,0] >= (1-m_thresh)).astype('int')
             predicted [:,1] = (predicted [:,1] >= threshold).astype('int')
             if threshold != 0.5:
                 y_pred = predicted[:,rare_class]
@@ -4074,7 +4055,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.605'
+version_number = '0.1.606'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="autoviml",
-    version="0.1.605",
+    version="0.1.606",
     author="Ram Seshadri",
     # author_email="author@example.com",
     description="Automatically Build Variant Interpretable ML models fast - now with CatBoost!",
@@ -21,11 +21,13 @@ setuptools.setup(
         "pandas",
         "matplotlib",
         "seaborn",
-        "scikit-learn",
+        "scikit-learn>=0.22",
         "catboost",
         "textblob",
         "nltk",
-        "vaderSentiment"
+        "regex",
+        "vaderSentiment",
+        "imbalanced-learn"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

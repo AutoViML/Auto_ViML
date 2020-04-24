@@ -183,17 +183,14 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     stopWords = [x for x in stopWords if x not in excl]
     ######################################################
     #### This calculates based on the average number of words in an NLP column how many max_features
-    max_features = int(data[col].map(len).mean()*2)
+    max_df = 0.95
     ######################################################
     if len(data) >= 1000000:
         max_features = 1000
     elif len(data) >= 100000:
-        max_features = 100
+        max_features = 500
     else:
-        try:
-            max_features = data.shape[1]*10
-        except:
-            max_features =  data.shape[0]
+        max_features = int(data[col].map(len).mean()*2)
     print('    A U T O - N L P   P R O C E S S I N G  O N   N L P   C O L U M N = %s ' %col)
     print('#################################################################################')
     print('Generating new features for NLP column = %s using NLP Transformers' %col)
@@ -212,7 +209,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     ################################################################
     if modeltype is None or modeltype == '':
         print('Since modeltype is None, Using TFIDF vectorizer with min_df and max_features')
-        tvec = TfidfVectorizer(ngram_range=(1,3), stop_words=stopWords, max_features=int(max_features*0.5), min_df=min_df)
+        tvec = TfidfVectorizer(ngram_range=(1,3), stop_words=stopWords, max_features=max_features, min_df=min_df,max_df=max_df)
         data_dtm =  data[col]
         data_dtm = tvec.fit_transform(data_dtm)
         print('Features: ', data_dtm.shape[1])
@@ -230,8 +227,8 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     print('\n#### First choosing the default Count Vectorizer with 1-3 ngrams and limited features')
     for min_df in sorted(np.linspace(0.10,0.01,10)):
         try:
-            vect_5000 = CountVectorizer(ngram_range=(1, 3), max_features=int(max_features*0.5),
-                                min_df=min_df, binary=False, stop_words=stopWords)
+            vect_5000 = CountVectorizer(ngram_range=(1, 3), max_features=max_features,max_df=max_df,
+                                min_df=2, binary=False, stop_words=stopWords)
             all_vecs[vect_5000], all_models[vect_5000] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                             y_test, target, metric,
                               vect_5000, seed, modeltype)
@@ -239,16 +236,16 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
             break
         except:
             continue
-    print('\n#### Using Vectorizer with max_features < 100 and a low 0.001 min_df with n_gram (2-5)')
+    print('\n#### Using Vectorizer with max_features < 100 and a low 0.001 min_df with n_gram (1-5)')
     ##########################################################################
     ##### It's BEST to use small max_features (50) and a low 0.001 min_df with n_gram (2-5).
     ######  There is no need in that case for stopwords or analyzer since the 2-grams take care of it
     #### Once you do above, there is no difference between count_vectorizer and tfidf_vectorizer
     #### Once u do above, increasing max_features from 50 to even 500 doesn't get you a higher score!
     ##########################################################################
-    vect_lemma = CountVectorizer(
-                                   max_features=int(max_features*0.5), 
-                                   ngram_range=(2, 5), 
+    vect_lemma = CountVectorizer(max_df=max_df,
+                                   max_features=max_features, 
+                                   ngram_range=(1, 5), 
                                     min_df=0.001, 
                                    binary=True,
                                     )
@@ -261,10 +258,10 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
 
     print('\n# Using TFIDF vectorizer with min_df and max_features')
     if modeltype != 'Regression':
-        tvec = TfidfVectorizer( max_features=int(max_features*0.5), 
+        tvec = TfidfVectorizer( max_features=max_features,max_df=max_df,
                                 stop_words=stopWords, ngram_range=(1, 3), min_df=min_df, binary=True)
     else:
-        tvec = TfidfVectorizer( max_features=int(max_features*0.5), 
+        tvec = TfidfVectorizer( max_features=max_features, max_df=max_df,
                                 stop_words=stopWords, ngram_range=(1, 3), min_df=min_df, binary=False)
     all_vecs[tvec], all_models[tvec] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
@@ -272,11 +269,11 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
 
     print('\n# Using TFIDF vectorizer with Snowball Stemming and max_features')
     if modeltype != 'Regression':
-        tvec2 = TfidfVectorizer(max_df=0.80, max_features=int(max_features*0.5),
+        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df,
                                  min_df=min_df, stop_words=stopWords, binary=True,
                                  use_idf=True, tokenizer=tokenize_and_stem, ngram_range=(1,3))
     else:
-        tvec2 = TfidfVectorizer(max_df=0.80, max_features=int(max_features*0.5),
+        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df,
                                  min_df=min_df, stop_words=stopWords, binary=False,
                                  use_idf=True, tokenizer=tokenize_and_stem, ngram_range=(1,3))
     all_vecs[tvec2], all_models[tvec2] = tokenize_test_by_metric(model, X_train, X_test, y_train,
@@ -431,7 +428,7 @@ from xgboost.sklearn import XGBRegressor
 from sklearn.naive_bayes import GaussianNB
 import xgboost as xgb
 def Auto_NLP(nlp_column, train, test, target, score_type,
-                            seed, modeltype,top_num_features=25, verbose=0):
+                            seed, modeltype,top_num_features=50, verbose=0):
     """
     ##################################################################################
     #### Auto_NLP expects both train and test to be data frames with one NLP column 
@@ -448,6 +445,8 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
     train = copy.deepcopy(train)
     test = copy.deepcopy(test)
     start_time = time.time()
+    num_classes = len(np.unique(train[target].values))
+    top_num_features = num_classes*top_num_features
     min_df=0.1
     max_depth = 8
     subsample =  0.5
@@ -659,7 +658,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.16'
+version_number = '0.0.17'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(nlp_column, train, test, target, score_type, seed, modeltype)""" %version_number)
 ########################################################################

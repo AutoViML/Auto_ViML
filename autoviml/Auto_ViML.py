@@ -239,8 +239,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.607                                              #######
-    #####   MAJOR UPGRADE: Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
+    ######                               Version 0.1.608                                              #######
+    #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
@@ -881,20 +881,22 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 nlp_column_train = train[nlp_column].values
                 if not isinstance(orig_test, str):
                     nlp_column_test = test[nlp_column].values
-                train1, test1, best_nlp_transformer = Auto_NLP(nlp_column,
+                train1, test1, best_nlp_transformer,max_features_limit = Auto_NLP(nlp_column,
                                                 train, test, each_target, refit_metric, 
                                                 seed, modeltype,top_nlp_features)
                 ########################################################################
                 if KMeans_Featurizer:
                     ##### Do a clustering of word vectors from each NLP_column. This gives great results!
-                    print ('Creating word clusters using term matrix for Train data set...')
-                    tfidf_term_array = create_tfidf_terms(nlp_column_train, best_nlp_transformer,is_train=True)
+                    tfidf_term_array = create_tfidf_terms(nlp_column_train, best_nlp_transformer,
+                                            is_train=True, max_features_limit=max_features_limit)
+                    print ('Creating word clusters using term matrix of size: %d for Train data set...' %len(tfidf_term_array['terms']))
                     num_clusters = int(np.sqrt(len(tfidf_term_array['terms']))/2)
                     if num_clusters < 2:
                         num_clusters = 2
-                    ##### Always set verbose to 0 since we don't want too much detail from KMeans running - too verbose!
+                    ##### Always set verbose to 0 since we KMEANS running is too verbose!
                     km = KMeans(n_clusters=num_clusters, random_state=seed, verbose=0)
-                    kme, cluster_labels = return_cluster_labels(km, tfidf_term_array, num_clusters,is_train=True)
+                    kme, cluster_labels = return_cluster_labels(km, tfidf_term_array, num_clusters,
+                                            is_train=True)
                     if isinstance(nlp_column, str):
                         cluster_col = nlp_column + '_word_cluster_label'
                     else:
@@ -902,9 +904,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     train1[cluster_col] = cluster_labels
                     print ('Creating one new column: %s using selected NLP technique...' %cluster_col)
                     if not isinstance(orig_test, str):
-                        print ('Creating word clusters using term matrix for Test data set...')
-                        tfidf_term_array_test = create_tfidf_terms(nlp_column_test, best_nlp_transformer,is_train=False)
-                        _, cluster_labels_test = return_cluster_labels(kme, tfidf_term_array_test, num_clusters, is_train=False)
+                        print ('Creating word clusters using same sized term matrix for Test data set...')
+                        tfidf_term_array_test = create_tfidf_terms(nlp_column_test, best_nlp_transformer,
+                                                    is_train=False, max_features_limit=max_features_limit)
+                        _, cluster_labels_test = return_cluster_labels(kme, tfidf_term_array_test, num_clusters, 
+                                                    is_train=False)
                         test1[cluster_col] = cluster_labels_test
                 ####### Make sure you include the above new columns created in the predictor variables! 
                 red_preds = [x for x in list(train1) if x not in [each_target]]
@@ -1763,9 +1767,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             else:
                 print('No Ensembling of models done since Stacking_Flag = True ')
             if verbose >= 1:
-                try:
+                if len(classes) == 2:
                     plot_classification_results(model,X_cv, y_cv, y_pred, classes, class_nums, each_target )
-                except:
+                else:
                     Draw_ROC_MC_ML(model, X_cv, y_cv, each_target, model_name, verbose)
                     Draw_MC_ML_PR_ROC_Curves(model,X_cv,y_cv)
             #### In case there are special scoring_parameter requests, you can print it here!
@@ -3394,8 +3398,8 @@ def cluster_using_k_means(km, tfidf_matrix, num_clusters, is_train=True):
         clusters = km.predict(tfidf_matrix)
     return km, clusters
 
-def create_tfidf_terms(list_X, tfidf_vectorizer,is_train=True):
-    tfidf_vectorizer.max_features = 5000
+def create_tfidf_terms(list_X, tfidf_vectorizer,is_train=True, max_features_limit=5000):
+    tfidf_vectorizer.max_features = max_features_limit
     if is_train:
         tfidf_matrix = tfidf_vectorizer.fit_transform(list_X)
     else:
@@ -4056,7 +4060,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.607'
+version_number = '0.1.608'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

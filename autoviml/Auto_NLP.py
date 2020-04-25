@@ -256,17 +256,17 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     except:
         print('Error: Using CountVectorizer')
 
-    print('\n# Using TFIDF vectorizer with min_df and max_features')
+    print('\n# Using TFIDF vectorizer with min_df=2 and No max_features')
     if modeltype != 'Regression':
-        tvec = TfidfVectorizer( max_features=max_features,max_df=max_df,
-                                stop_words=stopWords, ngram_range=(1, 3), min_df=min_df, binary=True)
+        tvec = TfidfVectorizer( max_features=None,max_df=max_df,
+                                stop_words=stopWords, ngram_range=(1, 3), min_df=2, binary=True)
     else:
         tvec = TfidfVectorizer( max_features=max_features, max_df=max_df,
-                                stop_words=stopWords, ngram_range=(1, 3), min_df=min_df, binary=False)
+                                stop_words=stopWords, ngram_range=(1, 3), min_df=2, binary=False)
     all_vecs[tvec], all_models[tvec] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
                                         tvec, seed, modeltype)
-
+    max_features_limit = int(tvec.fit_transform(data_dtm).shape[1])
     print('\n# Using TFIDF vectorizer with Snowball Stemming and max_features')
     if modeltype != 'Regression':
         tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df,
@@ -291,7 +291,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
             return
     print('\nBest NLP technique selected is: \n%s' %best_vec)
     data_dtm = best_vec.transform(data_dtm)
-    return best_vec, all_models[best_vec], data_dtm, min_df
+    return best_vec, all_models[best_vec], data_dtm, max_features_limit
 
 ############################################################################
 from sklearn.metrics import balanced_accuracy_score,mean_absolute_error,mean_squared_error
@@ -359,6 +359,30 @@ def class_info(classes):
         print("%6s: % 7d  =  % 5.1f%%" % (cls, counts[cls], counts[cls]/total*100))
 
 ###################################################################################
+from sklearn.decomposition import TruncatedSVD
+def select_top_features_from_SVD(X, tsvd, is_train=True, top_n=100):
+    """
+    This program returns the top X features from a TFIDF or CountVectorizer on a dataset.
+    You just need to send in the Vectorized data set X and along with a number denoting
+    how many top features you want back. It will automatically assume you want the top 100.
+    You can change the top X features to any number you want. But it must be less than the
+    number of features in X. Otherwise, it will assume you want all.
+    """
+    X = copy.deepcopy(X)
+    start_time = time.time()
+    #### If the shape of the TFIDF array is huge in the thousands of terms,
+    ####   then you select the top 25 terms in 1-gram and 2-gram that make sense.
+    print('Reducing dimensions from %d term-matrix to %d dimensions using TruncatedSVD...' %(X.shape[1],top_n))
+    if is_train:
+        tsvd = TruncatedSVD(n_components=top_n, 
+                   n_iter=10, 
+                   random_state=3)
+        tsvd = tsvd.fit(X)
+    XA = tsvd.transform(X)
+    print('    Reduced dimensional array shape to %s' %(XA.shape,))
+    print('    Time Taken for Truncated SVD = %0.0f seconds' %(time.time()-start_time) )
+    return XA, tsvd
+###########################################################################################
 from sklearn.feature_extraction.text import TfidfVectorizer
 from collections import defaultdict
 def select_top_features_from_vectorizer(X, vectorizer,top_n=25):
@@ -389,8 +413,7 @@ def select_top_features_from_vectorizer(X, vectorizer,top_n=25):
     if XA.shape[1] <= grams_length:
         #### If the TFIDF array is very small, you just select the entire TFIDF array
         best_features_array = copy.deepcopy(XA)
-        ls = sorted(vectorizer.vocabulary_, key=lambda x: x[0], reverse=False)
-        best_df = pd.DataFrame(best_features_array,columns=ls)
+        best_df = pd.DataFrame(best_features_array.todense(),columns=vectorizer.get_feature_names())
     else:
         #### If the shape of the TFIDF array is huge in the thousands of terms,
         ####   then you select the top 25 terms in 1-gram and 2-gram that make sense.
@@ -476,7 +499,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
             model = MultinomialNB()
         else:
             model = GaussianNB()
-        best_nlp_vect, model, train_dtm, min_df = select_best_nlp_vectorizer(model, train, nlp_column, target,
+        best_nlp_vect, model, train_dtm, max_features_limit = select_best_nlp_vectorizer(model, train, nlp_column, target,
                     score_type, seed, modeltype,min_df)
     elif modeltype == 'Regression':
         if float(xgb.__version__[0])<1:
@@ -487,20 +510,37 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
                                 colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
                                  seed=1,n_jobs=-1,random_state=1)
         ####   This is where you start to Iterate on Finding Important Features ################
-        best_nlp_vect, model, train_dtm, min_df = select_best_nlp_vectorizer(model, train, nlp_column, target,
+        best_nlp_vect, model, train_dtm, max_features_limit = select_best_nlp_vectorizer(model, train, nlp_column, target,
                             score_type, seed, modeltype,min_df)
     else:
         #### Just complete the transform of NLP column and return the transformed data ####
         model = None
-        best_nlp_vect, model, train_dtm, min_df = select_best_nlp_vectorizer(model, train, nlp_column, target,
+        best_nlp_vect, model, train_dtm, max_features_limit = select_best_nlp_vectorizer(model, train, nlp_column, target,
                             score_type, seed, modeltype,min_df)
     #### Now that the Best VECTORIZER has been selected, transform Train and Test and return vectorized dataframes
-    train_best = select_top_features_from_vectorizer(train_dtm, best_nlp_vect, top_num_features)
+    #### Convert the Feature Array from a Sparse Matrix to a Dense Array #########
+    print('Setting Max Features limit to NLP vectorizer as %d' %max_features_limit)
+    best_nlp_vect.max_features = max_features_limit
+    train_all = best_nlp_vect.fit_transform(train[nlp_column])
+    if train_all.shape[1] <= top_num_features:
+        #### If the TFIDF array is very small, you just select the entire TFIDF array
+        train_best = pd.DataFrame(train_all.todense(),columns=best_nlp_vect.get_feature_names())
+    else:
+        #### For Train data, you don't have to send in an SVD. It will automatically select one and train it
+        best_features_array, tsvd = select_top_features_from_SVD(train_all,'',True)
+        ls = ['svd_dim_'+str(x) for x in range(best_features_array.shape[1])]
+        train_best = pd.DataFrame(best_features_array,columns=ls)
+    #train_best = select_top_features_from_vectorizer(train_dtm, best_nlp_vect, )
     if type(test) != str:
         test_index = test.index
         #### If test data is given, then convert it into a Vectorized frame using best vectorizer
-        test_dtm = best_nlp_vect.transform(test[nlp_column])
-        test_best = select_top_features_from_vectorizer(test_dtm, best_nlp_vect, top_num_features)
+        test_all = best_nlp_vect.transform(test[nlp_column])
+        if test_all.shape[1] <= top_num_features:
+            best_df = pd.DataFrame(test_all.todense(),columns=best_nlp_vect.get_feature_names())
+        else:
+            best_features_array, _ = select_top_features_from_SVD(test_all,tsvd,False)
+            test_best = pd.DataFrame(best_features_array,columns=ls)
+        #test_best = select_top_features_from_vectorizer(test_dtm, best_nlp_vect, top_num_features)
     else:
         test_best = ''
     #### best contains the entire data rows with the top X features of a Vectorizer
@@ -562,7 +602,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
     print('Number of new columns created using NLP = %d' %(len(nlp_result_columns)))
     print('         A U T O   N L P  C O M P L E T E D. Time taken %0.1f minutes' %((time.time()-start_time)/60))
     print('####################################################################################')
-    return train_full, test_full, best_nlp_vect
+    return train_full, test_full, best_nlp_vect, max_features_limit
 ##############################################################################################
 def calculate_line_sentiment(text,senti_type='polarity'):
     review = TextBlob(text)
@@ -658,7 +698,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.17'
+version_number = '0.0.18'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(nlp_column, train, test, target, score_type, seed, modeltype)""" %version_number)
 ########################################################################

@@ -203,5 +203,6 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             print('Based on trying multiple models, Best type of algorithm for this data set is %s' %best_model_name)
     except:
         print('Could not detect best algorithm type from ensembling. Continuing...')
+    print('    Time Taken for QuickML_Ensembling = %0.0f seconds' %(time.time()-start_time) )
     return estimator_names, stacks
 #########################################################

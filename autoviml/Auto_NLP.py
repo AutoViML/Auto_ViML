@@ -256,9 +256,11 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     except:
         print('Error: Using CountVectorizer')
 
-    print('\n# Using TFIDF vectorizer with min_df=2 and No max_features')
+    print('\n# Using TFIDF vectorizer with min_df=2 and very high max_features')
+    ##### This is based on artificially setting 5GB as being max memory limit for the term-matrix
+    max_features_high = int(250000000/X_train.shape[0])
     if modeltype != 'Regression':
-        tvec = TfidfVectorizer( max_features=None,max_df=max_df,
+        tvec = TfidfVectorizer( max_features=max_features_high,max_df=max_df,
                                 stop_words=stopWords, ngram_range=(1, 3), min_df=2, binary=True)
     else:
         tvec = TfidfVectorizer( max_features=max_features, max_df=max_df,
@@ -698,7 +700,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.18'
+version_number = '0.0.19'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(nlp_column, train, test, target, score_type, seed, modeltype)""" %version_number)
 ########################################################################

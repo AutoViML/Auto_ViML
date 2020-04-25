@@ -239,7 +239,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.608                                              #######
+    ######                               Version 0.1.609                                              #######
     #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -886,6 +886,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                                 seed, modeltype,top_nlp_features)
                 ########################################################################
                 if KMeans_Featurizer:
+                    start_time1 = time.time()
                     ##### Do a clustering of word vectors from each NLP_column. This gives great results!
                     tfidf_term_array = create_tfidf_terms(nlp_column_train, best_nlp_transformer,
                                             is_train=True, max_features_limit=max_features_limit)
@@ -902,14 +903,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     else:
                         cluster_col = str(nlp_column) + '_word_cluster_label'
                     train1[cluster_col] = cluster_labels
-                    print ('Creating one new column: %s using selected NLP technique...' %cluster_col)
+                    print ('Created one new column: %s using selected NLP technique...' %cluster_col)
                     if not isinstance(orig_test, str):
-                        print ('Creating word clusters using same sized term matrix for Test data set...')
                         tfidf_term_array_test = create_tfidf_terms(nlp_column_test, best_nlp_transformer,
                                                     is_train=False, max_features_limit=max_features_limit)
                         _, cluster_labels_test = return_cluster_labels(kme, tfidf_term_array_test, num_clusters, 
                                                     is_train=False)
                         test1[cluster_col] = cluster_labels_test
+                        print ('Created word clusters using same sized term matrix for Test data set...')
+                    print('    Time Taken for creating word cluster labels  = %0.0f seconds' %(time.time()-start_time1) )
                 ####### Make sure you include the above new columns created in the predictor variables! 
                 red_preds = [x for x in list(train1) if x not in [each_target]]
                 train = train1[red_preds+[each_target]]
@@ -1687,8 +1689,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             rmsle_calculated_m = balanced_accuracy_score(y_cv,y_pred)
             if len(classes) == 2:
                 print('    Regular Accuracy Score = %0.1f%%' %(accuracy_score(y_cv,y_pred)*100))
-                predicted = model.predict_proba(X_cv)
-                rmsle_calculated_m = print_classification_model_stats(y_cv, model.predict(X_cv), predicted, m_thresh)
+                y_probas = model.predict_proba(X_cv)
+                rmsle_calculated_m = print_classification_model_stats(y_cv, y_probas, m_thresh)
             else:
                 ###### Use a nice classification matrix printing module here #########
                 print('    Balanced Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
@@ -2271,7 +2273,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if modeltype != 'Regression':
                     if verbose >= 2:
                         testm[proba_cols].plot(kind='kde',figsize=(10,6),
-                                                     title='Predictive Probability Density Chart')
+                                                     title='Predictive Probability Density Chart with suggested threshold in red')
                         plt.axvline(x=m_thresh, color='r', linestyle='--')
             except:
                 print('    Error: Not able to save test file. Skipping...')
@@ -2332,6 +2334,7 @@ def plot_SHAP_values(m,X,modeltype,Boosting_Flag=False,matplotlib_flag=False,ver
     if not matplotlib_flag:
         shap.initjs();
     # explain the model's predictions using SHAP values
+    plt.figure(figsize=(10,10))
     explainer = shap.TreeExplainer(m)
     shap_values = explainer.shap_values(X)
     if not Boosting_Flag is None:
@@ -3858,11 +3861,15 @@ def plot_classification_results(m, X_true, y_true, y_pred, labels, target_names,
         plot_precision_recall_curve(m, X_true, y_true, ax=axes[1,0])
         axes[1,0].set_title('PR AUC Curve %s' %each_target)
         y_pred = m.predict(X_true)
-        clf_report = classification_report(y_true,
-                                           y_pred,
-                                           labels=labels,
-                                           target_names=target_names,
-                                           output_dict=True)
+        try:
+            clf_report = classification_report(y_true,
+                                               y_pred,
+                                               labels=labels,
+                                               target_names=target_names,
+                                               output_dict=True)
+        except:
+            clf_report = classification_report(y_true,y_pred,labels=target_names,
+                target_names=labels,output_dict=True)            
         sns.heatmap(pd.DataFrame(clf_report).iloc[:, :].T, annot=True,ax=axes[1,1],fmt='0.2f');
         axes[1,1].set_title('Classification Report: %s' %each_target)
     except:
@@ -3870,7 +3877,7 @@ def plot_classification_results(m, X_true, y_true, y_pred, labels, target_names,
 
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.metrics import balanced_accuracy_score
-def print_classification_model_stats(y_true, y_pred, predicted, m_thresh=0.5):
+def print_classification_model_stats(y_true, predicted, m_thresh=0.5):
     """
     This prints classification metrics in a nice format only for binary classes
     """
@@ -3879,10 +3886,12 @@ def print_classification_model_stats(y_true, y_pred, predicted, m_thresh=0.5):
         rare_class = find_rare_class(y_true)
         reg_acc = [0,0]
         for i,threshold in zip(range(2), [0.5, m_thresh]):
-            predicted [:,0] = (predicted [:,0] >= (1-m_thresh)).astype('int')
-            predicted [:,1] = (predicted [:,1] >= threshold).astype('int')
             if threshold != 0.5:
+                predicted [:,0] = (predicted [:,0] >= (1-threshold)).astype('int')
+                predicted [:,1] = (predicted [:,1] >= threshold).astype('int')
                 y_pred = predicted[:,rare_class]
+            else:
+                y_pred = predicted.argmax(axis=1)
             print('Balanced Accuracy = %0.2f%% with Threshold = %0.2f' %(
                 100*balanced_accuracy_score(y_true, y_pred),threshold))    
             print('Confusion Matrix:')
@@ -4060,13 +4069,13 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.608'
+version_number = '0.1.609'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
                             scoring_parameter='', KMeans_Featurizer=False,
                             hyper_param='RS',feature_reduction=True,
-                             Boosting_Flag=None,Binning_Flag=False,
+                             Boosting_Flag='CatBoost', Binning_Flag=False,
                             Add_Poly=0, Stacking_Flag=False,Imbalanced_Flag=False,
                             verbose=1)
             """ %version_number)

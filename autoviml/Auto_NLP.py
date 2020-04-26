@@ -155,6 +155,20 @@ def tokenize_and_stem(text):
     stems = [stemmer.stem(t) for t in filtered_tokens]
     return stems
 ################################################################################
+def return_stop_words():
+    add_words = ["s"]
+    from sklearn.feature_extraction import text
+    stop_words = text.ENGLISH_STOP_WORDS.union(add_words)
+    from nltk.corpus import stopwords
+    stopWords = set(stopwords.words('english')).union(stop_words)
+    excl =['will',"i'll",'shall',"you'll",'may',"don't","hadn't","hasn't","haven't",
+           "don't","isn't",'if',"mightn't","mustn'","mightn't",'mightn',"needn't",
+           'needn',"needn't",'no','not','shan',"shan't",'shouldn',"shouldn't","wasn't",
+          'wasn','weren',"weren't",'won',"won't",'wouldn',"wouldn't","you'd",'you',
+          "you'd","you'll","you're",'yourself','yourselves']
+    stopWords = [x for x in stopWords if x not in excl]
+    return stopWords    
+################################################################################
 from sklearn.feature_extraction import text 
 from nltk.stem.snowball import SnowballStemmer
 def select_best_nlp_vectorizer(model, data, col, target, metric,
@@ -170,17 +184,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     ################################################################################
     """
     nltk.download("popular")
-    add_words = ["s"]
-    from sklearn.feature_extraction import text
-    #stopWords = text.ENGLISH_STOP_WORDS.union(add_words)
-    from nltk.corpus import stopwords
-    stopWords = set(stopwords.words('english')).union(add_words)
-    excl =['will',"i'll",'shall',"you'll",'may',"don't","hadn't","hasn't","haven't",
-           "don't","isn't",'if',"mightn't","mustn'","mightn't",'mightn',"needn't",
-           'needn',"needn't",'no','not','shan',"shan't",'shouldn',"shouldn't","wasn't",
-          'wasn','weren',"weren't",'won',"won't",'wouldn',"wouldn't","you'd",'you',
-          "you'd","you'll","you're",'yourself','yourselves']
-    stopWords = [x for x in stopWords if x not in excl]
+    stopWords = return_stop_words()
     ######################################################
     #### This calculates based on the average number of words in an NLP column how many max_features
     max_df = 0.95
@@ -228,7 +232,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     for min_df in sorted(np.linspace(0.10,0.01,10)):
         try:
             vect_5000 = CountVectorizer(ngram_range=(1, 3), max_features=max_features,max_df=max_df,
-                                min_df=2, binary=False, stop_words=stopWords)
+                                min_df=2, binary=False, stop_words=stopWords, token_pattern=r'\w{1,}')
             all_vecs[vect_5000], all_models[vect_5000] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                             y_test, target, metric,
                               vect_5000, seed, modeltype)
@@ -236,7 +240,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
             break
         except:
             continue
-    print('\n#### Using Vectorizer with max_features < 100 and a low 0.001 min_df with n_gram (1-5)')
+    print('\n#### Using Count Vectorizer with limited max_features and a low 0.001 min_df with n_gram (1-5)')
     ##########################################################################
     ##### It's BEST to use small max_features (50) and a low 0.001 min_df with n_gram (2-5).
     ######  There is no need in that case for stopwords or analyzer since the 2-grams take care of it
@@ -245,8 +249,8 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     ##########################################################################
     vect_lemma = CountVectorizer(max_df=max_df,
                                    max_features=max_features, 
-                                   ngram_range=(1, 5), 
-                                    min_df=0.001, 
+                                   ngram_range=(1, 5), token_pattern=r'\w{1,}',
+                                    min_df=0.001, stop_words=stopWords,
                                    binary=True,
                                     )
     try:
@@ -260,23 +264,23 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     ##### This is based on artificially setting 5GB as being max memory limit for the term-matrix
     max_features_high = int(250000000/X_train.shape[0])
     if modeltype != 'Regression':
-        tvec = TfidfVectorizer( max_features=max_features_high,max_df=max_df,
+        tvec = TfidfVectorizer( max_features=max_features_high,max_df=max_df, token_pattern=r'\w{1,}',
                                 stop_words=stopWords, ngram_range=(1, 3), min_df=2, binary=True)
     else:
-        tvec = TfidfVectorizer( max_features=max_features, max_df=max_df,
+        tvec = TfidfVectorizer( max_features=max_features_high, max_df=max_df, token_pattern=r'\w{1,}',
                                 stop_words=stopWords, ngram_range=(1, 3), min_df=2, binary=False)
     all_vecs[tvec], all_models[tvec] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
                                         tvec, seed, modeltype)
     max_features_limit = int(tvec.fit_transform(data_dtm).shape[1])
-    print('\n# Using TFIDF vectorizer with Snowball Stemming and max_features')
+    print('\n# Using TFIDF vectorizer with Snowball Stemming and limited max_features')
     if modeltype != 'Regression':
-        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df,
-                                 min_df=min_df, stop_words=stopWords, binary=True,
+        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df, token_pattern=r'\w{1,}',
+                                 min_df=2, stop_words=None, binary=True,
                                  use_idf=True, tokenizer=tokenize_and_stem, ngram_range=(1,3))
     else:
-        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df,
-                                 min_df=min_df, stop_words=stopWords, binary=False,
+        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df, token_pattern=r'\w{1,}',
+                                 min_df=2, stop_words=None, binary=False,
                                  use_idf=True, tokenizer=tokenize_and_stem, ngram_range=(1,3))
     all_vecs[tvec2], all_models[tvec2] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
@@ -453,7 +457,7 @@ from xgboost.sklearn import XGBRegressor
 from sklearn.naive_bayes import GaussianNB
 import xgboost as xgb
 def Auto_NLP(nlp_column, train, test, target, score_type,
-                            seed, modeltype,top_num_features=50, verbose=0):
+                            modeltype,top_num_features=50, verbose=0):
     """
     ##################################################################################
     #### Auto_NLP expects both train and test to be data frames with one NLP column 
@@ -467,6 +471,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
     #### You can use top_num_features (default = 25) to control how many features to add.
     ##################################################################################
     """
+    seed = 99
     train = copy.deepcopy(train)
     test = copy.deepcopy(test)
     start_time = time.time()
@@ -494,6 +499,14 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
     else:
         print('NLP column must be either a string or a list with one column name in data frame')
         return
+    ########################  S U M M A R Y  C O L U M N S  C R E A T I O N ######################
+    #### Now let's do a combined transformation of NLP column
+    train, nlp_summary_cols = create_summary_of_nlp_cols(train, nlp_column,verbose)
+    nlp_result_columns += nlp_summary_cols
+    print('    Added %d summary columns for counts of words and characters in each row' %len(nlp_summary_cols))
+    if not isinstance(test, str):
+        test, nlp_summary_cols = create_summary_of_nlp_cols(test, nlp_column)
+    ##########################################################################################
     if modeltype.endswith('Classification'):
         #print('Class distribution in Train:')
         #class_info(train[target])
@@ -568,10 +581,6 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
         nlp_data = train_nlp.append(test_nlp)
     else:
         nlp_data = copy.deepcopy(train_nlp)
-    #### Now let's do a combined transformation of NLP column
-    nlp_data, nlp_summary_cols = create_summary_of_nlp_cols(nlp_data, nlp_column)
-    nlp_result_columns += nlp_summary_cols
-    print('    Added %d columns for counts of words and characters in each row' %len(nlp_summary_cols))
     #### next create parts-of-speech tagging ####
     if len(nlp_data) <= 10000:
         ### VADER is accurate but very SLOOOWWW. Do not do this for Large data sets ##############
@@ -661,35 +670,63 @@ def add_sentiment(data, nlp_column):
     print('    Created %d new columns using SentinmentIntensityAnalyzer. Time taken = %d seconds' %(len(cols),time.time()-start_time))
     return data, cols
 ######### Create new columns that provide summary stats of NLP string columns
-def create_summary_of_nlp_cols(data, col,verbose=0):
+def create_summary_of_nlp_cols(data, col, verbose=0):
     """
     Create new columns that provide summary stats of NLP string columns
     This gives us insights into the number of characters we want in our NLP column
     in order for the column to be relevant to the target.
     This can also be a Business question. It may help us in building a better predictive model.
     """
-    data[col+"_num_of_words"] = data[col].apply(lambda x : len(str(x).split())).fillna(0)
+    cols = []
+    stop_words = return_stop_words()
+    # word_count
+    data[col+'_word_count'] = data[col].apply(lambda x: len(str(x).split()))
+    cols.append(col+'_word_count')
+    # unique_word_count
+    data[col+'_unique_word_count'] = data[col].apply(lambda x: len(set(str(x).split())))
+    cols.append(col+'_unique_word_count')
+    # stop_word_count
+    data[col+'_stop_word_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split() if w in stop_words]))
+    cols.append(col+'_stop_word_count')
+    # url_count
+    data[col+'_url_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split() if 'http' in w or 'https' in w]))
+    cols.append(col+'_stop_word_count')
+    # mean_word_length
+    data[col+'_mean_word_length'] = data[col].apply(lambda x: int(np.mean([len(w) for w in str(x).split()])))
+    cols.append(col+'_mean_word_length')
+    # char_count
+    data[col+'_char_count'] = data[col].apply(lambda x: len(str(x)))
+    cols.append(col+'_char_count')
+    # punctuation_count
+    data[col+'_punctuation_count'] = data[col].apply(lambda x: len([c for c in str(x) if c in string.punctuation]))
+    cols.append(col+'_punctuation_count')
+    # hashtag_count
+    data[col+'_hashtag_count'] = data[col].apply(lambda x: len([c for c in str(x) if c == '#']))
+    cols.append(col+'_hashtag_count')
+    # mention_count
+    data[col+'_mention_count'] = data[col].apply(lambda x: len([c for c in str(x) if c == '@']))
+    cols.append(col+'_mention_count')
     if verbose >= 1:
-        plot_nlp_column(data[col+"_num_of_words"],"words")
-    data[col+"_num_of_chars"] = data[col].apply(lambda x : len(str(x))).fillna(0)
-    if verbose >= 1:
-        plot_nlp_column(data[col+"_num_of_chars"],"characters")
-    return data, [col+"_num_of_words",col+"_num_of_chars"]
+        plot_nlp_column(data[col+'_unique_word_count'],"Word Count")
+        plot_nlp_column(data[col+'_char_count'],"Character Count")
+    return data, cols
 #############################################################################
 def plot_nlp_column(df_col,label_title):
     """
     We want to know the average number of words per row of text.
     So we first plot the distribution of number of words per text row.
     """
+    color_string = 'bryclg'
     cnt_srs = df_col.value_counts()
     plt.figure(figsize=(12,6))
-    sns.barplot(cnt_srs.index, cnt_srs.values, alpha=0.8, color=color[0])
+    sns.barplot(cnt_srs.index, cnt_srs.values, alpha=0.8, color=color_string[0])
     plt.ylabel('Number of Occurrences', fontsize=12)
-    plt.xlabel('Number of %s in %s' %(label_title,df_col.name),fontsize=12)
+    plt.xlabel('Distribution of %s in newly created %s column' %(label_title,df_col.name),fontsize=12)
     plt.xticks(rotation='vertical')
     plt.show();
 
 def plot_histogram_probability(dist_train, dist_test, label_title):
+    pal = 'bryclg'
     plt.figure(figsize=(15, 10))
     plt.hist(dist_train, bins=200, range=[0, 200], color=pal[2], normed=True, label='train')
     plt.hist(dist_test, bins=200, range=[0, 200], color=pal[1], normed=True, alpha=0.5, label='test')
@@ -700,7 +737,9 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.19'
+version_number = '0.0.20'
 print("""Imported Auto_NLP version: %s.. Call using:
-     train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(nlp_column, train, test, target, score_type, seed, modeltype)""" %version_number)
+     train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(
+                nlp_column, train, test, target, score_type,
+                modeltype,top_num_features=50, verbose=0)""" %version_number)
 ########################################################################

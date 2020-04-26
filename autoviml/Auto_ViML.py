@@ -239,7 +239,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.609                                              #######
+    ######                               Version 0.1.610                                              #######
     #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -478,7 +478,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     mldict = lambda: defaultdict(mldict)
     label_dict = mldict()
     first_time = True
-    print('Train (Size: %d,%d) has %s with target: %s' %(train.shape[0],train.shape[1],model_label,target))
+    print('Training Set Shape = {}'.format(orig_train.shape))
+    print('    Training Set Memory Usage = {:.2f} MB'.format(orig_train.memory_usage().sum() / 1024**2))
+    if not isinstance(orig_test,str):
+        print('Test Set Shape = {}'.format(orig_test.shape))
+        print('    Test Set Memory Usage = {:.2f} MB'.format(orig_test.memory_usage().sum() / 1024**2))
+    print('%s Target: %s' %(model_label,target))
     ###### Now analyze what problem we have here ####
     try:
         modeltype = analyze_problem_type(train, target[0],verbose)
@@ -883,7 +888,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     nlp_column_test = test[nlp_column].values
                 train1, test1, best_nlp_transformer,max_features_limit = Auto_NLP(nlp_column,
                                                 train, test, each_target, refit_metric, 
-                                                seed, modeltype,top_nlp_features)
+                                                modeltype, top_nlp_features, verbose)
                 ########################################################################
                 if KMeans_Featurizer:
                     start_time1 = time.time()
@@ -4069,7 +4074,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.609'
+version_number = '0.1.610'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

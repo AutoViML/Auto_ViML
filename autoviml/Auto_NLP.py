@@ -71,6 +71,8 @@ from itertools import cycle
 from collections import defaultdict, Counter
 import operator
 from scipy import interp
+import nltk
+from nltk.corpus import stopwords
 
 ############################################################################
 # define a function that accepts a vectorizer and calculates its accuracy
@@ -438,7 +440,6 @@ def return_stop_words():
     add_words = ["s"]
     from sklearn.feature_extraction import text
     stop_words = text.ENGLISH_STOP_WORDS.union(add_words)
-    from nltk.corpus import stopwords
     stopWords = set(stopwords.words('english')).union(stop_words)
     excl =['will',"i'll",'shall',"you'll",'may',"don't","hadn't","hasn't","haven't",
            "don't","isn't",'if',"mightn't","mustn'","mightn't",'mightn',"needn't",
@@ -1054,7 +1055,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.21'
+version_number = '0.0.22'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(
                 nlp_column, train, test, target, score_type,

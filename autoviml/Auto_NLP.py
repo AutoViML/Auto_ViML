@@ -102,22 +102,301 @@ def split_into_lemmas(text):
     words = TextBlob(text).words
     return [word.lemmatize() for word in words]
 ############################################################################
-def strip_out_special_chars(txt):
-    return re.compile("[^\w']|_").sub(" ",txt)
-#Simple text cleaning functions that are very fast!
-import re
-def remove_html(text):
-    return re.sub(re.compile('<.*?>'), ' ', text)
+import regex as re
+
+#Expand all these terms
+expand_dict = {
+  "ain't": "am not",
+  "aren't": "are not",
+  "can't": "cannot",
+  "can't've": "cannot have",
+  "'cause": "because",
+  "could've": "could have",
+  "couldn't": "could not",
+  "couldn't've": "could not have",
+  "didn't": "did not",
+  "doesn't": "does not",
+  "don't": "do not",
+  "hadn't": "had not",
+  "hadn't've": "had not have",
+  "hasn't": "has not",
+  "haven't": "have not",
+  "he'd": "he would",
+  "he'd've": "he would have",
+  "he'll": "he will",
+  "he'll've": "he will have",
+  "he's": "he is",
+  "how'd": "how did",
+  "how'd'y": "how do you",
+  "how'll": "how will",
+  "how's": "how is",
+  "i'd": "I would",
+  "i'd've": "I would have",
+  "i'll": "I will",
+  "i'll've": "I will have",
+  "i'm": "I am",
+  "i've": "I have",
+  "isn't": "is not",
+  "it'd": "it had",
+  "it'd've": "it would have",
+  "it'll": "it will",
+  "it'll've": "it will have",
+  "it's": "it is",
+  "let's": "let us",
+  "ma'am": "madam",
+  "mayn't": "may not",
+  "might've": "might have",
+  "mightn't": "might not",
+  "mightn't've": "might not have",
+  "must've": "must have",
+  "mustn't": "must not",
+  "mustn't've": "must not have",
+  "needn't": "need not",
+  "needn't've": "need not have",
+  "o'clock": "of the clock",
+  "oughtn't": "ought not",
+  "oughtn't've": "ought not have",
+  "shan't": "shall not",
+  "sha'n't": "shall not",
+  "shan't've": "shall not have",
+  "she'd": "she would",
+  "she'd've": "she would have",
+  "she'll": "she will",
+  "she'll've": "she will have",
+  "she's": "she is",
+  "should've": "should have",
+  "shouldn't": "should not",
+  "shouldn't've": "should not have",
+  "so've": "so have",
+  "so's": "so is",
+  "that'd": "that would",
+  "that'd've": "that would have",
+  "that's": "that is",
+  "there'd": "there had",
+  "there'd've": "there would have",
+  "there's": "there is",
+  "they'd": "they would",
+  "they'd've": "they would have",
+  "they'll": "they will",
+  "they'll've": "they will have",
+  "they're": "they are",
+  "they've": "they have",
+  "to've": "to have",
+  "wasn't": "was not",
+  "we'd": "we had",
+  "we'd've": "we would have",
+  "we'll": "we will",
+  "we'll've": "we will have",
+  "we're": "we are",
+  "we've": "we have",
+  "weren't": "were not",
+  "what'll": "what will",
+  "what'll've": "what will have",
+  "what're": "what are",
+  "what's": "what is",
+  "what've": "what have",
+  "when's": "when is",
+  "when've": "when have",
+  "where'd": "where did",
+  "where's": "where is",
+  "where've": "where have",
+  "who'll": "who will",
+  "who'll've": "who will have",
+  "who's": "who is",
+  "who've": "who have",
+  "why's": "why is",
+  "why've": "why have",
+  "will've": "will have",
+  "won't": "will not",
+  "won't've": "will not have",
+  "would've": "would have",
+  "wouldn't": "would not",
+  "wouldn't've": "would not have",
+  "y'all": "you all",
+  "y'alls": "you alls",
+  "y'all'd": "you all would",
+  "y'all'd've": "you all would have",
+  "y'all're": "you all are",
+  "y'all've": "you all have",
+  "you'd": "you had",
+  "you'd've": "you would have",
+  "you'll": "you you will",
+  "you'll've": "you you will have",
+  "you're": "you are",
+  "you've": "you have"
+}
+
+c_re = re.compile('(%s)' % '|'.join(expand_dict.keys()))
+
+def expandContractions(text, c_re=c_re):
+    def replace(match):
+        return expand_dict[match.group(0)]
+    return c_re.sub(replace, text)
+
+def expand_text(text):
+    expanded = [expandContractions(item, c_re=c_re) for item in text]
+    return ''.join(map(str, expanded))
+#######################################################################
+def clean_text_using_regex(text): 
+
+    # Special characters
+    text = re.sub(r"\x89Û_", "", text)
+    text = re.sub(r"\x89ÛÒ", "", text)
+    text = re.sub(r"\x89ÛÓ", "", text)
+    text = re.sub(r"\x89ÛÏ", "", text)
+    text = re.sub(r"\x89Û÷", "", text)
+    text = re.sub(r"\x89Ûª", "", text)
+    text = re.sub(r"\x89Û\x9d", "", text)
+    text = re.sub(r"å_", "", text)
+    text = re.sub(r"\x89Û¢", "", text)
+    text = re.sub(r"\x89Û¢åÊ", "", text)
+    text = re.sub(r"åÊ", "", text)
+    text = re.sub(r"åÈ", "", text)
+    text = re.sub(r"JapÌ_n", "Japan", text)    
+    text = re.sub(r"Ì©", "e", text)
+    text = re.sub(r"å¨", "", text)
+    text = re.sub(r"åÇ", "", text)
+    text = re.sub(r"åÀ", "", text)
+    text = re.sub(re.compile('<.*?>'), ' ', text)
+    
+    # Expand Text
+    text = text.replace("i'll","i will").replace("i'm","i am").replace("i've","i have").replace(
+    "n't"," not").replace("let's","let us").replace("'re"," are").replace("'d","did").replace(
+    "'em","them").replace("y'all","you all").replace("it's","it is").replace("'"," ").replace(
+    '"',' ').replace(" s "," ")
+    text = re.sub(r"he's", "he is", text)
+    text = re.sub(r"there's", "there is", text)
+    text = re.sub(r"We're", "We are", text)
+    text = re.sub(r"That's", "That is", text)
+    text = re.sub(r"won't", "will not", text)
+    text = re.sub(r"they're", "they are", text)
+    text = re.sub(r"Can't", "Cannot", text)
+    text = re.sub(r"wasn't", "was not", text)
+    text = re.sub(r"don\x89Ûªt", "do not", text)
+    text = re.sub(r"aren't", "are not", text)
+    text = re.sub(r"isn't", "is not", text)
+    text = re.sub(r"What's", "What is", text)
+    text = re.sub(r"haven't", "have not", text)
+    text = re.sub(r"hasn't", "has not", text)
+    text = re.sub(r"There's", "There is", text)
+    text = re.sub(r"He's", "He is", text)
+    text = re.sub(r"It's", "It is", text)
+    text = re.sub(r"You're", "You are", text)
+    text = re.sub(r"I'M", "I am", text)
+    text = re.sub(r"shouldn't", "should not", text)
+    text = re.sub(r"wouldn't", "would not", text)
+    text = re.sub(r"i'm", "I am", text)
+    text = re.sub(r"I\x89Ûªm", "I am", text)
+    text = re.sub(r"I'm", "I am", text)
+    text = re.sub(r"Isn't", "is not", text)
+    text = re.sub(r"Here's", "Here is", text)
+    text = re.sub(r"you've", "you have", text)
+    text = re.sub(r"you\x89Ûªve", "you have", text)
+    text = re.sub(r"we're", "we are", text)
+    text = re.sub(r"what's", "what is", text)
+    text = re.sub(r"couldn't", "could not", text)
+    text = re.sub(r"we've", "we have", text)
+    text = re.sub(r"it\x89Ûªs", "it is", text)
+    text = re.sub(r"doesn\x89Ûªt", "does not", text)
+    text = re.sub(r"It\x89Ûªs", "It is", text)
+    text = re.sub(r"Here\x89Ûªs", "Here is", text)
+    text = re.sub(r"who's", "who is", text)
+    text = re.sub(r"I\x89Ûªve", "I have", text)
+    text = re.sub(r"y'all", "you all", text)
+    text = re.sub(r"can\x89Ûªt", "cannot", text)
+    text = re.sub(r"would've", "would have", text)
+    text = re.sub(r"it'll", "it will", text)
+    text = re.sub(r"we'll", "we will", text)
+    text = re.sub(r"wouldn\x89Ûªt", "would not", text)
+    text = re.sub(r"We've", "We have", text)
+    text = re.sub(r"he'll", "he will", text)
+    text = re.sub(r"Y'all", "You all", text)
+    text = re.sub(r"Weren't", "Were not", text)
+    text = re.sub(r"Didn't", "Did not", text)
+    text = re.sub(r"they'll", "they will", text)
+    text = re.sub(r"they'd", "they would", text)
+    text = re.sub(r"DON'T", "DO NOT", text)
+    text = re.sub(r"That\x89Ûªs", "That is", text)
+    text = re.sub(r"they've", "they have", text)
+    text = re.sub(r"i'd", "I would", text)
+    text = re.sub(r"should've", "should have", text)
+    text = re.sub(r"You\x89Ûªre", "You are", text)
+    text = re.sub(r"where's", "where is", text)
+    text = re.sub(r"Don\x89Ûªt", "Do not", text)
+    text = re.sub(r"we'd", "we would", text)
+    text = re.sub(r"i'll", "I will", text)
+    text = re.sub(r"weren't", "were not", text)
+    text = re.sub(r"They're", "They are", text)
+    text = re.sub(r"Can\x89Ûªt", "Cannot", text)
+    text = re.sub(r"you\x89Ûªll", "you will", text)
+    text = re.sub(r"I\x89Ûªd", "I would", text)
+    text = re.sub(r"let's", "let us", text)
+    text = re.sub(r"it's", "it is", text)
+    text = re.sub(r"can't", "cannot", text)
+    text = re.sub(r"don't", "do not", text)
+    text = re.sub(r"you're", "you are", text)
+    text = re.sub(r"i've", "I have", text)
+    text = re.sub(r"that's", "that is", text)
+    text = re.sub(r"i'll", "I will", text)
+    text = re.sub(r"doesn't", "does not", text)
+    text = re.sub(r"i'd", "I would", text)
+    text = re.sub(r"didn't", "did not", text)
+    text = re.sub(r"ain't", "am not", text)
+    text = re.sub(r"you'll", "you will", text)
+    text = re.sub(r"I've", "I have", text)
+    text = re.sub(r"Don't", "do not", text)
+    text = re.sub(r"I'll", "I will", text)
+    text = re.sub(r"I'd", "I would", text)
+    text = re.sub(r"Let's", "Let us", text)
+    text = re.sub(r"you'd", "You would", text)
+    text = re.sub(r"It's", "It is", text)
+    text = re.sub(r"Ain't", "am not", text)
+    text = re.sub(r"Haven't", "Have not", text)
+    text = re.sub(r"Could've", "Could have", text)
+    text = re.sub(r"youve", "you have", text)  
+    text = re.sub(r"donå«t", "do not", text)   
+            
+    # Character entity references
+    text = re.sub(r"&gt;", ">", text)
+    text = re.sub(r"&lt;", "<", text)
+    text = re.sub(r"&amp;", "&", text)
+    
+    # Typos, slang and informal abbreviations
+    text = re.sub(r"w/e", "whatever", text)
+    text = re.sub(r"w/", "with", text)
+    text = re.sub(r"USAgov", "USA government", text)
+    text = re.sub(r"recentlu", "recently", text)
+    text = re.sub(r"Ph0tos", "Photos", text)
+    text = re.sub(r"amirite", "am I right", text)
+    text = re.sub(r"exp0sed", "exposed", text)
+    text = re.sub(r"<3", "love", text)
+    text = re.sub(r"amageddon", "armageddon", text)
+    text = re.sub(r"Trfc", "Traffic", text)
+    text = re.sub(r"WindStorm", "Wind Storm", text)
+    text = re.sub(r"lmao", "laughing my ass off", text)   
+    # Urls
+    text = re.sub(r"https?:\/\/t.co\/[A-Za-z0-9]+", "", text)
+        
+    # Words with punctuations and special characters
+    punctuations = '@#!?+&*[]-%.:/();$=><|{}^' + "'`"
+    for p in punctuations:
+        text = text.replace(p, f' {p} ')
+        
+    # ... and ..
+    text = text.replace('...', ' ... ')
+    if '...' not in text:
+        text = text.replace('..', ' ... ')      
+    return text
+
+import regex as re
 
 def remove_punctuations(text):
     remove_puncs = re.sub(r'[?|!|~|@|$|%|^|&|#]', r'', text).lower()
     return re.sub(r'[.|,|)|(|\|/|+|-|{|}|]', r' ', remove_puncs)
 
-def expand_text(text):
-    return text.replace("i'll","i will").replace("i'm","i am").replace("i've","i have").replace(
-    "n't"," not").replace("let's","let us").replace("'re"," are").replace("'d","did").replace(
-    "'em","them").replace("y'all","you all").replace("it's","it is").replace("'"," ").replace(
-    '"',' ').replace(" s "," ")
+def strip_out_special_chars(txt):
+    return re.compile("[^\w']|_").sub(" ",txt)
+
 def remove_stopwords(txt):
     """
     Takes in an array, so it is very fast. But must be Vectorized!!
@@ -171,6 +450,7 @@ def return_stop_words():
 ################################################################################
 from sklearn.feature_extraction import text 
 from nltk.stem.snowball import SnowballStemmer
+from nltk.tokenize import TweetTokenizer, RegexpTokenizer
 def select_best_nlp_vectorizer(model, data, col, target, metric,
                     seed, modeltype,min_df):
     """
@@ -187,6 +467,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     stopWords = return_stop_words()
     ######################################################
     #### This calculates based on the average number of words in an NLP column how many max_features
+    min_df = 2
     max_df = 0.95
     ######################################################
     if len(data) >= 1000000:
@@ -194,7 +475,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     elif len(data) >= 100000:
         max_features = 500
     else:
-        max_features = int(data[col].map(len).mean()*2)
+        max_features = int(data[col].map(len).mean()*4)
     print('    A U T O - N L P   P R O C E S S I N G  O N   N L P   C O L U M N = %s ' %col)
     print('#################################################################################')
     print('Generating new features for NLP column = %s using NLP Transformers' %col)
@@ -202,13 +483,14 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     print('    Cleaning text in %s before doing transformation...' %col)
     start_time = time.time()
     ####### CLEAN THE DATA FIRST ###################################
-    data[col] =  data[col].map(remove_html).map(remove_punctuations).map(expand_text)
+    data[col] = data[col].map(expand_text).values
+    data[col] = data[col].map(clean_text_using_regex).map(strip_out_special_chars).values
     #### To make removing stop words fast we need to run it through a vectorizer! THIS IS TOO SLOW!
     #remover = lambda txt: txt if txt not in stopwords.words('english') else ""
     #vectorized_func = np.vectorize(remover)
     #vectorized_func = np.vectorize(remove_stopwords)
     #data[col] =  data[col].map(lambda x: vectorized_func(np.array(x.split(" "))))
-    data[col] = data[col].map(strip_out_special_chars)
+    #data[col] = data[col].map(strip_out_special_chars)
     print('Text cleaning completed. Time taken = %d seconds' %(time.time()-start_time))
     ################################################################
     if modeltype is None or modeltype == '':
@@ -229,17 +511,15 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     all_vecs = {}
     all_models = {}
     print('\n#### First choosing the default Count Vectorizer with 1-3 ngrams and limited features')
-    for min_df in sorted(np.linspace(0.10,0.01,10)):
-        try:
-            vect_5000 = CountVectorizer(ngram_range=(1, 3), max_features=max_features,max_df=max_df,
-                                min_df=2, binary=False, stop_words=stopWords, token_pattern=r'\w{1,}')
-            all_vecs[vect_5000], all_models[vect_5000] = tokenize_test_by_metric(model, X_train, X_test, y_train,
-                            y_test, target, metric,
-                              vect_5000, seed, modeltype)
-            print('Best min_df is %0.2f' %min_df)
-            break
-        except:
-            continue
+    tokenizer = RegexpTokenizer(r'\b[a-z|A-Z]{2,}\b')
+    print('Using low min_df = %d for all Vectorizers' %min_df)
+    vect_5000 = CountVectorizer(
+               ngram_range=(1, 3), max_features=max_features, max_df=max_df,
+                strip_accents='unicode',
+                min_df=min_df, binary=False, stop_words=None, token_pattern=r'\w{1,}')
+    all_vecs[vect_5000], all_models[vect_5000] = tokenize_test_by_metric(model, X_train, X_test, y_train,
+                    y_test, target, metric,
+                      vect_5000, seed, modeltype)
     print('\n#### Using Count Vectorizer with limited max_features and a low 0.001 min_df with n_gram (1-5)')
     ##########################################################################
     ##### It's BEST to use small max_features (50) and a low 0.001 min_df with n_gram (2-5).
@@ -247,10 +527,10 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     #### Once you do above, there is no difference between count_vectorizer and tfidf_vectorizer
     #### Once u do above, increasing max_features from 50 to even 500 doesn't get you a higher score!
     ##########################################################################
-    vect_lemma = CountVectorizer(max_df=max_df,
-                                   max_features=max_features, 
+    vect_lemma = CountVectorizer(max_df=max_df, 
+                                   max_features=max_features, strip_accents='unicode', 
                                    ngram_range=(1, 5), token_pattern=r'\w{1,}',
-                                    min_df=0.001, stop_words=stopWords,
+                                    min_df=min_df, stop_words=stopWords,
                                    binary=True,
                                     )
     try:
@@ -265,22 +545,26 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     max_features_high = int(250000000/X_train.shape[0])
     if modeltype != 'Regression':
         tvec = TfidfVectorizer( max_features=max_features_high,max_df=max_df, token_pattern=r'\w{1,}',
-                                stop_words=stopWords, ngram_range=(1, 3), min_df=2, binary=True)
+                                strip_accents='unicode', 
+                                stop_words=stopWords, ngram_range=(1, 3), min_df=min_df, binary=True)
     else:
         tvec = TfidfVectorizer( max_features=max_features_high, max_df=max_df, token_pattern=r'\w{1,}',
-                                stop_words=stopWords, ngram_range=(1, 3), min_df=2, binary=False)
+                                strip_accents='unicode', 
+                                stop_words=stopWords, ngram_range=(1, 3), min_df=min_df, binary=False)
     all_vecs[tvec], all_models[tvec] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
                                         tvec, seed, modeltype)
     max_features_limit = int(tvec.fit_transform(data_dtm).shape[1])
     print('\n# Using TFIDF vectorizer with Snowball Stemming and limited max_features')
     if modeltype != 'Regression':
-        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df, token_pattern=r'\w{1,}',
-                                 min_df=2, stop_words=None, binary=True,
+        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df, 
+                                token_pattern=r'\w{1,}', 
+                                 min_df=min_df, stop_words=None, binary=True, strip_accents='unicode', 
                                  use_idf=True, tokenizer=tokenize_and_stem, ngram_range=(1,3))
     else:
-        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df, token_pattern=r'\w{1,}',
-                                 min_df=2, stop_words=None, binary=False,
+        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df, 
+                                token_pattern=r'\w{1,}', 
+                                 min_df=min_df, stop_words=None, binary=False, strip_accents='unicode', 
                                  use_idf=True, tokenizer=tokenize_and_stem, ngram_range=(1,3))
     all_vecs[tvec2], all_models[tvec2] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
@@ -501,11 +785,13 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
         return
     ########################  S U M M A R Y  C O L U M N S  C R E A T I O N ######################
     #### Now let's do a combined transformation of NLP column
-    train, nlp_summary_cols = create_summary_of_nlp_cols(train, nlp_column,verbose)
+    train, nlp_summary_cols = create_summary_of_nlp_cols(train, nlp_column, target, is_train=True, verbose=verbose)
     nlp_result_columns += nlp_summary_cols
     print('    Added %d summary columns for counts of words and characters in each row' %len(nlp_summary_cols))
     if not isinstance(test, str):
-        test, nlp_summary_cols = create_summary_of_nlp_cols(test, nlp_column)
+        #### You don't want to draw the same set of charts for Test data since it would be repetitive
+        #####   Hence set the verbose to 0 in this case !!!
+        test, nlp_summary_cols = create_summary_of_nlp_cols(test, nlp_column, target, is_train=False, verbose=0)
     ##########################################################################################
     if modeltype.endswith('Classification'):
         #print('Class distribution in Train:')
@@ -670,7 +956,7 @@ def add_sentiment(data, nlp_column):
     print('    Created %d new columns using SentinmentIntensityAnalyzer. Time taken = %d seconds' %(len(cols),time.time()-start_time))
     return data, cols
 ######### Create new columns that provide summary stats of NLP string columns
-def create_summary_of_nlp_cols(data, col, verbose=0):
+def create_summary_of_nlp_cols(data, col, target, is_train=False, verbose=0):
     """
     Create new columns that provide summary stats of NLP string columns
     This gives us insights into the number of characters we want in our NLP column
@@ -707,8 +993,14 @@ def create_summary_of_nlp_cols(data, col, verbose=0):
     data[col+'_mention_count'] = data[col].apply(lambda x: len([c for c in str(x) if c == '@']))
     cols.append(col+'_mention_count')
     if verbose >= 1:
-        plot_nlp_column(data[col+'_unique_word_count'],"Word Count")
-        plot_nlp_column(data[col+'_char_count'],"Character Count")
+        if is_train:
+            plot_nlp_column(data[col+'_unique_word_count'],"Word Count")
+    if verbose > 1:
+        if is_train:
+            plot_nlp_column(data[col+'_char_count'],"Character Count")
+    if verbose >= 2:
+        if is_train:
+            draw_dist_plots_summary_cols(data, target, cols)        
     return data, cols
 #############################################################################
 def plot_nlp_column(df_col,label_title):
@@ -724,7 +1016,32 @@ def plot_nlp_column(df_col,label_title):
     plt.xlabel('Distribution of %s in newly created %s column' %(label_title,df_col.name),fontsize=12)
     plt.xticks(rotation='vertical')
     plt.show();
-
+#############################################################################
+import matplotlib.pyplot as plt
+import seaborn as sns
+from itertools import cycle, combinations
+def draw_dist_plots_summary_cols(df_train, target, summary_cols):
+    colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgkbyr')
+    target_names = np.unique(df_train[target])
+    ncols =2
+    nrows = int((len(summary_cols)/2)+0.50)
+    fig, axes = plt.subplots(ncols=ncols, nrows=nrows, figsize=(20,nrows*6), dpi=100)
+    axs = []
+    for i in range(nrows):
+        for j in range(ncols):
+            axs.append('axes['+str(i)+','+str(j)+']')
+    labels = []
+    for axi, feature in enumerate(summary_cols):
+        for target_name in target_names:
+            label = str(target_name)
+            color = next(colors)
+            sns.distplot(df_train.loc[df_train[target] == target_name][feature], 
+                         label=label, 
+                     ax=eval(axs[axi]), color=color, kde_kws={'bw':1.5})
+            labels.append(label)
+    plt.legend(labels=labels)
+    plt.show();
+#############################################################################    
 def plot_histogram_probability(dist_train, dist_test, label_title):
     pal = 'bryclg'
     plt.figure(figsize=(15, 10))
@@ -737,7 +1054,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.20'
+version_number = '0.0.21'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(
                 nlp_column, train, test, target, score_type,

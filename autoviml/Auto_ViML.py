@@ -122,17 +122,23 @@ def analyze_problem_type(train, targ,verbose=0):
     Regression or Classification type problem
     """
     if train[targ].dtype != 'int64' and train[targ].dtype != float :
-        if len(train[targ].unique()) == 2:
-            model_class = 'Binary_Classification'
-        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 15:
-                model_class = 'Multi_Classification'
+        if train[targ].dtype == object:
+                if len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 2:
+                    model_class = 'Binary_Classification'
+                else:
+                    model_class = 'Multi_Classification'
+        else:
+            if len(train[targ].unique()) == 2:
+                model_class = 'Binary_Classification'
+            elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 100:
+                    model_class = 'Multi_Classification'
     elif train[targ].dtype == 'int64' or train[targ].dtype == float :
         if len(train[targ].unique()) == 1:
             print('Error in data set: Only one class in Target variable. Check input and try again')
             sys.exit()
         elif len(train[targ].unique()) == 2:
             model_class = 'Binary_Classification'
-        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 15:
+        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 150:
                 model_class = 'Multi_Classification'
         else:
             model_class = 'Regression'
@@ -146,7 +152,7 @@ def analyze_problem_type(train, targ,verbose=0):
     elif train[targ].dtype == 'int64':
         if len(train[targ].unique()) == 2:
             model_class = 'Binary_Classification'
-        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 25:
+        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 250:
                 model_class = 'Multi_Classification'
         else:
             model_class = 'Regression'
@@ -239,7 +245,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.610                                              #######
+    ######                               Version 0.1.611                                              #######
     #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -567,6 +573,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 rare_class = find_rare_class(start_train[each_target].values)
             else:
                 ### Since the each_target here is already numeric, you don't have to modify it
+                start_train[each_target] = start_train[each_target].astype(int).values
                 rare_class = find_rare_class(start_train[each_target].values)
                 label_dict[each_target]['values'] = start_train[each_target].values
                 label_dict[each_target]['classes'] = np.unique(start_train[each_target].values)
@@ -4074,7 +4081,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.610'
+version_number = '0.1.611'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

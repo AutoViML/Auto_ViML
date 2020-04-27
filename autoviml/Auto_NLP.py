@@ -73,7 +73,7 @@ import operator
 from scipy import interp
 import nltk
 from nltk.corpus import stopwords
-
+nltk.download('stopwords')
 ############################################################################
 # define a function that accepts a vectorizer and calculates its accuracy
 def tokenize_test_by_metric(model, X_train, X_cv, y_train, y_cv,
@@ -1055,7 +1055,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.22'
+version_number = '0.0.23'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(
                 nlp_column, train, test, target, score_type,

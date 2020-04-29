@@ -67,9 +67,8 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             model5 = LassoLarsCV(cv=scv)
             model_tuples.append(('LassoLarsCV',model5))
         else:
-            model5 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
-                                        n_estimators=NUMS,random_state=seed)
-            model_tuples.append(('Bagging',model5))
+            model5 = LassoLarsCV(cv=scv)
+            model_tuples.append(('LassoLarsCV',model5))
         if Boosting_Flag is None:
             model6 = DecisionTreeRegressor(max_depth=5,min_samples_leaf=2)
             model_tuples.append(('Decision_Tree',model6))
@@ -79,16 +78,9 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
         else:
             model6 = DecisionTreeRegressor(max_depth=5,min_samples_leaf=2)
             model_tuples.append(('Decision_Tree',model6))
-        sgd_best_model = SGDRegressor(alpha=1e-06,
-                            loss='squared_loss',
-                           max_iter=1000,
-                           penalty='l2',
-                           learning_rate = 'constant',
-                           eta0 = .1,
-                           random_state = 3,
-                           tol=None)
-        model7 = BaggingRegressor(sgd_best_model)
-        model_tuples.append(('SGD_Regressor',model7))
+        model7 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
+                                        n_estimators=NUMS,random_state=seed)
+        model_tuples.append(('Bagging_Regressor',model7))
         if Boosting_Flag is None:
             #### If the Boosting_Flag is True, it means Boosting model is present. 
             ###   So choose a different kind of classifier here
@@ -98,7 +90,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
                                        min_samples_leaf = 2,
                                        n_estimators = 200,
                                        random_state=99)
-            model_tuples.append(('Bagging_Regressor',model8))
+            model_tuples.append(('RF_Regressor',model8))
         elif not Boosting_Flag:
             #### If the Boosting_Flag is True, it means Boosting model is present. 
             ###   So choose a different kind of classifier here
@@ -113,7 +105,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
                                        min_samples_leaf = 2,
                                        n_estimators = 200,
                                        random_state=99)
-            model_tuples.append(('Bagging_Regressor',model8))
+            model_tuples.append(('RF_Regressor',model8))
     else:
         if scoring == '':
             scoring = 'accuracy'

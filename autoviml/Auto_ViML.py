@@ -130,7 +130,7 @@ def analyze_problem_type(train, targ,verbose=0):
         else:
             if len(train[targ].unique()) == 2:
                 model_class = 'Binary_Classification'
-            elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 100:
+            elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 30:
                     model_class = 'Multi_Classification'
     elif train[targ].dtype == 'int64' or train[targ].dtype == float :
         if len(train[targ].unique()) == 1:
@@ -138,7 +138,7 @@ def analyze_problem_type(train, targ,verbose=0):
             sys.exit()
         elif len(train[targ].unique()) == 2:
             model_class = 'Binary_Classification'
-        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 150:
+        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 30:
                 model_class = 'Multi_Classification'
         else:
             model_class = 'Regression'
@@ -152,7 +152,7 @@ def analyze_problem_type(train, targ,verbose=0):
     elif train[targ].dtype == 'int64':
         if len(train[targ].unique()) == 2:
             model_class = 'Binary_Classification'
-        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 250:
+        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 30:
                 model_class = 'Multi_Classification'
         else:
             model_class = 'Regression'
@@ -245,7 +245,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.611                                              #######
+    ######                               Version 0.1.614                                              #######
     #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -597,7 +597,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #####       Classify Columns   ################
     id_cols = var_df['id_vars']
     nlp_columns = var_df['nlp_vars']
-    string_cols = var_df['date_vars']
+    date_cols = var_df['date_vars']
     del_cols = var_df['cols_delete']
     factor_cols = var_df['factor_vars']
     numvars = var_df['continuous_vars']+var_df['int_vars']
@@ -605,12 +605,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             'cat_vars']+var_df['factor_vars']+var_df['num_bool_vars']
     num_bool_vars = var_df['num_bool_vars']
     #######################################################################################
-    preds = [x for x in orig_preds if x not in id_cols+del_cols+string_cols+target]
-    if len(id_cols+del_cols+string_cols)== 0:
+    preds = [x for x in orig_preds if x not in id_cols+del_cols+date_cols+target]
+    if len(id_cols+del_cols+date_cols)== 0:
         print('    No variables removed since no ID or low-information variables found in data set')
     else:
         print('    %d variables removed since they were ID or low-information variables'
-                                %len(id_cols+del_cols+string_cols))
+                                %len(id_cols+del_cols+date_cols))
     ################## This is where real code begins ###################################################
     GPU_exists = check_if_GPU_exists()
     ###### This is where we set the CPU and GPU parameters for XGBoost
@@ -931,7 +931,21 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     test = test1[red_preds]
         ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####
         ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
-        train_sel = np.array(red_preds)[(train[red_preds].dtypes==float).values]
+        train_sel = np.array(red_preds)[(train[red_preds].dtypes==float).values].tolist()
+        #########   A D D   D A T E  T I M E    F E A T U R E S ####################
+        for date_col in date_cols:
+            print('Processing %s column for date time features....' %date_col)
+            date_df_train = create_time_series_features(orig_train, date_col)
+            date_col_adds = date_df_train.columns.tolist() 
+            print('    Adding %d columns from date time column %s' %(len(date_col_adds),date_col))
+            if not isinstance(date_df_train, str):
+                train = train.join(date_df_train)
+            if not isinstance(orig_test, str):
+                date_df_test = create_time_series_features(orig_test, date_col)
+                if not isinstance(date_df_test, str):
+                    test = test.join(date_df_test)
+        red_preds = [x for x in list(train) if x not in [each_target]]
+        train_sel = train_sel + date_col_adds
         #########     SELECT IMPORTANT FEATURES HERE   #############################
         if feature_reduction:
             important_features,num_vars, imp_cats = find_top_features_xgb(train,red_preds,train_sel,
@@ -2278,6 +2292,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if not isinstance(sample_submission, str):
                     sample_submission[each_target] = pd.Series(y_pred).map(transformer).values
         ##  Write the test and submission files to disk ###
+        print('Writing Output files to disk...')
+        #############################################################################################
         if not isinstance(testm, str):
             try:
                 write_file_to_folder(testm, each_target, each_target+'_'+modeltype+'_'+'test_modified.csv')
@@ -2288,22 +2304,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                                      title='Predictive Probability Density Chart with suggested threshold in red')
                         plt.axvline(x=m_thresh, color='r', linestyle='--')
             except:
-                print('    Error: Not able to save test file. Skipping...')
-            print('    Saving Output files...')
-            #### Commented out the next line since it is not necessary to bloat the sample submission file ##
-            #sample_submission = pd.concat([sample_submission,testm[new_cols]], axis=1)
-            #############################################################################################
-            try:
-                write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
-            except:
-                print('    Error: Not able to save submission file. Skipping...')
-        else:
+                print('    Error: Not able to save test modified file. Skipping...')
+        #############################################################################################
+        if isinstance(sample_submission, str):
             sample_submission = testm[id_cols+[each_target+'_predictions']]
             try:
                 write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
             except:
                 print('    Error: Not able to save submission file. Skipping...')
-            #############################################################################################
+        #############################################################################################
         try:
             #### Bring trainm back to its original index ###################
             orig_index = orig_train.index
@@ -2815,8 +2824,18 @@ def classify_columns(df_preds, verbose=0):
     date_vars = list(var_df[(var_df['date_time'] == 1)]['index'])
     id_vars = list(var_df[(var_df['id_col'] == 1)]['index'])
     sum_all_cols['int_vars'] = int_vars
+    copy_date_vars = copy.deepcopy(date_vars)
+    for date_var in copy_date_vars:
+        #### This test is to make sure sure date vars are actually date vars
+        try:
+            pd.to_datetime(train[date_var],infer_datetime_format=True)
+        except:
+            ##### if not a date var, then just add it to delete it from processing
+            cols_delete.append(date_var)
+            date_vars.remove(date_var)
     sum_all_cols['date_vars'] = date_vars
     sum_all_cols['id_vars'] = id_vars
+    sum_all_cols['cols_delete'] = cols_delete
     ## This is an EXTREMELY complicated logic for cat vars. Don't change it unless you test it many times!
     var_df['numeric'] = 0
     float_or_cat = var_df.apply(lambda x: 1 if x['type_of_column'] in ['float16',
@@ -3610,12 +3629,41 @@ def write_file_to_folder(df, each_target, base_filename, verbose=1):
             os.mkdir(dir_name)
         df.to_csv(filename,index=False)
 ##############################################################
-# This performs Down Sampling of Majority Class to a 90/10 or 80/20 ratio
-###  depending on rare_class percentage. If the rare class is less than 5%,
-###   it uses 90/10 to improve the training and 80/20 otherwise.
-# This performs Down Sampling of Majority Class to a 90/10 or 80/20 ratio
-###  depending on rare_class percentage. If the rare class is less than 5%,
-###   it uses 90/10 to improve the training and 80/20 otherwise.
+def create_features(df, tscol):
+    """
+    Creates time series features from datetime index
+    """
+    df = copy.deepcopy(df)
+    try:
+        df['hour'] = df[tscol].dt.hour
+        df['minute'] = df[tscol].dt.minute
+    except:
+        pass
+    df['dayofweek'] = df[tscol].dt.dayofweek
+    df['quarter'] = df[tscol].dt.quarter
+    df['month'] = df[tscol].dt.month
+    df['year'] = df[tscol].dt.year
+    df['dayofyear'] = df[tscol].dt.dayofyear
+    df['dayofmonth'] = df[tscol].dt.day
+    df['weekofyear'] = df[tscol].dt.weekofyear
+    weekends = (df['dayofweek'] == 5) | (df['dayofweek'] == 6)
+    df['weekend'] = 0
+    df.loc[weekends, 'weekend'] = 1    
+    dt_adds = ['hour','dayofweek','quarter','month','year',
+           'dayofyear','dayofmonth','weekofyear','weekend'] 
+    X = df[dt_adds].fillna(0)
+    return X
+
+def create_time_series_features(series, ts_column):
+    series = copy.deepcopy(series)
+    try:
+        series[ts_column] = pd.to_datetime(series[ts_column],
+                        infer_datetime_format=True)
+        return create_features(series,ts_column)
+    except:
+        print('Error in Processing %s column for date time features. Continuing...' %ts_column)
+        return ''
+########################################
 from collections import Counter
 import time
 ########################################
@@ -4081,7 +4129,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.613'
+version_number = '0.1.614'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -239,7 +239,7 @@ def expand_text(text):
     expanded = [expandContractions(item, c_re=c_re) for item in text]
     return ''.join(map(str, expanded))
 #######################################################################
-def clean_text_using_regex(text): 
+def clean_text_using_regex(text):
 
     # Special characters
     text = re.sub(r"\x89Û_", "", text)
@@ -254,13 +254,13 @@ def clean_text_using_regex(text):
     text = re.sub(r"\x89Û¢åÊ", "", text)
     text = re.sub(r"åÊ", "", text)
     text = re.sub(r"åÈ", "", text)
-    text = re.sub(r"JapÌ_n", "Japan", text)    
+    text = re.sub(r"JapÌ_n", "Japan", text)
     text = re.sub(r"Ì©", "e", text)
     text = re.sub(r"å¨", "", text)
     text = re.sub(r"åÇ", "", text)
     text = re.sub(r"åÀ", "", text)
     text = re.sub(re.compile('<.*?>'), ' ', text)
-    
+
     # Expand Text
     text = text.replace("i'll","i will").replace("i'm","i am").replace("i've","i have").replace(
     "n't"," not").replace("let's","let us").replace("'re"," are").replace("'d","did").replace(
@@ -355,14 +355,14 @@ def clean_text_using_regex(text):
     text = re.sub(r"Ain't", "am not", text)
     text = re.sub(r"Haven't", "Have not", text)
     text = re.sub(r"Could've", "Could have", text)
-    text = re.sub(r"youve", "you have", text)  
-    text = re.sub(r"donå«t", "do not", text)   
-            
+    text = re.sub(r"youve", "you have", text)
+    text = re.sub(r"donå«t", "do not", text)
+
     # Character entity references
     text = re.sub(r"&gt;", ">", text)
     text = re.sub(r"&lt;", "<", text)
     text = re.sub(r"&amp;", "&", text)
-    
+
     # Typos, slang and informal abbreviations
     text = re.sub(r"w/e", "whatever", text)
     text = re.sub(r"w/", "with", text)
@@ -375,19 +375,22 @@ def clean_text_using_regex(text):
     text = re.sub(r"amageddon", "armageddon", text)
     text = re.sub(r"Trfc", "Traffic", text)
     text = re.sub(r"WindStorm", "Wind Storm", text)
-    text = re.sub(r"lmao", "laughing my ass off", text)   
+    text = re.sub(r"lmao", "laughing my ass off", text)
     # Urls
     text = re.sub(r"https?:\/\/t.co\/[A-Za-z0-9]+", "", text)
-        
+
+    ### remove numbers
+    text = re.sub("^\d+\s|\s\d+\s|\s\d+$", " ", text)
+
     # Words with punctuations and special characters
     punctuations = '@#!?+&*[]-%.:/();$=><|{}^' + "'`"
     for p in punctuations:
         text = text.replace(p, f' {p} ')
-        
+
     # ... and ..
     text = text.replace('...', ' ... ')
     if '...' not in text:
-        text = text.replace('..', ' ... ')      
+        text = text.replace('..', ' ... ')
     return text
 
 import regex as re
@@ -399,13 +402,10 @@ def remove_punctuations(text):
 def strip_out_special_chars(txt):
     return re.compile("[^\w']|_").sub(" ",txt)
 
-def remove_stopwords(txt):
-    """
-    Takes in an array, so it is very fast. But must be Vectorized!!
-    1. Removes all stopwords
-    """
-    from nltk.corpus import stopwords
-    return " ".join([txt if txt not in stopwords.words('english') else ""])
+def remove_stop_words(text):
+    stopWords = return_stop_words()
+    return text.map(lambda x: x.split(" ")).map(lambda row: " ".join([x for x in row if x not in stopWords]))
+
 ############################################################################
 def print_sparse_stats(X_dtm):
     """
@@ -426,6 +426,7 @@ def left_subtract(l1,l2):
 import nltk
 def tokenize_and_stem(text):
     stemmer = SnowballStemmer("english")
+    text = re.sub("^\d+\s|\s\d+\s|\s\d+$", " ", text)
     # first tokenize by sentence, then by word to ensure that punctuation is caught as it's own token
     tokens = [word for sent in nltk.sent_tokenize(text) for word in nltk.word_tokenize(sent)]
     filtered_tokens = []
@@ -437,19 +438,19 @@ def tokenize_and_stem(text):
     return stems
 ################################################################################
 def return_stop_words():
-    add_words = ["s"]
+    add_words = ["s", "m",'you', 'not',  'get', 'no', 'if', 'via', 'one', 'still', 'us']
     from sklearn.feature_extraction import text
-    stop_words = text.ENGLISH_STOP_WORDS.union(add_words)
-    stopWords = set(stopwords.words('english')).union(stop_words)
+    #stopWords = text.ENGLISH_STOP_WORDS.union(add_words)
+    stopWords = set(stopwords.words('english')).union(add_words)
     excl =['will',"i'll",'shall',"you'll",'may',"don't","hadn't","hasn't","haven't",
            "don't","isn't",'if',"mightn't","mustn'","mightn't",'mightn',"needn't",
            'needn',"needn't",'no','not','shan',"shan't",'shouldn',"shouldn't","wasn't",
           'wasn','weren',"weren't",'won',"won't",'wouldn',"wouldn't","you'd",'you',
           "you'd","you'll","you're",'yourself','yourselves']
     stopWords = [x for x in stopWords if x not in excl]
-    return stopWords    
+    return stopWords
 ################################################################################
-from sklearn.feature_extraction import text 
+from sklearn.feature_extraction import text
 from nltk.stem.snowball import SnowballStemmer
 from nltk.tokenize import TweetTokenizer, RegexpTokenizer
 def select_best_nlp_vectorizer(model, data, col, target, metric,
@@ -481,18 +482,6 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     print('#################################################################################')
     print('Generating new features for NLP column = %s using NLP Transformers' %col)
     print('    However min_df and max_features = %d will limit too many features from being generated' %max_features)
-    print('    Cleaning text in %s before doing transformation...' %col)
-    start_time = time.time()
-    ####### CLEAN THE DATA FIRST ###################################
-    data[col] = data[col].map(expand_text).values
-    data[col] = data[col].map(clean_text_using_regex).map(strip_out_special_chars).values
-    #### To make removing stop words fast we need to run it through a vectorizer! THIS IS TOO SLOW!
-    #remover = lambda txt: txt if txt not in stopwords.words('english') else ""
-    #vectorized_func = np.vectorize(remover)
-    #vectorized_func = np.vectorize(remove_stopwords)
-    #data[col] =  data[col].map(lambda x: vectorized_func(np.array(x.split(" "))))
-    #data[col] = data[col].map(strip_out_special_chars)
-    print('Text cleaning completed. Time taken = %d seconds' %(time.time()-start_time))
     ################################################################
     if modeltype is None or modeltype == '':
         print('Since modeltype is None, Using TFIDF vectorizer with min_df and max_features')
@@ -528,8 +517,8 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     #### Once you do above, there is no difference between count_vectorizer and tfidf_vectorizer
     #### Once u do above, increasing max_features from 50 to even 500 doesn't get you a higher score!
     ##########################################################################
-    vect_lemma = CountVectorizer(max_df=max_df, 
-                                   max_features=max_features, strip_accents='unicode', 
+    vect_lemma = CountVectorizer(max_df=max_df,
+                                   max_features=max_features, strip_accents='unicode',
                                    ngram_range=(1, 5), token_pattern=r'\w{1,}',
                                     min_df=min_df, stop_words=stopWords,
                                    binary=True,
@@ -546,11 +535,11 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     max_features_high = int(250000000/X_train.shape[0])
     if modeltype != 'Regression':
         tvec = TfidfVectorizer( max_features=max_features_high,max_df=max_df, token_pattern=r'\w{1,}',
-                                strip_accents='unicode', 
+                                strip_accents='unicode',
                                 stop_words=stopWords, ngram_range=(1, 3), min_df=min_df, binary=True)
     else:
         tvec = TfidfVectorizer( max_features=max_features_high, max_df=max_df, token_pattern=r'\w{1,}',
-                                strip_accents='unicode', 
+                                strip_accents='unicode',
                                 stop_words=stopWords, ngram_range=(1, 3), min_df=min_df, binary=False)
     all_vecs[tvec], all_models[tvec] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
@@ -558,14 +547,14 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     max_features_limit = int(tvec.fit_transform(data_dtm).shape[1])
     print('\n# Using TFIDF vectorizer with Snowball Stemming and limited max_features')
     if modeltype != 'Regression':
-        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df, 
-                                token_pattern=r'\w{1,}', 
-                                 min_df=min_df, stop_words=None, binary=True, strip_accents='unicode', 
+        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df,
+                                token_pattern=r'\w{1,}',
+                                 min_df=min_df, stop_words=None, binary=True, strip_accents='unicode',
                                  use_idf=True, tokenizer=tokenize_and_stem, ngram_range=(1,3))
     else:
-        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df, 
-                                token_pattern=r'\w{1,}', 
-                                 min_df=min_df, stop_words=None, binary=False, strip_accents='unicode', 
+        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df,
+                                token_pattern=r'\w{1,}',
+                                 min_df=min_df, stop_words=None, binary=False, strip_accents='unicode',
                                  use_idf=True, tokenizer=tokenize_and_stem, ngram_range=(1,3))
     all_vecs[tvec2], all_models[tvec2] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
@@ -665,14 +654,30 @@ def select_top_features_from_SVD(X, tsvd, is_train=True, top_n=100):
     ####   then you select the top 25 terms in 1-gram and 2-gram that make sense.
     print('Reducing dimensions from %d term-matrix to %d dimensions using TruncatedSVD...' %(X.shape[1],top_n))
     if is_train:
-        tsvd = TruncatedSVD(n_components=top_n, 
-                   n_iter=10, 
+        tsvd = TruncatedSVD(n_components=top_n,
+                   n_iter=10,
                    random_state=3)
         tsvd = tsvd.fit(X)
     XA = tsvd.transform(X)
     print('    Reduced dimensional array shape to %s' %(XA.shape,))
     print('    Time Taken for Truncated SVD = %0.0f seconds' %(time.time()-start_time) )
     return XA, tsvd
+###########################################################################################
+def print_top_feature_grams(X, vectorizer, top_n = 25):
+    """
+    This prints the top features by each n-gram using the vectorizer that is selected as best!
+    """
+    X = copy.deepcopy(X)
+    vectorizer = copy.deepcopy(vectorizer)
+    for i in range(1,4):
+        vectorizer.ngram_range=(i, i)
+        XA = vectorizer.fit_transform(X)
+        feature_array = vectorizer.get_feature_names()
+        top_sorted_tuples = sorted(list(zip(vectorizer.get_feature_names(),
+                                                     XA.sum(0).getA1())),
+                                         key=lambda x: x[1], reverse=True)[:top_n]
+        top_sorted = [x for (x,y) in  top_sorted_tuples]
+        print("Top %d %d-gram\n: %s" %(top_n, i, top_sorted))
 ###########################################################################################
 from sklearn.feature_extraction.text import TfidfVectorizer
 from collections import defaultdict
@@ -684,21 +689,6 @@ def select_top_features_from_vectorizer(X, vectorizer,top_n=25):
     You can change the top X features to any number you want. But it must be less than the
     number of features in X. Otherwise, it will assume you want all.
     """
-    features_by_gram = defaultdict(list)
-    if str(vectorizer).split("(")[0] == 'CountVectorizer':
-        for f, w in zip(vectorizer.get_feature_names(), vectorizer.vocabulary_):
-            features_by_gram[len(f.split(' '))].append((f, w))        
-    else:
-        for f, w in zip(vectorizer.get_feature_names(), vectorizer.idf_):
-            features_by_gram[len(f.split(' '))].append((f, w))
-    dicti = {}
-    grams_length = 0
-    for gram, features in features_by_gram.items():
-        top_features = sorted(features, key=lambda x: x[1], reverse=True)[:top_n]
-        top_features = [f[0] for f in top_features]
-        print('{}-gram top features:'.format(gram), top_features)
-        dicti[gram] = top_features
-        grams_length +=  len(dicti[gram])
     #### Convert the Feature Array from a Sparse Matrix to a Dense Array #########
     XA = X.toarray()
     if XA.shape[1] <= grams_length:
@@ -745,7 +735,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
                             modeltype,top_num_features=50, verbose=0):
     """
     ##################################################################################
-    #### Auto_NLP expects both train and test to be data frames with one NLP column 
+    #### Auto_NLP expects both train and test to be data frames with one NLP column
     ####  and one target.
     #### It uses the sole NLP_column to analyze, train and predict the target. The predictions
     #### train and test are returned. If no target is given, it just analyzes NLP column.
@@ -793,6 +783,18 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
         #### You don't want to draw the same set of charts for Test data since it would be repetitive
         #####   Hence set the verbose to 0 in this case !!!
         test, nlp_summary_cols = create_summary_of_nlp_cols(test, nlp_column, target, is_train=False, verbose=0)
+    ########################  C L E AN    C O L U M N S   F I R S T ######################
+    print('    Cleaning text in %s before doing transformation...' %nlp_column)
+    start_time = time.time()
+    ####### CLEAN THE DATA FIRST ###################################
+    train[nlp_column] = train[nlp_column].map(expand_text).values
+    train[nlp_column] = train[nlp_column].map(clean_text_using_regex).map(strip_out_special_chars).values
+    train[nlp_column] = remove_stop_words(train[nlp_column])
+    if not isinstance(test, str):
+        test[nlp_column] = test[nlp_column].map(expand_text).values
+        test[nlp_column] = test[nlp_column].map(clean_text_using_regex).map(strip_out_special_chars).values
+        test[nlp_column] = remove_stop_words(test[nlp_column])
+    print('Train and Test data Text cleaning completed. Time taken = %d seconds' %(time.time()-start_time))
     ##########################################################################################
     if modeltype.endswith('Classification'):
         #print('Class distribution in Train:')
@@ -833,6 +835,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
         ls = ['svd_dim_'+str(x) for x in range(best_features_array.shape[1])]
         train_best = pd.DataFrame(best_features_array,columns=ls)
     #train_best = select_top_features_from_vectorizer(train_dtm, best_nlp_vect, )
+    print_top_feature_grams(train[nlp_column], best_nlp_vect)
     if type(test) != str:
         test_index = test.index
         #### If test data is given, then convert it into a Vectorized frame using best vectorizer
@@ -842,7 +845,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
         else:
             best_features_array, _ = select_top_features_from_SVD(test_all,tsvd,False)
             test_best = pd.DataFrame(best_features_array,columns=ls)
-        #test_best = select_top_features_from_vectorizer(test_dtm, best_nlp_vect, top_num_features)
+    #test_best = select_top_features_from_vectorizer(test_dtm, best_nlp_vect, top_num_features)
     else:
         test_best = ''
     #### best contains the entire data rows with the top X features of a Vectorizer
@@ -1001,7 +1004,7 @@ def create_summary_of_nlp_cols(data, col, target, is_train=False, verbose=0):
             plot_nlp_column(data[col+'_char_count'],"Character Count")
     if verbose >= 2:
         if is_train:
-            draw_dist_plots_summary_cols(data, target, cols)        
+            draw_dist_plots_summary_cols(data, target, cols)
     return data, cols
 #############################################################################
 def plot_nlp_column(df_col,label_title):
@@ -1036,13 +1039,13 @@ def draw_dist_plots_summary_cols(df_train, target, summary_cols):
         for target_name in target_names:
             label = str(target_name)
             color = next(colors)
-            sns.distplot(df_train.loc[df_train[target] == target_name][feature], 
-                         label=label, 
+            sns.distplot(df_train.loc[df_train[target] == target_name][feature],
+                         label=label,
                      ax=eval(axs[axi]), color=color, kde_kws={'bw':1.5})
             labels.append(label)
     plt.legend(labels=labels)
     plt.show();
-#############################################################################    
+#############################################################################
 def plot_histogram_probability(dist_train, dist_test, label_title):
     pal = 'bryclg'
     plt.figure(figsize=(15, 10))
@@ -1055,7 +1058,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.23'
+version_number = '0.0.24'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(
                 nlp_column, train, test, target, score_type,

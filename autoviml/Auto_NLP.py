@@ -385,7 +385,7 @@ def clean_text_using_regex(text):
     # Words with punctuations and special characters
     punctuations = '@#!?+&*[]-%.:/();$=><|{}^' + "'`"
     for p in punctuations:
-        text = text.replace(p, f' {p} ')
+        text = text.replace(p, ' %s ' %p)
 
     # ... and ..
     text = text.replace('...', ' ... ')
@@ -1058,7 +1058,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.24'
+version_number = '0.0.25'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(
                 nlp_column, train, test, target, score_type,

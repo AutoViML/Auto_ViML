@@ -199,15 +199,15 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
                 start_train[new_missing_col] = 0
             #####  THis is to take care of Missing_Flag in start_test data set!!
             start_test[new_missing_col] = 0
-            start_test.loc[start_test[col].isnull(),new_missing_col]=1                        
+            start_test.loc[start_test[col].isnull(),new_missing_col]=1
             if str_flag:
                 start_test[col] = start_test[col].fillna("NA", inplace=False).astype(str)
             else:
                 start_test[col] = start_test[col].fillna("NA", inplace=False).astype('category')
         else:
             #### In some rare cases, there is missing values in train but not in test data!
-            #### In those cases, we need to create a new_missing_col in test data in addition to train 
-            start_test[new_missing_col] = 0            
+            #### In those cases, we need to create a new_missing_col in test data in addition to train
+            start_test[new_missing_col] = 0
         if len(start_test[col].apply(type).value_counts()) > 1:
             print('    Alert! Mixed Data Types in Test data set %s column with %d data types. Fixing it...' %(
                                            col, len(start_test[col].apply(type).value_counts())))
@@ -245,7 +245,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.615                                              #######
+    ######                               Version 0.1.616                                              #######
     #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -358,7 +358,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     one_hot_size = 500 #### This determines the max length of one_hot_max_size parameter of CatBoost algrithm
     Alpha_min = -3 #### The lowest value of Alpha in LOGSPACE that is used in CatBoost
     Alpha_max = 2 #### The highest value of Alpha in LOGSPACE that is used in Lasso or Ridge Regression
-    #Cs = [0.001,0.005,0.01,0.05,0.1,0.25,0.5,1,2,4,6,10,20,30,40,50,100,150,200,400,800,1000,2000]  
+    #Cs = [0.001,0.005,0.01,0.05,0.1,0.25,0.5,1,2,4,6,10,20,30,40,50,100,150,200,400,800,1000,2000]
     Cs = np.logspace(-2,3,40) ### The list of values of C used in Logistic Regression
     tolerance = 0.001 #### This tolerance is needed to speed up Logistic Regression. Otherwise, SAGA takes too long!!
     #### 'lbfgs' is the fastest one but doesnt provide accurate results. Newton-CG is slower but accurate!
@@ -369,7 +369,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     max_depth = 10 ##### This limits the max_depth used in decision trees and other classifiers
     max_features = 10 #### maximum number of features in a random forest model or extra trees model
     warm_start = True ### This is to set the warm_start flag for the ExtraTrees models
-    bootstrap = True #### Set this flag to control whether to bootstrap variables or not. 
+    bootstrap = True #### Set this flag to control whether to bootstrap variables or not.
     n_repeats = 1 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
     Bins = 30 ### This is for plotting probabilities in a histogram. For small data sets, 30 is enough.
     top_nlp_features = 25 ### This sets a limit on the number of features added by each NLP transformer!
@@ -406,7 +406,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         from autoviml.custom_scores import gini_macro_f1, gini_micro_f1, gini_samples_f1,f2_measure
         from autoviml.custom_scores import gini_log_loss, gini_recall, gini_weighted_recall
         from autoviml.custom_scores import gini_samples_recall, gini_macro_recall, gini_micro_recall
-    ###### If hyper_param = 'GS', it takes a LOOOONG TIME with "SAGA" solver for LogisticRegression. 
+    ###### If hyper_param = 'GS', it takes a LOOOONG TIME with "SAGA" solver for LogisticRegression.
     ####   Hence to speed it up you need to change the tolerance threshold to something bigger
     if hyper_param == 'GS':
             tolerance = 0.01 #### This tolerance is bigger to speed up Logistic Regression. Otherwise, SAGA takes too long!!
@@ -689,8 +689,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
-                    preds.append(new_missing_col)                    
-                    missing_flag_cols.append(new_missing_col)                    
+                    preds.append(new_missing_col)
+                    missing_flag_cols.append(new_missing_col)
             elif start_train[f].dtype == np.int64 or start_train[f].dtype == np.int32 or start_train[f].dtype == np.int16:
                 ### if there are integer variables, don't scale them. Leave them as is.
                 fill_num = start_train[f].min() - 1
@@ -702,22 +702,22 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     start_train[f] = start_train[f].fillna(fill_num).astype(int)
                 if type(orig_test) != str:
                     if missing_flag:
-                        start_test[new_missing_col] = 0                       
+                        start_test[new_missing_col] = 0
                     if start_test[f].isnull().sum() > 0:
-                        start_test.loc[start_test[f].isnull(),new_missing_col]=1                        
+                        start_test.loc[start_test[f].isnull(),new_missing_col]=1
                         start_test[f] = start_test[f].fillna(fill_num).astype(int)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
                     preds.append(new_missing_col)
-                    missing_flag_cols.append(new_missing_col)                    
+                    missing_flag_cols.append(new_missing_col)
             elif f in factor_cols:
                 start_train, start_test,missing_flag,new_missing_col = convert_train_test_cat_col_to_numeric(start_train, start_test,f,False)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
-                    preds.append(new_missing_col)                    
-                    missing_flag_cols.append(new_missing_col)                    
+                    preds.append(new_missing_col)
+                    missing_flag_cols.append(new_missing_col)
             else:
                 ### for all numeric variables, fill missing values with 1 less than min.
                 fill_num = start_train[f].min() - 1
@@ -729,15 +729,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     start_train[f] = start_train[f].fillna(fill_num)
                 if type(orig_test) != str:
                     if missing_flag:
-                        start_test[new_missing_col] = 0                       
+                        start_test[new_missing_col] = 0
                     if start_test[f].isnull().sum() > 0:
-                        start_test.loc[start_test[f].isnull(),new_missing_col]=1                        
+                        start_test.loc[start_test[f].isnull(),new_missing_col]=1
                         start_test[f] = start_test[f].fillna(fill_num)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
                     preds.append(new_missing_col)
-                    missing_flag_cols.append(new_missing_col)                    
+                    missing_flag_cols.append(new_missing_col)
                 ##### DO SCALING ON TRAIN HERE ############
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
@@ -788,7 +788,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             start_train[each_bool_num] = start_train[each_bool_num].astype(int)
             if type(start_test) != str:
                 start_test[each_bool_num] = start_test[each_bool_num].astype(int)
-    ######################################################################################    
+    ######################################################################################
     #########   Set your Refit Criterion here - if you want to maximize Precision or Recall do it here ##
     if modeltype == 'Regression':
         if scoring_parameter in ['log_loss', 'neg_mean_squared_error','mean_squared_error']:
@@ -894,7 +894,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if not isinstance(orig_test, str):
                     nlp_column_test = test[nlp_column].values
                 train1, test1, best_nlp_transformer,max_features_limit = Auto_NLP(nlp_column,
-                                                train, test, each_target, refit_metric, 
+                                                train, test, each_target, refit_metric,
                                                 modeltype, top_nlp_features, verbose)
                 ########################################################################
                 if KMeans_Featurizer:
@@ -919,12 +919,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     if not isinstance(orig_test, str):
                         tfidf_term_array_test = create_tfidf_terms(nlp_column_test, best_nlp_transformer,
                                                     is_train=False, max_features_limit=max_features_limit)
-                        _, cluster_labels_test = return_cluster_labels(kme, tfidf_term_array_test, num_clusters, 
+                        _, cluster_labels_test = return_cluster_labels(kme, tfidf_term_array_test, num_clusters,
                                                     is_train=False)
                         test1[cluster_col] = cluster_labels_test
                         print ('Created word clusters using same sized term matrix for Test data set...')
                     print('    Time Taken for creating word cluster labels  = %0.0f seconds' %(time.time()-start_time1) )
-                ####### Make sure you include the above new columns created in the predictor variables! 
+                ####### Make sure you include the above new columns created in the predictor variables!
                 red_preds = [x for x in list(train1) if x not in [each_target]]
                 train = train1[red_preds+[each_target]]
                 if not isinstance(orig_test, str):
@@ -939,7 +939,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print('Processing %s column for date time features....' %date_col)
                 date_df_train = create_time_series_features(orig_train, date_col)
                 if not isinstance(date_df_train, str):
-                    date_col_adds = date_df_train.columns.tolist() 
+                    date_col_adds = date_df_train.columns.tolist()
                     print('    Adding %d columns from date time column %s' %(len(date_col_adds),date_col))
                     train = train.join(date_df_train)
                 else:
@@ -984,7 +984,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         y = train[each_target]
         ################     I  M  P  O  R  T  A  N  T  ##################################################
         ### The reason we don't use train_test_split is because we want only a partial train entropy binned
-        ### If we use the whole of Train for entropy binning then there will be data leakage and our 
+        ### If we use the whole of Train for entropy binning then there will be data leakage and our
         ### cross validation test scores will not be so accurate. So don't change the next 5 lines here!
         ################     I  M  P  O  R  T  A  N  T  ##################################################
         train_num = int((1-test_size)*train.shape[0])
@@ -1104,7 +1104,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 "criterion" : ['mse','mae'],
                                 },
                         "Linear": {
-                            'alpha': np.logspace(-5,3), 
+                            'alpha': np.logspace(-5,3),
                                 },
                         "XGBoost": {
                                         'learning_rate': np.linspace(0.1,0.5,5),
@@ -1252,7 +1252,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             random_state=99,one_hot_max_size=one_hot_size,
                             loss_function=loss_function, eval_metric=catboost_scoring,
                             subsample=0.7,bootstrap_type='Bernoulli',
-                            metric_period = 100, 
+                            metric_period = 100,
                            early_stopping_rounds=250,boosting_type='Plain')
                     else:
                         xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
@@ -1363,7 +1363,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 random_state=99,one_hot_max_size=one_hot_size,
                                 loss_function=loss_function, eval_metric=catboost_scoring,
                                 subsample=0.7,bootstrap_type='Bernoulli',
-                                metric_period = 100, 
+                                metric_period = 100,
                                early_stopping_rounds=250,boosting_type='Plain')
                     else:
                         xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
@@ -1478,26 +1478,26 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             if Boosting_Flag:
                 if model_name.lower() == 'catboost':
                     data_dim = data_dim*one_hot_size/len(preds)
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(200000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(3000000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(5000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(50000.*CPU_count)))
             elif Boosting_Flag is None:
-                print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(8000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(80000.*CPU_count)))
             else:
-                print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(4000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(40000.*CPU_count)))
         else:
             if hyper_param == 'GS':
                 if Boosting_Flag:
                     if model_name.lower() == 'catboost':
                         data_dim = data_dim*one_hot_size/len(preds)
-                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(300000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(3000000.*CPU_count)))
                     else:
-                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(20000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(50000.*CPU_count)))
                 elif Boosting_Flag is None:
                     #### A Linear model is usually the fastest ###########
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(5000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(25000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(16000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(20000.*CPU_count)))
             else:
                 if Boosting_Flag:
                     if model_name.lower() == 'catboost':
@@ -1543,7 +1543,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                     model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
                                         eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                                 except:
-                                    #### On Colab, even though GPU exists, many people don't turn it on. 
+                                    #### On Colab, even though GPU exists, many people don't turn it on.
                                     ####  In that case, XGBoost blows up when gpu_predictor is used.
                                     ####  This is to turn it back to cpu_predictor in case GPU errors!
                                     if GPU_exists:
@@ -1553,7 +1553,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                             eval_metric=eval_metric,eval_set=eval_set,verbose=False)
                                     else:
                                         model.fit(X_train,y_train,
-                                            eval_metric=eval_metric, verbose=False)                                    
+                                            eval_metric=eval_metric, verbose=False)
                             else:
                                 try:
                                     model.fit(X_train, y_train,
@@ -1588,7 +1588,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
                                     eval_metric=eval_metric,eval_set=eval_set,verbose=0)
                         except:
-                            #### On Colab, even though GPU exists, many people don't turn it on. 
+                            #### On Colab, even though GPU exists, many people don't turn it on.
                             ####  In that case, XGBoost blows up when gpu_predictor is used.
                             ####  This is to turn it back to cpu_predictor in case GPU errors!
                             if GPU_exists:
@@ -1685,11 +1685,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     m_thresh = 0.5
                 # retrieve just the probabilities for the positive class
                 pos_probs = y_proba[:, rare_class]
-                # create a histogram of the predicted probabilities for the Rare Class since it will help decide threshold
-                plt.figure()
-                plt.hist(pos_probs, bins=Bins)
-                plt.title("Model's Predictive Probabilitites for Rare Class=%s with suggested threshold in red" %rare_class_orig)
-                plt.axvline(x=m_thresh, color='r', linestyle='--')
+                if verbose >= 1:
+                    # create a histogram of the predicted probabilities for the Rare Class since it will help decide threshold
+                    plt.figure(figsize=(6,5))
+                    plt.hist(pos_probs, bins=Bins, color='g')
+                    plt.title("Model's Predictive Probabilitites for Rare Class=%s with suggested threshold in red" %rare_class_orig)
+                    plt.axvline(x=m_thresh, color='r', linestyle='--')
                 print("    Using threshold=0.5. However, %0.3f provides better F1=%0.2f for rare class..." %(m_thresh,best_f1))
                 ###y_pred = (y_proba[:,rare_class]>=m_thresh).astype(int)
                 predicted = copy.deepcopy(y_proba)
@@ -2013,8 +2014,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         model = xgbm.set_params(**best_params)
                     model = training_with_SMOTE(X,y, eval_set, model,
                                       Boosting_Flag, eval_metric,modeltype, model_name,
-                                      training=True, minority_class=rare_class,
-                                      imp_cats=imp_cats, 
+                                      minority_class=rare_class,
+                                      imp_cats=imp_cats,training=False,
                                       GPU_exists=GPU_exists, params=cpu_params,
                                       verbose=verbose)
                     if isinstance(model, str):
@@ -2408,7 +2409,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     catvars = copy.deepcopy(rem_vars)
     ############   I  M P O R T A N T ! I M P O R T A N T ! ######################
     ##### Removing the Cat Vars selection using Linear Methods since they fail so often.
-    ##### Linear methods such as Chi2 or Mutual Information Score are not great 
+    ##### Linear methods such as Chi2 or Mutual Information Score are not great
     ####  for feature selection since they can't handle large data and provide
     ####  misleading results for large data sets. Hence I am using XGBoost alone.
     ####  Also, another method of using Spearman Correlation for CatVars with 100's
@@ -2923,10 +2924,10 @@ from collections import OrderedDict
 import time
 def return_dictionary_list(lst_of_tuples):
     """ Returns a dictionary of lists if you send in a list of Tuples"""
-    orDict = defaultdict(list)   
-    # iterating over list of tuples 
-    for key, val in lst_of_tuples: 
-        orDict[key].append(val) 
+    orDict = defaultdict(list)
+    # iterating over list of tuples
+    for key, val in lst_of_tuples:
+        orDict[key].append(val)
     return orDict
 ##################################################################################
 def count_freq_in_list(lst):
@@ -3117,7 +3118,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     XP1 = pd.DataFrame(XP,index=orig_data_index, columns=xnames) ## XP1 has all the Xvars:incl orig+poly+intxn vars
     x_vars = xnames[:n_orig_features]  ### x_vars contain x_variables such as 'x1'
     #### Feature_xvar_dict will map the X_vars, Squared_vars and Intxn_vars back to  Text vars in one variable
-    feature_xvar_dict = dict(zip(x_vars,predictors)) ### 
+    feature_xvar_dict = dict(zip(x_vars,predictors)) ###
     if fit_flag:
         #### If there is fitting to be done, then you must do this ###
         if Add_Poly == 1: #### This adds only Interaction variables => no Polynomials!
@@ -3131,8 +3132,8 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
             intxn_vars = left_subtract(xnames, sq_vars+x_vars) ### intxn_vars contain interaction vars such as 'x1 x2'
         ####  It is now time to cut down the original x_variables to just squared variables and originals here ####
         dict_vars = dict(zip(predictors,x_vars)) ### this is a dictionary mapping original variables and their x-variables
-        reverse_dict_vars = dict([(y,x) for (x,y) in dict_vars.items()]) ### this maps the x-vars to original vars 
-        ##### Now let's convert Interaction x_variables into their corresponding text variables 
+        reverse_dict_vars = dict([(y,x) for (x,y) in dict_vars.items()]) ### this maps the x-vars to original vars
+        ##### Now let's convert Interaction x_variables into their corresponding text variables
         intxn_text_vars = []
         for each_item in intxn_vars:
             if len(each_item.split(" ")) == 1:
@@ -3145,7 +3146,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
                 feature_xvar_dict[each_item] = full_intxn_name
             else:
                 pass
-        ##### Now let's convert Squared x_variables into their corresponding text variables 
+        ##### Now let's convert Squared x_variables into their corresponding text variables
         sq_text_vars = []
         for each_sq_item in sq_vars:
             if len(each_sq_item.split("^")) == 2:
@@ -3174,7 +3175,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         XP1X = XP1[new_addx_vars]
         new_addtext_vars = [feature_xvar_dict[x] for x in new_addx_vars]
         XP2.columns = new_addtext_vars+[targetvar]
-        XP1X.columns = new_addtext_vars 
+        XP1X.columns = new_addtext_vars
         ###################################################################################
         ####    FAST FEATURE REDUCTION USING L1 REGULARIZATION FOR LARGE DATA SETS   ######
         ####   Use LassoCV or LogisticRegressionCV to Reduce Variables using Regularization
@@ -3185,7 +3186,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         dfx = pd.DataFrame([new_addx_vars, new_addtext_vars])
         df = dfx.T
         df.columns=['X Names','Interaction Variable Names']
-        ##########  N O W   B U I L D  T H E  M O D E L ##################################        
+        ##########  N O W   B U I L D  T H E  M O D E L ##################################
         if modeltype == 'Regression':
             df['Coefficient Values'] = lm_p.coef_
         else:
@@ -3236,7 +3237,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
                 print('    Selected variables are: %s' %final_text_vars)
         return final_text_vars, lm_p, New_XP, md, final_x_vars,feature_xvar_dict
     else:
-        #### Just return the transformed dataframe with all orig+poly+intxn vars 
+        #### Just return the transformed dataframe with all orig+poly+intxn vars
         return predictors, lm, XP1, md, x_vars,feature_xvar_dict
 ##################################################################################
 ## Import sklearn
@@ -3652,9 +3653,9 @@ def create_features(df, tscol):
     df['weekofyear'] = df[tscol].dt.weekofyear
     weekends = (df['dayofweek'] == 5) | (df['dayofweek'] == 6)
     df['weekend'] = 0
-    df.loc[weekends, 'weekend'] = 1    
+    df.loc[weekends, 'weekend'] = 1
     dt_adds = ['hour','dayofweek','quarter','month','year',
-           'dayofyear','dayofmonth','weekofyear','weekend'] 
+           'dayofyear','dayofmonth','weekofyear','weekend']
     X = df[dt_adds].fillna(0)
     return X
 
@@ -3691,8 +3692,8 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
     """
     seed = 99
     start_time = time.time()
-    if y_df.value_counts()[minority_class] <= 6: 
-        #### Because SMOTE has default as 6, if you have less than 6 samples in your rare-class, 
+    if y_df.value_counts()[minority_class] <= 6:
+        #### Because SMOTE has default as 6, if you have less than 6 samples in your rare-class,
         ####   then you have to reduce the number of k_neighbors to something smaller than rare_class samples
         smote = SMOTE(random_state=seed,sampling_strategy='all', k_neighbors=2, n_jobs=-1)
     else:
@@ -3710,12 +3711,16 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
     else:
         print("Using SMOTE's over-sampling techniques to make the %d classes balanced..." %len(np.unique(y_df)))
     #### With SMOTE Oversampling, just one batch of training is enough and gives great results!
-    X_train_ovr, y_train_ovr = smote.fit_sample(X_df, y_df)
+    X_train_ovr, y_train_ovr = smote.fit_resample(X_df, y_df)
     print('    SMOTE completed. Actual time taken = %0.0f seconds' %(time.time()-start_time))
     print('##################  Training Imbalanced data now...  ################')
     train_ovr = pd.DataFrame(X_train_ovr, columns=train_preds)
     train_ovr[df_target] = y_train_ovr
-    train_ovr[df_target].value_counts(1).plot(kind='bar',title='Distribution of classes after SMOTE')
+    if not training:
+        if verbose >= 1:
+            fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True,figsize=(12,5))
+            y_df.value_counts(1).plot(kind='bar',title='Distribution of classes before SMOTE', ax=ax1, color='r')
+            train_ovr[df_target].value_counts(1).plot(kind='bar',title='Distribution of classes after SMOTE', ax=ax2, color='b')
     if Boosting_Flag:
         if model_name == 'XGBoost':
             early_stopping = 5
@@ -3727,7 +3732,7 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
                     model.fit(X_train_ovr, y_train_ovr, early_stopping_rounds=early_stopping,
                         eval_metric=eval_metric,eval_set=eval_set,verbose=False)
             except:
-                #### On Colab, even though GPU exists, many people don't turn it on. 
+                #### On Colab, even though GPU exists, many people don't turn it on.
                 ####  In that case, XGBoost blows up when gpu_predictor is used.
                 ####  This is to turn it back to cpu_predictor in case GPU errors!
                 if GPU_exists:
@@ -3933,7 +3938,7 @@ def plot_classification_results(m, X_true, y_true, y_pred, labels, target_names,
                                                output_dict=True)
         except:
             clf_report = classification_report(y_true,y_pred,labels=target_names,
-                target_names=labels,output_dict=True)            
+                target_names=labels,output_dict=True)
         sns.heatmap(pd.DataFrame(clf_report).iloc[:, :].T, annot=True,ax=axes[1,1],fmt='0.2f');
         axes[1,1].set_title('Classification Report: %s' %each_target)
     except:
@@ -3957,7 +3962,7 @@ def print_classification_model_stats(y_true, predicted, m_thresh=0.5):
             else:
                 y_pred = predicted.argmax(axis=1)
             print('Balanced Accuracy = %0.2f%% with Threshold = %0.2f' %(
-                100*balanced_accuracy_score(y_true, y_pred),threshold))    
+                100*balanced_accuracy_score(y_true, y_pred),threshold))
             print('Confusion Matrix:')
             print(confusion_matrix(y_true, y_pred))
             print(classification_report(y_true, y_pred))
@@ -4084,7 +4089,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
             entropy_binning = True
         else:
             max_depth = max_depth
-            continuous_vars = continuous_vars[:50]            
+            continuous_vars = continuous_vars[:50]
         print('Entropy Binning %d continuous variables...' %len(continuous_vars))
         new_bincols = []
         ###   This is an Awesome Entropy Based Binning Method for Continuous Variables ###########
@@ -4133,7 +4138,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.615'
+version_number = '0.1.616'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

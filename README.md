@@ -16,7 +16,9 @@ MAJOR UPGRADE with:<br>
 1. SMOTE -> now we use SMOTE for imbalanced data. Just set Imbalanced_Flag = True in input below <br>
 2. Auto_NLP: It automatically detects Text variables and does NLP processing on those columns <br>
 3. Date Time Variables: It automatically detects  date time variables and adds extra features <br>
-BEST, STABLLE and MAJOR version > 0.1.600 <br>$ pip install autoviml --upgrade <br>
+
+This is the BEST, STABLE and MAJOR UPGRADED version anything over > 0.1.600 <br>
+Use $ pip install autoviml --upgrade <br>
 ## Table of Contents
 
 - [Background](#background)

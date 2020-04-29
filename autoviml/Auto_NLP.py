@@ -841,7 +841,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
         #### If test data is given, then convert it into a Vectorized frame using best vectorizer
         test_all = best_nlp_vect.transform(test[nlp_column])
         if test_all.shape[1] <= top_num_features:
-            best_df = pd.DataFrame(test_all.todense(),columns=best_nlp_vect.get_feature_names())
+            test_best = pd.DataFrame(test_all.todense(),columns=best_nlp_vect.get_feature_names())
         else:
             best_features_array, _ = select_top_features_from_SVD(test_all,tsvd,False)
             test_best = pd.DataFrame(best_features_array,columns=ls)
@@ -1058,7 +1058,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.25'
+version_number = '0.0.26'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(
                 nlp_column, train, test, target, score_type,

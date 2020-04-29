@@ -12,7 +12,11 @@
 
 Automatically Build Variant Interpretable ML models fast!
 Auto_ViML is pronounced "auto vimal". Read this [medium article to learn how to use Auto_ViML](https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46).<br>
-MAJOR UPGRADE with SMOTE and Auto_NLP: version 0.1.600 <br>=> pip install autoviml --upgrade
+MAJOR UPGRADE with:<br>
+1. SMOTE -> now we use SMOTE for imbalanced data. Just set Imbalanced_Flag = True in input below <br>
+2. Auto_NLP: It automatically detects Text variables and does NLP processing on those columns <br>
+3. Date Time Variables: It automatically detects  date time variables and adds extra features <br>
+BEST, STABLLE and MAJOR version > 0.1.600 <br>$ pip install autoviml --upgrade <br>
 ## Table of Contents
 
 - [Background](#background)
@@ -26,7 +30,13 @@ MAJOR UPGRADE with SMOTE and Auto_NLP: version 0.1.600 <br>=> pip install autovi
 ## Background
 
 Auto_ViML was designed for building High Performance Interpretable Models with the least variables.
-The "V" in Auto_ViML stands for Variant because it tries Multiple Models and Multiple Features to find the best performing model for any dataset. The "i" in Auto_ViML stands for "Interpretable" since it selects the fewest features to build a simpler, more interpretable model. This is key.
+The "V" in Auto_ViML stands for Variant because it tries Multiple Models and Multiple Features to find the best performing model for any dataset. The "i" in Auto_ViML stands for "Interpretable" since it selects the fewest features to build a simpler, more interpretable model. This is key. Some of the differentiators of Auto_ViML from other open source AutoML libraries is as follows:
+Auto_ViML is the package that:
+1. Requires no data prep - you can send in your entire dataframe without a single change. It loves dirty data!
+2. Requires no classification of variables: All other packages want you to tell them which variables are numeric, categorical, NLP text, date variables etc. autoVimal detects all of these automatically as any AutoML package should!
+3. Does feature reduction automatically! All other packages use all the variables you send them which means they are either bloated or highly complex models. Autovimal is the only package that produces the best model with the fewest variables. That means it is very easy to interpret!
+4. Produces charts and graphs automatically. Just set verbose to 1 or 2
+5. Handles both text, date and numeric and categorical data all in the same model. In other packages they cannot Handle NLP. Some Cannot handle date variables. But AutoViML is the only package that uses all of them!
 
 Auto_ViML is built using Scikit-Learn, Numpy, Pandas and Matplotlib. It should run
 on any Python 2 or Python 3 Anaconda installations. You won't have to import any special

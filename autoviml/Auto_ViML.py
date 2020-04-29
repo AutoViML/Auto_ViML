@@ -245,7 +245,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.614                                              #######
+    ######                               Version 0.1.615                                              #######
     #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -933,19 +933,23 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
         train_sel = np.array(red_preds)[(train[red_preds].dtypes==float).values].tolist()
         #########   A D D   D A T E  T I M E    F E A T U R E S ####################
-        for date_col in date_cols:
-            print('Processing %s column for date time features....' %date_col)
-            date_df_train = create_time_series_features(orig_train, date_col)
-            date_col_adds = date_df_train.columns.tolist() 
-            print('    Adding %d columns from date time column %s' %(len(date_col_adds),date_col))
-            if not isinstance(date_df_train, str):
-                train = train.join(date_df_train)
-            if not isinstance(orig_test, str):
-                date_df_test = create_time_series_features(orig_test, date_col)
-                if not isinstance(date_df_test, str):
-                    test = test.join(date_df_test)
-        red_preds = [x for x in list(train) if x not in [each_target]]
-        train_sel = train_sel + date_col_adds
+        if len(date_cols) > 0:
+            #### Do this only if date time columns exist in your data set!
+            for date_col in date_cols:
+                print('Processing %s column for date time features....' %date_col)
+                date_df_train = create_time_series_features(orig_train, date_col)
+                if not isinstance(date_df_train, str):
+                    date_col_adds = date_df_train.columns.tolist() 
+                    print('    Adding %d columns from date time column %s' %(len(date_col_adds),date_col))
+                    train = train.join(date_df_train)
+                else:
+                    date_col_adds = []
+                if not isinstance(orig_test, str):
+                    date_df_test = create_time_series_features(orig_test, date_col)
+                    if not isinstance(date_df_test, str):
+                        test = test.join(date_df_test)
+            red_preds = [x for x in list(train) if x not in [each_target]]
+            train_sel = train_sel + date_col_adds
         #########     SELECT IMPORTANT FEATURES HERE   #############################
         if feature_reduction:
             important_features,num_vars, imp_cats = find_top_features_xgb(train,red_preds,train_sel,
@@ -4129,7 +4133,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.614'
+version_number = '0.1.615'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

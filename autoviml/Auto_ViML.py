@@ -245,7 +245,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.617                                              #######
+    ######                               Version 0.1.618                                              #######
     #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -1523,7 +1523,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 ####### Imbalanced with Classification #################
                 try:
                     print('##################  Imbalanced Flag Set  ############################')
-                    print('Imbalanced Class Training using SMOTE oversampling method...')
+                    print('Imbalanced Class Training using SMOTE Rare Class Oversampling method...')
                     #### The model is the downsampled model Trained on downsampled data sets. ####
                     model = training_with_SMOTE(X_train,y_train,eval_set, gs,
                                            Boosting_Flag, eval_metric,
@@ -1748,14 +1748,20 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         else:
                             subm[new_col] = cv_ensembles[:,each]
                         cols.append(new_col)
-                    y_pred = subm[cols].mean(axis=1)
+                    if len(cols) == 5:
+                        print('    Calculating weighted average ensemble of %d regressors' %len(cols))
+                        ensem_pred = np.round(subm[cols[-1]]*0.5+0.125*(subm[cols[0]]+subm[
+                                        cols[1]]+subm[cols[2]]+subm[cols[3]])).astype(int)
+                    else:
+                        print('    Calculating regular average ensemble of %d regressors' %len(cols))
+                        ensem_pred = (subm[cols].mean(axis=1)).astype(int)
                     print('#############################################################################')
                     performed_ensembling = True
                     #### Since we have a new ensembled y_pred, make sure it is series or array before printing it!
                     if isinstance(y_pred,pd.Series):
-                        print_regression_model_stats(y_cv, y_pred.values,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
+                        print_regression_model_stats(y_cv, ensem_pred.values,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
                     else:
-                        print_regression_model_stats(y_cv, y_pred,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
+                        print_regression_model_stats(y_cv, ensem_pred,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
                 except:
                     print('Could not complete Ensembling predictions on held out data due to Error')
         else:
@@ -1786,15 +1792,18 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         else:
                             subm[new_col] = cv_ensembles[:,each]
                         cols.append(new_col)
-                    if len(classes) <= 2:
-                        y_pred = (subm[cols].mean(axis=1)>0.5).astype(int)
+                    if len(cols) == 5:
+                        print('    Calculating weighted average ensemble of %d classifiers' %len(cols))
+                        ensem_pred = np.round(subm[cols[-1]]*0.5+0.125*(subm[cols[0]]+subm[
+                                        cols[1]]+subm[cols[2]]+subm[cols[3]])).astype(int)
                     else:
-                        y_pred = (subm[cols].mean(axis=1)).astype(int)
+                        print('    Calculating regular average ensemble of %d classifiers' %len(cols))
+                        ensem_pred = (subm[cols].mean(axis=1)).astype(int)
                     print('#############################################################################')
                     performed_ensembling = True
                     ##### This next step is very important since some models give series, others give arrays. Very painful!
-                    if isinstance(y_pred,pd.Series):
-                        y_pred = y_pred.values
+                    if isinstance(ensem_pred,pd.Series):
+                        ensem_pred = ensem_pred.values
                 except:
                     print('Could not complete Ensembling predictions on held out data due to Error')
             else:
@@ -2008,14 +2017,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             if Imbalanced_Flag:
                 try:
                     print('##################  Imbalanced Flag Set  ############################')
-                    print('Imbalanced Class Training using Majority Class Downsampling method...')
+                    print('Imbalanced Class Training using SMOTE Rare Class Oversampling method...')
                     if model_name.lower() == 'catboost':
                         print('    Setting best params for CatBoost model')
                         model = xgbm.set_params(**best_params)
                     model = training_with_SMOTE(X,y, eval_set, model,
                                       Boosting_Flag, eval_metric,modeltype, model_name,
-                                      minority_class=rare_class,
-                                      imp_cats=imp_cats,training=False,
+                                      training=False, minority_class=rare_class,
+                                      imp_cats=imp_cats,
                                       GPU_exists=GPU_exists, params=cpu_params,
                                       verbose=verbose)
                     if isinstance(model, str):
@@ -2106,6 +2115,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ######  If Stacking_ Flag is False, then we do Ensembling #######
             if not Stacking_Flag:
                 try:
+                    new_cols = []
                     subm = pd.DataFrame()
                     #### This is for Ensembling  Only #####
                     #### In Test data verbose is set to zero since no results can be obtained!
@@ -2123,12 +2133,18 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             testm[new_col] = ensembles[:,each]
                         new_cols.append(new_col)
                     ### After this, y_pred is a Series from now on. You need y_pred.values  ####
-                    y_pred = subm[new_cols].mean(axis=1)
+                    if len(new_cols) == 5:
+                        print('    Calculating weighted average ensemble of %d regressors' %len(new_cols))
+                        ensem_pred = np.round(subm[new_cols[-1]]*0.5+0.125*(subm[new_cols[0]]+subm[
+                                        new_cols[1]]+subm[new_cols[2]]+subm[new_cols[3]])).astype(int)
+                    else:
+                        print('    Calculating regular average ensemble of %d regressors' %len(cols))
+                        ensem_pred = (subm[new_cols].mean(axis=1)).astype(int)
                     ##### This next step is very important since some models give series, others give arrays. Very painful!
                     if isinstance(y_pred,pd.Series):
-                        y_pred = y_pred.values
+                        ensem_pred = ensem_pred.astype(int).values
                     new_col = each_target+'_Ensembled_predictions'
-                    testm[new_col] = y_pred
+                    testm[new_col] = ensem_pred
                     new_cols.append(new_col)
                     print('Completed Ensemble predictions on held out data')
                 except:
@@ -2169,15 +2185,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 y_pred = model.predict(X_test)
             ##### This next step is very important since some models give series, others give arrays. Very painful!
             if isinstance(y_pred,pd.Series):
-                y_pred = y_pred.values
+                y_pred = y_pred.values.astype(int)
             else:
                 ### In a small number of cases, it's an array but has a shape of 1.
-                ### This causes errors later. Hence I have to make it a single array.
+                ### This causes errors later. Hence I have to make it a singleton array.
                 try:
                     if y_pred.shape[1] == 1:
                         y_pred = y_pred.ravel()
                 except:
-                    pass
+                    y_pred = y_pred.astype(int)
             if len(label_dict[each_target]['transformer']) == 0:
                 #########  NO   T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
                 ### if there is no transformer, then leave the predicted classes as is
@@ -2187,6 +2203,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 ######  If Stacking_Flag is False, then we do Ensembling #######
                 if not Stacking_Flag:
                     ### Ensembling is not done when the model name is CatBoost ####
+                    new_cols = []
                     subm = pd.DataFrame()
                     #### This is for Ensembling  Only #####
                     #### In Test data verbose is set to zero since no results can be obtained!
@@ -2219,9 +2236,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     proba_cols.append(proba_col)
                 if not Stacking_Flag:
                     new_col = each_target+'_Ensembled_predictions'
-                    if len(classes) <= 2:
-                        ensem_pred = (subm[new_cols].mean(axis=1)>m_thresh).astype(int)
+                    if len(new_cols) == 5:
+                        print('    Calculating weighted average ensemble of %d classifiers' %len(new_cols))
+                        ensem_pred = np.round(subm[new_cols[-1]]*0.5+0.125*(subm[new_cols[0]]+subm[
+                                        new_cols[1]]+subm[new_cols[2]]+subm[new_cols[3]])).astype(int)
                     else:
+                        print('    Calculating average ensemble of %d classifiers' %len(new_cols))
                         ensem_pred = (subm[new_cols].mean(axis=1)).astype(int)
                 else:
                     stack_cols, stacksfinal = QuickML_Stacking(X, y, X_test,
@@ -2275,9 +2295,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             testm[new_col] = pd.Series(ensembles[:,each]).map(transformer).values
                         new_cols.append(new_col)
                     ### After this, y_pred is a Series from now on. You need y_pred.values  ####
-                    if len(classes) <= 2:
-                        ensem_pred = (subm[new_cols].mean(axis=1)>m_thresh).astype(int)
+                    if len(cols) == 5:
+                        print('    Calculating weighted average ensemble of %d classifiers' %len(new_cols))
+                        ensem_pred = np.round(subm[new_cols[-1]]*0.5+0.125*(subm[new_cols[0]]+subm[
+                                        new_cols[1]]+subm[new_cols[2]]+subm[new_cols[3]])).astype(int)
                     else:
+                        print('    Calculating regular average ensemble of %d classifiers' %len(new_cols))
                         ensem_pred = (subm[new_cols].mean(axis=1)).astype(int)
                     print('########################################################')
                     ##### This next step is very important since some models give series, others give arrays. Very painful!
@@ -2313,10 +2336,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         #############################################################################################
         if isinstance(sample_submission, str):
             sample_submission = testm[id_cols+[each_target+'_predictions']]
-            try:
-                write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
-            except:
-                print('    Error: Not able to save submission file. Skipping...')
+        try:
+            write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
+        except:
+            print('    Error: Not able to save submission file. Skipping...')
         #############################################################################################
         try:
             #### Bring trainm back to its original index ###################
@@ -2387,12 +2410,22 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     Since it is XGB, you dont have to restrict the input to just numeric vars.
     You can send in all kinds of vars and it will take care of transforming it. Sweet!
     """
+    import xgboost as xgb
+    ######################   I M P O R T A N T ##############################################
+    ###### This top_num decides how many top_n features XGB selects in each iteration.
+    ####  There a total of 5 iterations. Hence 5x10 means maximum 50 featues will be selected.
+    #####  If there are more than 50 variables, then maximum 5*25 = 125 variables will be selected
+    if len(preds) <= 50:
+        top_num = 10
+    else:
+        top_num = 25
+    ######################   I M P O R T A N T ##############################################
     #### If there are more than 30 categorical variables in a data set, it is worth reducing features.
     ####  Otherwise. XGBoost is pretty good at finding the best features whether cat or numeric !
-    import xgboost as xgb
     n_splits = 5
     max_depth = 8
     max_cats = 5
+    ######################   I M P O R T A N T ##############################################
     train = copy.deepcopy(train)
     preds = copy.deepcopy(preds)
     numvars = copy.deepcopy(numvars)
@@ -2505,7 +2538,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
             try:
                 [important_features.append(x) for x in list(pd.concat([pd.Series(model_xgb.feature_importances_
                         ),pd.Series(list(X_train.columns.values))],axis=1).rename(columns={0:'importance',1:'column'
-                    }).sort_values(by='importance',ascending=False)[:25]['column'])]
+                    }).sort_values(by='importance',ascending=False)[:top_num]['column'])]
             except:
                 print('Finding top features using XGB is crashing. Continuing with all predictors...')
                 important_features = copy.deepcopy(preds)
@@ -2529,7 +2562,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
             try:
                 [important_features.append(x) for x in list(pd.concat([pd.Series(model_xgb.feature_importances_
                         ),pd.Series(list(X_train.columns.values))],axis=1).rename(columns={0:'importance',1:'column'
-                    }).sort_values(by='importance',ascending=False)[:25]['column'])]
+                    }).sort_values(by='importance',ascending=False)[:top_num]['column'])]
                 important_features = list(OrderedDict.fromkeys(important_features))
             except:
                 print('Multi Label possibly no feature importances.')
@@ -4138,7 +4171,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.617'
+version_number = '0.1.618'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

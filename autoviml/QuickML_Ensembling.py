@@ -109,6 +109,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
     else:
         if scoring == '':
             scoring = 'accuracy'
+        num_classes = len(np.unique(y_test))
         scv = StratifiedKFold(n_splits=FOLDS,random_state=seed)
         if Boosting_Flag is None:
             ## Create an ensemble model ####
@@ -120,9 +121,13 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             model5 = LinearDiscriminantAnalysis()
             model_tuples.append(('Linear_Discriminant',model5))
         else:
-            model5 = LogisticRegression(C=0.01,solver='liblinear',
-                                          random_state=seed)
-            model_tuples.append(('Logistic_Regression_Model',model5))
+            if num_classes == 2:
+                model5 = LogisticRegressionCV(Cs=[0.001,0.01,0.1,1,10,100],
+                                          solver='liblinear', random_state=seed)
+            else:
+                model5 = LogisticRegressionCV(Cs=[0.001,0.01,0.1,1,10,100],
+                        solver='newton-cg',random_state=seed)
+            model_tuples.append(('Logistic_Regression_CV',model5))
         if Boosting_Flag is None:
             model6 = DecisionTreeClassifier(max_depth=5,min_samples_leaf=2)
             model_tuples.append(('Decision_Tree',model6))
@@ -220,7 +225,7 @@ def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, m
                                                          r_score_list, f1_score_list]).T
                 model_comparison_df.columns = ['model_name', 'bal_accuracy_score', 'accuracy_score',
                                          'ave_precision_score', 'ave_recall_score', 'ave_f1_score']
-                model_comparison_df = model_comparison_df.sort_values(by='ave_f1_score', ascending=False)
+                model_comparison_df = model_comparison_df.sort_values(by='bal_accuracy_score', ascending=False)
     if not isinstance(y_test, str):
         data_frame = model_comparison_df.set_index('model_name').astype(float)
         plt.figure(figsize=(10,10))

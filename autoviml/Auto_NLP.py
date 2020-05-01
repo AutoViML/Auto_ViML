@@ -86,11 +86,21 @@ def tokenize_test_by_metric(model, X_train, X_cv, y_train, y_cv,
     print_sparse_stats(X_train_dtm)
     X_cv_dtm = vect.transform(X_cv)
     try:
-        model.fit(X_train_dtm, y_train)
-        y_preds = model.predict(X_cv_dtm)
+        if str(model).split("(")[0] == 'MultinomialNB':
+            #### Multinomial models need only positive values!!
+            model.fit(abs(X_train_dtm), y_train)
+            y_preds = model.predict(abs(X_cv_dtm)) 
+        else:
+            model.fit(X_train_dtm, y_train)
+            y_preds = model.predict(X_cv_dtm) 
     except:
-        model.fit(X_train_dtm.toarray(), y_train)
-        y_preds = model.predict(X_cv_dtm.toarray())
+        if str(model).split("(")[0] == 'MultinomialNB':
+            #### Multinomial models need only positive values!!
+            model.fit(abs(X_train_dtm.toarray()), y_train)
+            y_preds = model.predict(abs(X_cv_dtm.toarray())) 
+        else:
+            model.fit(X_train_dtm.toarray(), y_train)
+            y_preds = model.predict(X_cv_dtm.toarray()) 
     # calculate return_scoreval for score_type
     metric_val = return_scoreval(metric, y_cv, y_preds, '', modeltype)
     print('%s Metrics for %s = %0.2f' %(metric, X_train.shape,
@@ -970,23 +980,29 @@ def create_summary_of_nlp_cols(data, col, target, is_train=False, verbose=0):
     cols = []
     stop_words = return_stop_words()
     # word_count
-    data[col+'_word_count'] = data[col].apply(lambda x: len(str(x).split()))
+    data[col+'_word_count'] = data[col].apply(lambda x: len(str(x).split(" ")))
     cols.append(col+'_word_count')
     # unique_word_count
-    data[col+'_unique_word_count'] = data[col].apply(lambda x: len(set(str(x).split())))
+    data[col+'_unique_word_count'] = data[col].apply(lambda x: len(set(str(x).split(" "))))
     cols.append(col+'_unique_word_count')
     # stop_word_count
-    data[col+'_stop_word_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split() if w in stop_words]))
+    data[col+'_stop_word_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split(" ") if w in stop_words]))
     cols.append(col+'_stop_word_count')
     # url_count
-    data[col+'_url_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split() if 'http' in w or 'https' in w]))
-    cols.append(col+'_stop_word_count')
+    data[col+'_url_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split(" ") if 'http' in w or 'https' in w]))
+    cols.append(col+'_url_count')
     # mean_word_length
-    data[col+'_mean_word_length'] = data[col].apply(lambda x: int(np.mean([len(w) for w in str(x).split()])))
-    cols.append(col+'_mean_word_length')
+    try:
+      data[col+'_mean_word_length'] = data[col].apply(lambda x: int(np.mean([len(w) for w in str(x).split(" ")])))
+      cols.append(col+'_mean_word_length')
+    except:
+      print('Error: Cannot create word length in %s due to NaNs in data' %col)
     # char_count
-    data[col+'_char_count'] = data[col].apply(lambda x: len(str(x)))
-    cols.append(col+'_char_count')
+    try:
+      data[col+'_char_count'] = data[col].apply(lambda x: len(str(x)))
+      cols.append(col+'_char_count')
+    except:
+      print('Error: Cannot create char count in %s due to NaNs in data' %col)
     # punctuation_count
     data[col+'_punctuation_count'] = data[col].apply(lambda x: len([c for c in str(x) if c in string.punctuation]))
     cols.append(col+'_punctuation_count')
@@ -1058,9 +1074,9 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.26'
+version_number = '0.0.27'
 print("""Imported Auto_NLP version: %s.. Call using:
-     train_nlp, test_nlp, best_nlp_transformer = Auto_NLP(
+     train_nlp, test_nlp, best_nlp_transformer, _ = Auto_NLP(
                 nlp_column, train, test, target, score_type,
                 modeltype,top_num_features=50, verbose=0)""" %version_number)
 ########################################################################

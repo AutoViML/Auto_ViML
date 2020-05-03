@@ -19,6 +19,8 @@ import time
 import pprint
 import matplotlib
 matplotlib.style.use('ggplot')
+from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import RandomizedSearchCV
 
 from sklearn import model_selection
 import warnings
@@ -77,36 +79,47 @@ nltk.download('stopwords')
 ############################################################################
 # define a function that accepts a vectorizer and calculates its accuracy
 def tokenize_test_by_metric(model, X_train, X_cv, y_train, y_cv,
-    target, metric, vect=None, seed=99, modeltype='Classification'):
+    target, metric, vect=None, seed=99, modeltype='Classification',verbose=0):
     if vect==None:
         # use default options for CountVectorizer
         vect = CountVectorizer()
     X_train_dtm = vect.fit_transform(X_train)
-    print('Features: ', X_train_dtm.shape[1])
-    print_sparse_stats(X_train_dtm)
+    if verbose >= 1:
+        print('Features: ', X_train_dtm.shape[1])
+        print_sparse_stats(X_train_dtm)
     X_cv_dtm = vect.transform(X_cv)
-    try:
-        if str(model).split("(")[0] == 'MultinomialNB':
+    if str(model).split("(")[0] == 'MultinomialNB':
+        try:
             #### Multinomial models need only positive values!!
             model.fit(abs(X_train_dtm), y_train)
-            y_preds = model.predict(abs(X_cv_dtm)) 
-        else:
-            model.fit(X_train_dtm, y_train)
-            y_preds = model.predict(X_cv_dtm) 
-    except:
-        if str(model).split("(")[0] == 'MultinomialNB':
+            y_preds = model.predict(abs(X_cv_dtm))
+            if modeltype != 'Regression':
+                y_probas = model.predict_proba(abs(X_cv_dtm))
+        except:
             #### Multinomial models need only positive values!!
             model.fit(abs(X_train_dtm.toarray()), y_train)
-            y_preds = model.predict(abs(X_cv_dtm.toarray())) 
-        else:
+            y_preds = model.predict(abs(X_cv_dtm.toarray()))
+            if modeltype != 'Regression':
+                y_probas = model.predict_proba(abs(X_cv_dtm.toarray()))
+    else:
+        try:
+            model.fit(X_train_dtm, y_train)
+            y_preds = model.predict(X_cv_dtm)
+            if modeltype != 'Regression':
+                y_probas = model.predict_proba(X_cv_dtm)
+        except:
             model.fit(X_train_dtm.toarray(), y_train)
-            y_preds = model.predict(X_cv_dtm.toarray()) 
+            y_preds = model.predict(X_cv_dtm.toarray())
+            if modeltype != 'Regression':
+                y_probas = model.predict_proba(X_cv_dtm.toarray())
     # calculate return_scoreval for score_type
-    metric_val = return_scoreval(metric, y_cv, y_preds, '', modeltype)
-    print('%s Metrics for %s = %0.2f' %(metric, X_train.shape,
-                metric_val))
+    if modeltype != 'Regression':
+        metric_val = return_scoreval(metric, y_cv, y_preds, y_probas, modeltype)
+    else:
+        metric_val = return_scoreval(metric, y_cv, y_preds, '', modeltype)
+    print('    %s Metrics for %s features = %0.4f' %(metric, X_train_dtm.shape[1],
+                  metric_val))
     return metric_val, model
-
 ###########  NLP functions #####################
 # define a function that accepts text and returns a list of lemmas
 def split_into_lemmas(text):
@@ -390,12 +403,12 @@ def clean_text_using_regex(text):
     text = re.sub(r"https?:\/\/t.co\/[A-Za-z0-9]+", "", text)
 
     ### remove numbers
-    text = re.sub("^\d+\s|\s\d+\s|\s\d+$", " ", text)
+    #text = re.sub("^\d+\s|\s\d+\s|\s\d+$", " ", text)
 
     # Words with punctuations and special characters
     punctuations = '@#!?+&*[]-%.:/();$=><|{}^' + "'`"
     for p in punctuations:
-        text = text.replace(p, ' %s ' %p)
+        text = text.replace(p, f' {p} ')
 
     # ... and ..
     text = text.replace('...', ' ... ')
@@ -411,10 +424,6 @@ def remove_punctuations(text):
 
 def strip_out_special_chars(txt):
     return re.compile("[^\w']|_").sub(" ",txt)
-
-def remove_stop_words(text):
-    stopWords = return_stop_words()
-    return text.map(lambda x: x.split(" ")).map(lambda row: " ".join([x for x in row if x not in stopWords]))
 
 ############################################################################
 def print_sparse_stats(X_dtm):
@@ -434,6 +443,10 @@ def left_subtract(l1,l2):
     return lst
 ################################################################################
 import nltk
+def remove_stop_words(text):
+    stopWords = return_stop_words()
+    return text.map(lambda x: x.split(" ")).map(lambda row: " ".join([x for x in row if x not in stopWords]))
+
 def tokenize_and_stem(text):
     stemmer = SnowballStemmer("english")
     text = re.sub("^\d+\s|\s\d+\s|\s\d+$", " ", text)
@@ -447,18 +460,45 @@ def tokenize_and_stem(text):
     stems = [stemmer.stem(t) for t in filtered_tokens]
     return stems
 ################################################################################
+import nltk
+def simple_tokenizer(text):
+    # create a space between special characters
+    text=re.sub("(\\W)"," \\1 ",text)
+
+    # split based on whitespace
+    return re.split("\\s+",text)
+
+from nltk.stem import PorterStemmer
+
+# Get the Porter stemmer
+porter_stemmer=PorterStemmer()
+import regex as re
+def simple_preprocessor(text):
+
+    text=text.lower()
+    text=re.sub("\\W"," ",text) # remove special chars
+    text=re.sub("\\s+(in|the|all|for|and|on)\\s+"," _connector_ ",text) # normalize certain words
+
+    # stem words
+    words=re.split("\\s+",text)
+    stemmed_words=[porter_stemmer.stem(word=word) for word in words]
+    return ' '.join(stemmed_words)
+################################################################################
 def return_stop_words():
-    add_words = ["s", "m",'you', 'not',  'get', 'no', 'if', 'via', 'one', 'still', 'us']
+    from nltk.corpus import stopwords
+    add_words = ["s", "m",'you', 'not',  'get', 'no', 'if', 'via', 'one', 'still', 'us', 'u', 'if',
+                'the', 'a', 'in', 'to', 'of', 'i', 'and', 'is', 'for', 'on', 'it', 'got',
+                'not', 'my', 'that', 'by', 'with', 'are', 'at', 'this', 'from', 'be', 'have', 'was']
     from sklearn.feature_extraction import text
     #stopWords = text.ENGLISH_STOP_WORDS.union(add_words)
-    stopWords = set(stopwords.words('english')).union(add_words)
+    stop_words = set(set(stopwords.words('english')).union(add_words))
     excl =['will',"i'll",'shall',"you'll",'may',"don't","hadn't","hasn't","haven't",
            "don't","isn't",'if',"mightn't","mustn'","mightn't",'mightn',"needn't",
            'needn',"needn't",'no','not','shan',"shan't",'shouldn',"shouldn't","wasn't",
           'wasn','weren',"weren't",'won',"won't",'wouldn',"wouldn't","you'd",'you',
           "you'd","you'll","you're",'yourself','yourselves']
-    stopWords = [x for x in stopWords if x not in excl]
-    return stopWords
+    stopWords = left_subtract(stop_words,excl)
+    return sorted(stopWords)
 ################################################################################
 from sklearn.feature_extraction import text
 from nltk.stem.snowball import SnowballStemmer
@@ -491,8 +531,8 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     print('    A U T O - N L P   P R O C E S S I N G  O N   N L P   C O L U M N = %s ' %col)
     print('#################################################################################')
     print('Generating new features for NLP column = %s using NLP Transformers' %col)
-    print('    However min_df and max_features = %d will limit too many features from being generated' %max_features)
-    ################################################################
+    print('    Cleaning text in %s before doing transformation...' %col)
+    start_time = time.time()
     if modeltype is None or modeltype == '':
         print('Since modeltype is None, Using TFIDF vectorizer with min_df and max_features')
         tvec = TfidfVectorizer(ngram_range=(1,3), stop_words=stopWords, max_features=max_features, min_df=min_df,max_df=max_df)
@@ -507,30 +547,67 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     ##### Then do a test train split using data and NLP column called "col" #########
     X_train,X_test,y_train,y_test = train_test_split(data[col],
                                     data[target],test_size=0.2,random_state=seed)
+    max_features_high = int(250000000/X_train.shape[0])
+    print('    However max_features limit = %d will limit numerous features from being generated' %max_features_high)
     best_vec = None
     all_vecs = {}
     all_models = {}
-    print('\n#### First choosing the default Count Vectorizer with 1-3 ngrams and limited features')
-    tokenizer = RegexpTokenizer(r'\b[a-z|A-Z]{2,}\b')
-    print('Using low min_df = %d for all Vectorizers' %min_df)
-    vect_5000 = CountVectorizer(
-               ngram_range=(1, 3), max_features=max_features, max_df=max_df,
-                strip_accents='unicode',
-                min_df=min_df, binary=False, stop_words=None, token_pattern=r'\w{1,}')
-    all_vecs[vect_5000], all_models[vect_5000] = tokenize_test_by_metric(model, X_train, X_test, y_train,
-                    y_test, target, metric,
-                      vect_5000, seed, modeltype)
-    print('\n#### Using Count Vectorizer with limited max_features and a low 0.001 min_df with n_gram (1-5)')
+    if data.shape[0] < 10000:
+        count_max_df = 0
+        print('Trying multiple max_df values in range %s to find best max_df...' %np.linspace(0.95,0.05,5))
+        for each_max_df in np.linspace(0.95,0.05,5):
+            print('    max_df = %0.4f     ' %each_max_df, end='')
+            vect_5000 = CountVectorizer(
+                       ngram_range=(1, 3), max_features=max_features_high, max_df=each_max_df,
+                        strip_accents='unicode', tokenizer=simple_tokenizer,preprocessor=simple_preprocessor,
+                        min_df=min_df, binary=False, stop_words=None, token_pattern=r'\w{1,}')
+            current_metric, current_model = tokenize_test_by_metric(model, X_train, X_test, y_train,
+                            y_test, target, metric,
+                              vect_5000, seed, modeltype,verbose=0)
+            if count_max_df == 0:
+                best_metric = copy.deepcopy(current_metric)
+                best_model = copy.deepcopy(current_model)
+            else:
+                if modeltype == 'Regression' or metric in ['logloss','log_loss']:
+                    if current_metric <= best_metric:
+                        best_metric = copy.deepcopy(current_metric)
+                        best_model = copy.deepcopy(current_model)
+                    else:
+                        break
+                else:
+                    if current_metric >= best_metric:
+                        best_metric = copy.deepcopy(current_metric)
+                        best_model = copy.deepcopy(current_model)
+                    else:
+                        break
+            count_max_df += 1
+        best_max_df = each_max_df + 0.20
+        print('Best max_df selected to be %0.2f' %best_max_df)
+    else:
+        best_max_df = 0.5
+        print('\n#### Optimizing Count Vectorizer with best max_df=%0.2f, 1-3 n-grams and high features...' %best_max_df)
+        vect_5000 = CountVectorizer(
+                   ngram_range=(1, 3), max_features=max_features_high, max_df=best_max_df,
+                    strip_accents='unicode', tokenizer=simple_tokenizer,preprocessor=simple_preprocessor,
+                    min_df=min_df, binary=False, stop_words=None, token_pattern=r'\w{1,}')
+        best_metric, best_model = tokenize_test_by_metric(model, X_train, X_test, y_train,
+                        y_test, target, metric,
+                          vect_5000, seed, modeltype,verbose=0)
+    #### You have to set the best max df to the recent one plus 0.05 since it breaks when the metric drops
+    vect_5000.max_df = best_max_df
+    all_vecs[vect_5000] = best_metric
+    all_models[vect_5000] = best_model
     ##########################################################################
     ##### It's BEST to use small max_features (50) and a low 0.001 min_df with n_gram (2-5).
     ######  There is no need in that case for stopwords or analyzer since the 2-grams take care of it
     #### Once you do above, there is no difference between count_vectorizer and tfidf_vectorizer
     #### Once u do above, increasing max_features from 50 to even 500 doesn't get you a higher score!
     ##########################################################################
-    vect_lemma = CountVectorizer(max_df=max_df,
-                                   max_features=max_features, strip_accents='unicode',
+    print('\n#### Using Count Vectorizer with limited max_features and a min_df=%s with n_gram (1-5)' %min_df)
+    vect_lemma = CountVectorizer(max_df=best_max_df,
+                                   max_features=max_features_high, strip_accents='unicode',
                                    ngram_range=(1, 5), token_pattern=r'\w{1,}',
-                                    min_df=min_df, stop_words=stopWords,
+                                    min_df=min_df, stop_words=None,
                                    binary=True,
                                     )
     try:
@@ -540,36 +617,45 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     except:
         print('Error: Using CountVectorizer')
 
-    print('\n# Using TFIDF vectorizer with min_df=2 and very high max_features')
+    print('\n# Using TFIDF vectorizer with min_df=%s, ngram (1,3) and very high max_features' %min_df)
     ##### This is based on artificially setting 5GB as being max memory limit for the term-matrix
-    max_features_high = int(250000000/X_train.shape[0])
     if modeltype != 'Regression':
-        tvec = TfidfVectorizer( max_features=max_features_high,max_df=max_df, token_pattern=r'\w{1,}',
-                                strip_accents='unicode',
-                                stop_words=stopWords, ngram_range=(1, 3), min_df=min_df, binary=True)
+        tvec = TfidfVectorizer( max_features=max_features_high, max_df=best_max_df, token_pattern=r'\w{1,}',
+                                strip_accents='unicode', sublinear_tf=True,
+                                stop_words=None, ngram_range=(1, 3), min_df=min_df, binary=True)
     else:
-        tvec = TfidfVectorizer( max_features=max_features_high, max_df=max_df, token_pattern=r'\w{1,}',
-                                strip_accents='unicode',
-                                stop_words=stopWords, ngram_range=(1, 3), min_df=min_df, binary=False)
+        tvec = TfidfVectorizer( max_features=max_features_high, max_df=best_max_df, token_pattern=r'\w{1,}',
+                                strip_accents='unicode', sublinear_tf=True,
+                                stop_words=None, ngram_range=(1, 3), min_df=min_df, binary=False)
     all_vecs[tvec], all_models[tvec] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
                                         tvec, seed, modeltype)
     max_features_limit = int(tvec.fit_transform(data_dtm).shape[1])
-    print('\n# Using TFIDF vectorizer with Snowball Stemming and limited max_features')
+    print('\n# Using TFIDF vectorizer with Porter Stemming, ngram (1,3) and limited max_features')
     if modeltype != 'Regression':
-        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df,
-                                token_pattern=r'\w{1,}',
+        tvec2 = TfidfVectorizer( max_features=max_features_high, max_df=best_max_df,
+                                token_pattern=r'\w{1,}', sublinear_tf=True,
+                                tokenizer=simple_tokenizer,preprocessor=simple_preprocessor,
+#                                 tokenizer=tokenize_and_stem,
                                  min_df=min_df, stop_words=None, binary=True, strip_accents='unicode',
-                                 use_idf=True, tokenizer=tokenize_and_stem, ngram_range=(1,3))
+                                 use_idf=True, ngram_range=(1,3))
     else:
-        tvec2 = TfidfVectorizer( max_features=max_features, max_df=max_df,
-                                token_pattern=r'\w{1,}',
+        tvec2 = TfidfVectorizer( max_features=max_features_high, max_df=best_max_df,
+                                token_pattern=r'\w{1,}', sublinear_tf=True,
+                                tokenizer=simple_tokenizer,preprocessor=simple_preprocessor,
+#                                 tokenizer=tokenize_and_stem,
                                  min_df=min_df, stop_words=None, binary=False, strip_accents='unicode',
-                                 use_idf=True, tokenizer=tokenize_and_stem, ngram_range=(1,3))
+                                 use_idf=True, ngram_range=(1,3))
     all_vecs[tvec2], all_models[tvec2] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
                                         tvec2, seed, modeltype)
 
+    #print('\n# Using TFIDF vectorizer with Snowball Stemming, ngram (1,3) and very high max_features')
+    print('\n# Finally comparing them against a Basic Count Vectorizer with all defaults, min_df=2 and  lowercase=True')
+    cvect = CountVectorizer(min_df=2, lowercase=True)
+    all_vecs[cvect], all_models[cvect] = tokenize_test_by_metric(model, X_train, X_test, y_train,
+                                      y_test, target, metric,
+                                      cvect, seed, modeltype)
     ######## Once you have built 4 different transformers it is time to compare them
     if modeltype.endswith('Classification'):
         best_vec = pd.Series(all_vecs).idxmax()
@@ -667,7 +753,7 @@ def select_top_features_from_SVD(X, tsvd, is_train=True, top_n=100):
         tsvd = TruncatedSVD(n_components=top_n,
                    n_iter=10,
                    random_state=3)
-        tsvd = tsvd.fit(X)
+        tsvd.fit(X)
     XA = tsvd.transform(X)
     print('    Reduced dimensional array shape to %s' %(XA.shape,))
     print('    Time Taken for Truncated SVD = %0.0f seconds' %(time.time()-start_time) )
@@ -699,6 +785,22 @@ def select_top_features_from_vectorizer(X, vectorizer,top_n=25):
     You can change the top X features to any number you want. But it must be less than the
     number of features in X. Otherwise, it will assume you want all.
     """
+    X = copy.deepcopy(X)
+    features_by_gram = defaultdict(list)
+    if str(vectorizer).split("(")[0] == 'CountVectorizer':
+        for f, w in zip(vectorizer.get_feature_names(), vectorizer.vocabulary_):
+            features_by_gram[len(f.split(' '))].append((f, w))
+    else:
+        for f, w in zip(vectorizer.get_feature_names(), vectorizer.idf_):
+            features_by_gram[len(f.split(' '))].append((f, w))
+    dicti = {}
+    grams_length = 0
+    for gram, features in features_by_gram.items():
+        top_features = sorted(features, key=lambda x: x[1], reverse=True)[:top_n]
+        top_features = [f[0] for f in top_features]
+        print('{}-gram top features:'.format(gram), top_features)
+        dicti[gram] = top_features
+        grams_length +=  len(dicti[gram])
     #### Convert the Feature Array from a Sparse Matrix to a Dense Array #########
     XA = X.toarray()
     if XA.shape[1] <= grams_length:
@@ -735,14 +837,24 @@ def select_top_features_from_vectorizer(X, vectorizer,top_n=25):
         best_df = pd.DataFrame(best_features_array,columns=ls)
     print('Combined best features array shape: %s' %(best_features_array.shape,))
     return best_df
-
+#########################################################################################
+def lower_words(text):
+    return text.map(lambda x: x.split(" ")).map(lambda row: " ".join([x.lower() for x in row ]))
 #########################################################################################
 from xgboost.sklearn import XGBClassifier
 from xgboost.sklearn import XGBRegressor
-from sklearn.naive_bayes import GaussianNB
+from sklearn.naive_bayes import GaussianNB, MultinomialNB
 import xgboost as xgb
-def Auto_NLP(nlp_column, train, test, target, score_type,
-                            modeltype,top_num_features=50, verbose=0):
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer, TfidfVectorizer
+import time
+import scipy as sp
+from sklearn.model_selection import StratifiedKFold, KFold
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.pipeline import make_pipeline
+def Auto_NLP(nlp_column, train, test, target, score_type='',
+                            modeltype='Classification',top_num_features=50, verbose=0,
+                            build_model=True):
     """
     ##################################################################################
     #### Auto_NLP expects both train and test to be data frames with one NLP column
@@ -759,16 +871,55 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
     seed = 99
     train = copy.deepcopy(train)
     test = copy.deepcopy(test)
+    start_time4 = time.time()
     start_time = time.time()
-    num_classes = len(np.unique(train[target].values))
-    top_num_features = num_classes*top_num_features
+    print('Auto NLP processing on NLP Column: %s' %nlp_column)
+    print('Shape of Train Data: %d rows' %train.shape[0])
+    if not isinstance(test, str):
+        print('    Shape of Test Data: %d rows' %test.shape[0])
+    ########   Set the number of top NLP features that will be generated #########
+    if top_num_features == 50:
+      if modeltype == 'Regression':
+        top_num_features = 100
+      else:
+        num_classes = len(np.unique(train[target].values))
+        top_num_features = num_classes*top_num_features
+    ###### Set Scoring parameter score_type here ###############
+    if score_type == '':
+        if modeltype == 'Regression':
+            score_type = 'neg_mean_squared_error'
+        else:
+            score_type = 'accuracy'
+    elif score_type in ['f1','precision','average_precision','recall','average_recall','roc_auc']:
+        if modeltype == 'Regression':
+            score_type = 'neg_mean_squared_error'
+        else:
+            score_type = 'accuracy'
+    elif score_type in ['rmse','mae','mean_squared_error','mean_absolute_error','mean_absolute_percentage_error']:
+        if modeltype == 'Regression':
+            score_type = 'neg_mean_squared_error'
+        else:
+            score_type = 'accuracy'
+    elif score_type in ['neg_log_loss', 'logloss','log_loss']:
+        if modeltype == 'Regression':
+            score_type = 'neg_mean_squared_error'
+        else:
+            score_type = 'neg_log_loss'
+    ###### Set Defaults for cross-validation size data  here ###############
+    if train.shape[0] <= 1000:
+        test_size = 0.1
+    elif train.shape[0] > 1000 and train.shape[0] <= 10000:
+        test_size = 0.15
+    else:
+        test_size = 0.2
+    ###### Set Other Defaults  here ###############
     min_df=0.1
     max_depth = 8
-    subsample =  0.5
-    col_sub_sample = 0.5
-    test_size = 0.2
-    seed = 1
+    subsample =  0.7
+    col_sub_sample = 0.7
+    seed = 99
     early_stopping = 5
+    n_splits = 5
     train_index = train.index
     ######################################
     if isinstance(nlp_column, str):
@@ -793,18 +944,23 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
         #### You don't want to draw the same set of charts for Test data since it would be repetitive
         #####   Hence set the verbose to 0 in this case !!!
         test, nlp_summary_cols = create_summary_of_nlp_cols(test, nlp_column, target, is_train=False, verbose=0)
+    ##########################################################################################
     ########################  C L E AN    C O L U M N S   F I R S T ######################
     print('    Cleaning text in %s before doing transformation...' %nlp_column)
-    start_time = time.time()
+    start_time1 = time.time()
     ####### CLEAN THE DATA FIRST ###################################
+    train[nlp_column] = lower_words(train[nlp_column])
     train[nlp_column] = train[nlp_column].map(expand_text).values
     train[nlp_column] = train[nlp_column].map(clean_text_using_regex).map(strip_out_special_chars).values
+    #### If you are removing stopwords through max_df, then this step is not needed!
     train[nlp_column] = remove_stop_words(train[nlp_column])
     if not isinstance(test, str):
+        test[nlp_column] = lower_words(test[nlp_column])
         test[nlp_column] = test[nlp_column].map(expand_text).values
         test[nlp_column] = test[nlp_column].map(clean_text_using_regex).map(strip_out_special_chars).values
+        #### If you are removing stopwords through max_df, then this step is not needed!
         test[nlp_column] = remove_stop_words(test[nlp_column])
-    print('Train and Test data Text cleaning completed. Time taken = %d seconds' %(time.time()-start_time))
+    print('Train and Test data Text cleaning completed. Time taken = %d seconds' %(time.time()-start_time1))
     ##########################################################################################
     if modeltype.endswith('Classification'):
         #print('Class distribution in Train:')
@@ -822,7 +978,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
             objective = 'reg:squarederror'
         model = XGBRegressor( n_estimators=100,subsample=subsample,objective=objective,
                                 colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
-                                 seed=1,n_jobs=-1,random_state=1)
+                                 seed=1,n_jobs=-1,random_state=seed)
         ####   This is where you start to Iterate on Finding Important Features ################
         best_nlp_vect, model, train_dtm, max_features_limit = select_best_nlp_vectorizer(model, train, nlp_column, target,
                             score_type, seed, modeltype,min_df)
@@ -835,86 +991,327 @@ def Auto_NLP(nlp_column, train, test, target, score_type,
     #### Convert the Feature Array from a Sparse Matrix to a Dense Array #########
     print('Setting Max Features limit to NLP vectorizer as %d' %max_features_limit)
     best_nlp_vect.max_features = max_features_limit
-    train_all = best_nlp_vect.fit_transform(train[nlp_column])
-    if train_all.shape[1] <= top_num_features:
-        #### If the TFIDF array is very small, you just select the entire TFIDF array
-        train_best = pd.DataFrame(train_all.todense(),columns=best_nlp_vect.get_feature_names())
-    else:
-        #### For Train data, you don't have to send in an SVD. It will automatically select one and train it
-        best_features_array, tsvd = select_top_features_from_SVD(train_all,'',True)
-        ls = ['svd_dim_'+str(x) for x in range(best_features_array.shape[1])]
-        train_best = pd.DataFrame(best_features_array,columns=ls)
-    #train_best = select_top_features_from_vectorizer(train_dtm, best_nlp_vect, )
     print_top_feature_grams(train[nlp_column], best_nlp_vect)
-    if type(test) != str:
-        test_index = test.index
-        #### If test data is given, then convert it into a Vectorized frame using best vectorizer
-        test_all = best_nlp_vect.transform(test[nlp_column])
-        if test_all.shape[1] <= top_num_features:
-            test_best = pd.DataFrame(test_all.todense(),columns=best_nlp_vect.get_feature_names())
+    print('Time taken so far = %0.1f minutes' %((time.time()-start_time1)/60))
+    #############   THIS IS WHERE WE USE BUILD_MODEL TO DECIDE ################################
+    if build_model:
+        print('##################    THIS IS FOR BUILD_MODEL = TRUE           #################')
+        print('Building Model and Pipeline for NLP column = %s. This will take time...' %nlp_column)
+        if isinstance(best_nlp_vect, str):
+            print('    Using Cross-Validation to build best model and pipeline using default Vectorizer for optimizing %s' %score_type)
+            cvect = CountVectorizer(min_df=2, lowercase=True)
         else:
-            best_features_array, _ = select_top_features_from_SVD(test_all,tsvd,False)
-            test_best = pd.DataFrame(best_features_array,columns=ls)
-    #test_best = select_top_features_from_vectorizer(test_dtm, best_nlp_vect, top_num_features)
+            print('    Using Cross-Validation to build best model and pipeline using Best Vectorizer for optimizing %s' %score_type)
+            cvect = copy.deepcopy(best_nlp_vect)
+        ### Split into Train and CV to test the model #####################
+        X = train[nlp_column]
+        y = train[target]
+        #Train test split with stratified sampling for evaluation
+        if modeltype == 'Regression':
+            X_train, X_test, y_train, y_test = train_test_split(X,
+                                                                y,
+                                                                test_size = test_size,
+                                                                random_state=seed)
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(X,
+                                                            y,
+                                                            test_size = test_size,
+                                                            shuffle = True,
+                                                            stratify = y,
+                                                            random_state=seed)
+        ############  THIS IS WHERE THE MAIN LOGIC TO SPEED UP BOTH MODEL AND PIPELINE BEGINS! ########
+        print('Transforming train and cross validation data sets into Vectorized form. This will take time...')
+        start_time = time.time()
+        X_train_dtm = cvect.fit_transform(X_train)
+        X_test_dtm =  cvect.transform(X_test)
+        print('    Time taken to transform train data into vectorized data = %0.2f seconds' %(time.time()-start_time) )
+        print('    Train Vectorized data shape = %s, Cross Validation data shape = %s' %(X_train_dtm.shape, X_test.shape))
+        if modeltype == 'Regression':
+            model_name = 'XGB Regressor'
+            scv = KFold(n_splits=n_splits, random_state=seed)
+            nlp_model = XGBRegressor(learning_rate=0.1,subsample=subsample,max_depth=10,
+                                colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
+                                seed=1,n_jobs=-1,random_state=seed)
+            low, high = 100, 400
+            params = {}
+            params['learning_rate'] = sp.stats.uniform(scale=1)
+            params['n_estimators'] = sp.stats.randint(low,high)
+        else:
+            scv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+            model_name = 'Multinomial Naive Bayes'
+            nlp_model = MultinomialNB()
+            params = {}
+            params['alpha'] = sp.stats.uniform(scale=1)
+        gs = RandomizedSearchCV(nlp_model,params, n_iter=10, cv=scv,
+                                scoring=score_type, random_state=seed)
+        gs.fit(X_train_dtm,y_train)
+        y_pred = gs.predict(X_test_dtm)
+        ##### Print the model results on Cross Validation data set (held out)
+        if modeltype == 'Regression':
+            print_regression_model_stats(y_test, y_pred,'%s Model: Predicted vs Actual for %s' %(model_name,target))
+        else:
+            plot_confusion_matrix(y_test, y_pred, model_name)
+            plot_classification_matrix(y_test, y_pred, model_name)
+        #### Now select the best estimator from the RandomizedSearchCV models
+        nlp_model = gs.best_estimator_
+        #### Build a pipeline with the best estimator and the best vectorizer together here!
+        pipe = make_pipeline(cvect,nlp_model)
+        ### Train the Pipeline on the full data set !
+        print('Training Pipeline on full Train data. This will take time...')
+        #####  Now AFTER TRAINING, make predictions on the given test data set!
+        start_time = time.time()
+        pipe.fit(X,y)
+        if not isinstance(test, str):
+            y_pred = pipe.predict(test[nlp_column])
+        print('    Time taken to train Pipeline on full Train shape (%s) and test on (%s) = %0.2f seconds' %(
+                            X.shape,test.shape,time.time()-start_time) )
+        print('Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
+        print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
+        if not isinstance(test, str):
+            return train, test, pipe, y_pred
+        else:
+            return train, '', pipe, ''
     else:
-        test_best = ''
-    #### best contains the entire data rows with the top X features of a Vectorizer
-    #### from an NLP analysis. This means that you can add these top NLP features to
-    #### your data set and start performing your classification or regression.
-    #################################################################################
-    nlp_result_columns = left_subtract(list(train_best), cols_excl_nlp_cols)
-    print('Completed selecting the best NLP transformer. Time taken = %0.1f minutes' %((time.time()-start_time)/60))
-    train_best = train_best.set_index(train_index)
-    #################################################################################
-    #### train_best contains the entire data rows with the top X features of a Vectorizer
-    #### from an NLP analysis. This means that you can add these top NLP features to
-    #### your data set and start performing your classification or regression.
-    train_best = train_best.fillna(0)
-    train_nlp = train.join(train_best,rsuffix='NLP_token_added')
-    train_nlp['auto_nlp_source'] = 'Train'
-    if type(test) != str:
-        test_best = test_best.set_index(test_index)
-        test_best = test_best.fillna(0)
-        test_nlp = test.join(test_best, rsuffix='NLP_token_added')
-        test_nlp[target] = 0
-        test_nlp['auto_nlp_source'] = 'Test'
-        nlp_data = train_nlp.append(test_nlp)
-    else:
-        nlp_data = copy.deepcopy(train_nlp)
-    #### next create parts-of-speech tagging ####
-    if len(nlp_data) <= 10000:
-        ### VADER is accurate but very SLOOOWWW. Do not do this for Large data sets ##############
-        nlp_data, pos_cols = add_sentiment(nlp_data, nlp_column)
-        nlp_result_columns += pos_cols
-    else:
-        ### TEXTBLOB is faster but somewhat less accurate. So we do this for Large data sets ##############
-        print('Using TextBlob to add sentiment scores...warning: could be slow for large data sets')
-        senti_cols = [nlp_column+'_text_sentiment', nlp_column+'_senti_polarity',
-                                nlp_column+'_senti_subjectivity',nlp_column+'_overall_sentiment']
-        start_time2 = time.time()
-        nlp_data[senti_cols[0]] = nlp_data[nlp_column].map(detect_sentiment).fillna(0)
-        nlp_data[senti_cols[1]] = nlp_data[nlp_column].map(calculate_line_sentiment,'polarity').fillna(0)
-        nlp_data[senti_cols[2]] = nlp_data[nlp_column].map(calculate_line_sentiment,'subjectivity').fillna(0)
-        nlp_data[senti_cols[3]] = nlp_data[nlp_column].map(calculate_paragraph_sentiment).fillna(0)
-        nlp_result_columns += senti_cols
-        print('    Added %d columns using TextBlob Sentiment Analyzer. Time Taken = %d seconds' %(
-                                    len(senti_cols), time.time()-start_time2))
-    ##### Just do a fillna of all NLP columns in case there are some NA's in them ###########
-    #nlp_data[nlp_result_columns] = nlp_data[nlp_result_columns].apply(lambda x: x.fillna(0)
-    #                        if x.dtype.kind in 'biufc' else x.fillna('missing'))
-    ######### Split it back into train_best and test_best ##########
-    train_source = nlp_data[nlp_data['auto_nlp_source']=='Train']
-    train_full = train_source.drop(['auto_nlp_source',nlp_column],axis=1)
-    if type(test) == str:
-        test_full = ''
-    else:
-        test_source = nlp_data[nlp_data['auto_nlp_source']=='Test']
-        test_full = test_source.drop([target,'auto_nlp_source',nlp_column],axis=1)
-    print('Number of new columns created using NLP = %d' %(len(nlp_result_columns)))
-    print('         A U T O   N L P  C O M P L E T E D. Time taken %0.1f minutes' %((time.time()-start_time)/60))
-    print('####################################################################################')
-    return train_full, test_full, best_nlp_vect, max_features_limit
+        ##################    THIS IS FOR BUILD_MODEL = FALSE           #################
+        ##################  THIS IS WHERE YOU ADD COLUMNS, SVD, SENTIMENT ETC.       #################
+        train_all = best_nlp_vect.fit_transform(train[nlp_column])
+        if train_all.shape[1] <= top_num_features:
+            #### If the TFIDF array is very small, you just select the entire TFIDF array
+            train_best = pd.DataFrame(train_all.todense(),columns=best_nlp_vect.get_feature_names())
+        else:
+            #### For Train data, you don't have to send in an SVD. It will automatically select one and train it
+            best_features_array, tsvd = select_top_features_from_SVD(train_all,'',True)
+            ls = ['svd_dim_'+str(x) for x in range(best_features_array.shape[1])]
+            train_best = pd.DataFrame(best_features_array,columns=ls)
+        #_ = select_top_features_from_vectorizer(train_all, best_nlp_vect, top_num_features)
+        if type(test) != str:
+            test_index = test.index
+            #### If test data is given, then convert it into a Vectorized frame using best vectorizer
+            test_all = best_nlp_vect.transform(test[nlp_column])
+            if test_all.shape[1] <= top_num_features:
+                best_df = pd.DataFrame(test_all.todense(),columns=best_nlp_vect.get_feature_names())
+            else:
+                best_features_array, _ = select_top_features_from_SVD(test_all,tsvd,False)
+                test_best = pd.DataFrame(best_features_array,columns=ls)
+            #test_best = select_top_features_from_vectorizer(test_dtm, best_nlp_vect, top_num_features)
+        else:
+            test_best = ''
+        #### best contains the entire data rows with the top X features of a Vectorizer
+        #### from an NLP analysis. This means that you can add these top NLP features to
+        #### your data set and start performing your classification or regression.
+        #################################################################################
+        nlp_result_columns = left_subtract(list(train_best), cols_excl_nlp_cols)
+        print('Completed selecting the best NLP transformer. Time taken = %0.1f minutes' %((time.time()-start_time)/60))
+        train_best = train_best.set_index(train_index)
+        #################################################################################
+        #### train_best contains the entire data rows with the top X features of a Vectorizer
+        #### from an NLP analysis. This means that you can add these top NLP features to
+        #### your data set and start performing your classification or regression.
+        train_best = train_best.fillna(0)
+        train_nlp = train.join(train_best,rsuffix='NLP_token_added')
+        train_nlp['auto_nlp_source'] = 'Train'
+        if type(test) != str:
+            test_best = test_best.set_index(test_index)
+            test_best = test_best.fillna(0)
+            test_nlp = test.join(test_best, rsuffix='NLP_token_added')
+            test_nlp[target] = 0
+            test_nlp['auto_nlp_source'] = 'Test'
+            nlp_data = train_nlp.append(test_nlp)
+        else:
+            nlp_data = copy.deepcopy(train_nlp)
+        #### next create parts-of-speech tagging ####
+        if len(nlp_data) <= 10000:
+            ### VADER is accurate but very SLOOOWWW. Do not do this for Large data sets ##############
+            nlp_data, pos_cols = add_sentiment(nlp_data, nlp_column)
+            nlp_result_columns += pos_cols
+        else:
+            ### TEXTBLOB is faster but somewhat less accurate. So we do this for Large data sets ##############
+            print('Using TextBlob to add sentiment scores...warning: could be slow for large data sets')
+            senti_cols = [nlp_column+'_text_sentiment', nlp_column+'_senti_polarity',
+                                    nlp_column+'_senti_subjectivity',nlp_column+'_overall_sentiment']
+            start_time2 = time.time()
+            nlp_data[senti_cols[0]] = nlp_data[nlp_column].map(detect_sentiment).fillna(0)
+            nlp_data[senti_cols[1]] = nlp_data[nlp_column].map(calculate_line_sentiment,'polarity').fillna(0)
+            nlp_data[senti_cols[2]] = nlp_data[nlp_column].map(calculate_line_sentiment,'subjectivity').fillna(0)
+            nlp_data[senti_cols[3]] = nlp_data[nlp_column].map(calculate_paragraph_sentiment).fillna(0)
+            nlp_result_columns += senti_cols
+            print('    Added %d columns using TextBlob Sentiment Analyzer. Time Taken = %d seconds' %(
+                                        len(senti_cols), time.time()-start_time2))
+        ##### Just do a fillna of all NLP columns in case there are some NA's in them ###########
+        #nlp_data[nlp_result_columns] = nlp_data[nlp_result_columns].apply(lambda x: x.fillna(0)
+        #                        if x.dtype.kind in 'biufc' else x.fillna('missing'))
+        ######### BUILD   MODEL   HERE   IF  BUILD_MODEL  IS   TRUE  ###########################
+        train_source = nlp_data[nlp_data['auto_nlp_source']=='Train'].drop('auto_nlp_source',axis=1)
+        if not isinstance(test, str):
+            test_source = nlp_data[nlp_data['auto_nlp_source']=='Test'].drop('auto_nlp_source',axis=1)
+        ######### Split it back into train_best and test_best ##################################
+        train_full = train_source.drop([nlp_column],axis=1)
+        if type(test) == str:
+            test_full = ''
+        else:
+            test_full = test_source.drop([target,nlp_column],axis=1)
+        print('Number of new columns created using NLP = %d' %(len(nlp_result_columns)))
+        print('Time taken = %0.1f minutes' %((time.time()-start_time4)/60))
+        print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
+        return train_full, test_full, best_nlp_vect, max_features_limit
 ##############################################################################################
+def plot_confusion_matrix(y_test,y_pred, model_name='Model'):
+    """
+    This plots a beautiful confusion matrix based on input: ground truths and predictions
+    """
+    #Confusion Matrix
+    '''Plotting CONFUSION MATRIX'''
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    sns.set_style('darkgrid')
+
+    '''Display'''
+    from IPython.core.display import display, HTML
+    display(HTML("<style>.container { width:95% !important; }</style>"))
+    pd.options.display.float_format = '{:,.2f}'.format
+
+    #Get the confusion matrix and put it into a df
+    from sklearn.metrics import accuracy_score, precision_score, recall_score
+    from sklearn.metrics import f1_score, roc_curve, auc, confusion_matrix
+
+    cm = confusion_matrix(y_test, y_pred)
+
+    cm_df = pd.DataFrame(cm,
+                         index = np.unique(y_test).tolist(),
+                         columns = np.unique(y_test).tolist(),
+                        )
+
+    #Plot the heatmap
+    plt.figure(figsize=(12, 8))
+
+    sns.heatmap(cm_df,
+                center=0,
+                cmap=sns.diverging_palette(220, 15, as_cmap=True),
+                annot=True,
+                fmt='g')
+
+    plt.title(' %s \nF1 Score(avg = micro): %0.2f \nF1 Score(avg = macro): %0.2f' %(
+        model_name,f1_score(y_test, y_pred, average='micro'),f1_score(y_test, y_pred, average='macro')),
+              fontsize = 13)
+    plt.ylabel('True label', fontsize = 13)
+    plt.xlabel('Predicted label', fontsize = 13)
+    plt.show();
+##############################################################################################
+def plot_classification_matrix(y_test, y_pred, model_name='Model'):
+    """
+    This plots a beautiful classification report based on 2 inputs: ground truths and predictions
+    """
+    # Classification Matrix
+    '''Plotting CLASSIFICATION MATRIX'''
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    sns.set_style('darkgrid')
+
+    '''Display'''
+    from IPython.core.display import display, HTML
+    display(HTML("<style>.container { width:95% !important; }</style>"))
+    pd.options.display.float_format = '{:,.2f}'.format
+
+    #Get the confusion matrix and put it into a df
+    from sklearn.metrics import accuracy_score, precision_score, recall_score
+    from sklearn.metrics import f1_score, roc_curve, auc, confusion_matrix,classification_report
+    from sklearn.metrics import precision_score
+
+    cm = classification_report(y_test, y_pred,output_dict=True)
+
+    cm_df = pd.DataFrame(cm)
+
+    #Plot the heatmap
+    plt.figure(figsize=(12, 8))
+
+    sns.heatmap(cm_df,
+                center=0,
+                cmap=sns.diverging_palette(220, 15, as_cmap=True),
+                annot=True,
+                fmt='0.2f')
+
+    plt.title(""" %s
+    \nAverage Precision Score(avg = micro): %0.2f \nAverage Precision Score(avg = macro): %0.2f""" %(
+        model_name, precision_score(y_test,y_pred, average='micro'),
+        precision_score(y_test, y_pred, average='macro')),
+              fontsize = 13)
+    plt.ylabel('True label', fontsize = 13)
+    plt.xlabel('Predicted label', fontsize = 13)
+    plt.show();
+#################################################################################
+from sklearn.metrics import mean_squared_error,mean_absolute_error
+#####################################################################
+def print_regression_model_stats(actuals, predicted, title='Model'):
+    """
+    This program prints and returns MAE, RMSE, MAPE.
+    If you like the MAE and RMSE to have a title or something, just give that
+    in the input as "title" and it will print that title on the MAE and RMSE as a
+    chart for that model. Returns MAE, MAE_as_percentage, and RMSE_as_percentage
+    """
+    figsize = (10, 10)
+    colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk')
+    if len(actuals) != len(predicted):
+        print('Error: Number of actuals and predicted dont match. Continuing...')
+    else:
+        plt.figure(figsize=figsize)
+        dfplot = pd.DataFrame([actuals,predicted]).T
+        dfplot.columns = ['Actuals','Predictions']
+        x = actuals
+        y =  predicted
+        lineStart = actuals.min()
+        lineEnd = actuals.max()
+        plt.scatter(x, y, color = next(colors), alpha=0.5,label='Predictions')
+        plt.plot([lineStart, lineEnd], [lineStart, lineEnd], 'k-', color = next(colors))
+        plt.xlim(lineStart, lineEnd)
+        plt.ylim(lineStart, lineEnd)
+        plt.xlabel('Actual')
+        plt.ylabel('Predicted')
+        plt.legend()
+        plt.title(title)
+        plt.show();
+        mae = mean_absolute_error(actuals, predicted)
+        mae_asp = (mean_absolute_error(actuals, predicted)/actuals.std())*100
+        rmse_asp = (np.sqrt(mean_squared_error(actuals,predicted))/actuals.std())*100
+        rmse = print_rmse(actuals, predicted)
+        _ = print_mape(actuals, predicted)
+        mape = print_mape(actuals, predicted)
+        print('    MAE = %0.4f' %mae)
+        print("    MAPE = %0.0f%%" %(mape))
+        print('    RMSE = %0.4f' %rmse)
+        print('    MAE as %% std dev of Actuals = %0.1f%%' %(mae/abs(actuals).std()*100))
+        # Normalized RMSE print('RMSE = {:,.Of}'.format(rmse))
+        print('    Normalized RMSE (%% of MinMax of Actuals) = %0.0f%%' %(100*rmse/abs(actuals.max()-actuals.min())))
+        print('    Normalized RMSE (%% of Std Dev of Actuals) = %0.0f%%' %(100*rmse/actuals.std()))
+        return mae, mae_asp, rmse_asp
+###################################################
+def print_static_rmse(actual, predicted, start_from=0,verbose=0):
+    """
+    this calculates the ratio of the rmse error to the standard deviation of the actuals.
+    This ratio should be below 1 for a model to be considered useful.
+    The comparison starts from the row indicated in the "start_from" variable.
+    """
+    rmse = np.sqrt(mean_squared_error(actual[start_from:],predicted[start_from:]))
+    std_dev = actual[start_from:].std()
+    if verbose >= 1:
+        print('    RMSE = %0.2f' %rmse)
+        print('    Std Deviation of Actuals = %0.2f' %(std_dev))
+        print('    Normalized RMSE = %0.1f%%' %(rmse*100/std_dev))
+    return rmse, rmse/std_dev
+##########################################################
+def print_rmse(y, y_hat):
+    """
+    Calculating Root Mean Square Error https://en.wikipedia.org/wiki/Root-mean-square_deviation
+    """
+    mse = np.mean((y - y_hat)**2)
+    return np.sqrt(mse)
+
+def print_mape(y, y_hat):
+    """
+    Calculating Mean Absolute Percent Error https://en.wikipedia.org/wiki/Mean_absolute_percentage_error
+    """
+    perc_err = (100*(y - y_hat))/y
+    return np.mean(abs(perc_err))
+#########################################################################
 def calculate_line_sentiment(text,senti_type='polarity'):
     review = TextBlob(text)
     review_totals = []
@@ -980,29 +1377,23 @@ def create_summary_of_nlp_cols(data, col, target, is_train=False, verbose=0):
     cols = []
     stop_words = return_stop_words()
     # word_count
-    data[col+'_word_count'] = data[col].apply(lambda x: len(str(x).split(" ")))
+    data[col+'_word_count'] = data[col].apply(lambda x: len(str(x).split()))
     cols.append(col+'_word_count')
     # unique_word_count
-    data[col+'_unique_word_count'] = data[col].apply(lambda x: len(set(str(x).split(" "))))
+    data[col+'_unique_word_count'] = data[col].apply(lambda x: len(set(str(x).split())))
     cols.append(col+'_unique_word_count')
     # stop_word_count
-    data[col+'_stop_word_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split(" ") if w in stop_words]))
+    data[col+'_stop_word_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split() if w in stop_words]))
     cols.append(col+'_stop_word_count')
     # url_count
-    data[col+'_url_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split(" ") if 'http' in w or 'https' in w]))
-    cols.append(col+'_url_count')
+    data[col+'_url_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split() if 'http' in w or 'https' in w]))
+    cols.append(col+'_stop_word_count')
     # mean_word_length
-    try:
-      data[col+'_mean_word_length'] = data[col].apply(lambda x: int(np.mean([len(w) for w in str(x).split(" ")])))
-      cols.append(col+'_mean_word_length')
-    except:
-      print('Error: Cannot create word length in %s due to NaNs in data' %col)
+    data[col+'_mean_word_length'] = data[col].apply(lambda x: int(np.mean([len(w) for w in str(x).split()])))
+    cols.append(col+'_mean_word_length')
     # char_count
-    try:
-      data[col+'_char_count'] = data[col].apply(lambda x: len(str(x)))
-      cols.append(col+'_char_count')
-    except:
-      print('Error: Cannot create char count in %s due to NaNs in data' %col)
+    data[col+'_char_count'] = data[col].apply(lambda x: len(str(x)))
+    cols.append(col+'_char_count')
     # punctuation_count
     data[col+'_punctuation_count'] = data[col].apply(lambda x: len([c for c in str(x) if c in string.punctuation]))
     cols.append(col+'_punctuation_count')
@@ -1074,9 +1465,10 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.27'
+version_number = '0.0.29'
 print("""Imported Auto_NLP version: %s.. Call using:
-     train_nlp, test_nlp, best_nlp_transformer, _ = Auto_NLP(
+     train_nlp, test_nlp, nlp_transformer, preds = Auto_NLP(
                 nlp_column, train, test, target, score_type,
-                modeltype,top_num_features=50, verbose=0)""" %version_number)
+                modeltype,top_num_features=50, verbose=0,
+                build_model=True)""" %version_number)
 ########################################################################

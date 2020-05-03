@@ -180,6 +180,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
 #########################################################
 from sklearn.metrics import balanced_accuracy_score,accuracy_score,precision_score,recall_score,f1_score
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+import copy
 def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, modeltype):   
     start_time = time.time()
     model_name,  bac_score_list, ac_score_list, p_score_list, r_score_list, f1_score_list = [], [], [], [], [], []
@@ -197,7 +198,7 @@ def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, m
             v.fit(X_train, y_train)
             y_pred = v.predict(X_test)
         if iteration == 0:
-            stacks = y_pred
+            stacks = copy.deepcopy(y_pred)
             iteration += 1
         else:
             stacks = np.c_[stacks,y_pred]

@@ -245,7 +245,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.618                                              #######
+    ######                               Version 0.1.619                                              #######
     #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -613,6 +613,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 %len(id_cols+del_cols+date_cols))
     ################## This is where real code begins ###################################################
     GPU_exists = check_if_GPU_exists()
+    GPU_exists = True
     ###### This is where we set the CPU and GPU parameters for XGBoost
     param = {}
     if Boosting_Flag:
@@ -895,7 +896,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     nlp_column_test = test[nlp_column].values
                 train1, test1, best_nlp_transformer,max_features_limit = Auto_NLP(nlp_column,
                                                 train, test, each_target, refit_metric,
-                                                modeltype, top_nlp_features, verbose)
+                                                modeltype, top_nlp_features, verbose,
+                                                build_model=False)
                 ########################################################################
                 if KMeans_Featurizer:
                     start_time1 = time.time()
@@ -1750,11 +1752,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         cols.append(new_col)
                     if len(cols) == 5:
                         print('    Calculating weighted average ensemble of %d regressors' %len(cols))
-                        ensem_pred = np.round(subm[cols[-1]]*0.5+0.125*(subm[cols[0]]+subm[
-                                        cols[1]]+subm[cols[2]]+subm[cols[3]])).astype(int)
+                        ensem_pred = subm[cols[-1]]*0.5+0.125*(subm[cols[0]]+subm[
+                                        cols[1]]+subm[cols[2]]+subm[cols[3]])
                     else:
                         print('    Calculating regular average ensemble of %d regressors' %len(cols))
-                        ensem_pred = (subm[cols].mean(axis=1)).astype(int)
+                        ensem_pred = (subm[cols].mean(axis=1))
                     print('#############################################################################')
                     performed_ensembling = True
                     #### Since we have a new ensembled y_pred, make sure it is series or array before printing it!
@@ -2135,14 +2137,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     ### After this, y_pred is a Series from now on. You need y_pred.values  ####
                     if len(new_cols) == 5:
                         print('    Calculating weighted average ensemble of %d regressors' %len(new_cols))
-                        ensem_pred = np.round(subm[new_cols[-1]]*0.5+0.125*(subm[new_cols[0]]+subm[
-                                        new_cols[1]]+subm[new_cols[2]]+subm[new_cols[3]])).astype(int)
+                        ensem_pred = subm[new_cols[-1]]*0.5+0.125*(subm[new_cols[0]]+subm[
+                                        new_cols[1]]+subm[new_cols[2]]+subm[new_cols[3]])
                     else:
                         print('    Calculating regular average ensemble of %d regressors' %len(cols))
-                        ensem_pred = (subm[new_cols].mean(axis=1)).astype(int)
+                        ensem_pred = (subm[new_cols].mean(axis=1))
                     ##### This next step is very important since some models give series, others give arrays. Very painful!
                     if isinstance(y_pred,pd.Series):
-                        ensem_pred = ensem_pred.astype(int).values
+                        ensem_pred = ensem_pred.values
                     new_col = each_target+'_Ensembled_predictions'
                     testm[new_col] = ensem_pred
                     new_cols.append(new_col)
@@ -4171,7 +4173,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.618'
+version_number = '0.1.619'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

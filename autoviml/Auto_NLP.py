@@ -651,8 +651,8 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
                                         tvec2, seed, modeltype)
 
     #print('\n# Using TFIDF vectorizer with Snowball Stemming, ngram (1,3) and very high max_features')
-    print('\n# Finally comparing them against a Basic Count Vectorizer with all defaults, min_df=2 and  lowercase=True')
-    cvect = CountVectorizer(min_df=2, lowercase=True)
+    print('\n# Finally comparing them against a Basic Count Vectorizer with all defaults, max_features = %d and  lowercase=True' %max_features_high)
+    cvect = CountVectorizer(min_df=2, lowercase=True, max_features=max_features_high)
     all_vecs[cvect], all_models[cvect] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
                                       cvect, seed, modeltype)
@@ -1465,7 +1465,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.29'
+version_number = '0.0.30'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_transformer, preds = Auto_NLP(
                 nlp_column, train, test, target, score_type,

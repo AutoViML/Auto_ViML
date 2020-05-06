@@ -127,6 +127,20 @@ def split_into_lemmas(text):
     words = TextBlob(text).words
     return [word.lemmatize() for word in words]
 ############################################################################
+####   The below Process_Text section is Re-used with Permission from:
+####  R O B   S A L G A D O    robert.salgado@gmail.com     Thank YOU!
+# https://github.com/robsalgado/personal_data_science_projects/tree/master/mulitclass_text_class
+#############################################################################
+import itertools, string, operator, re, unicodedata, nltk
+from operator import itemgetter
+from nltk.corpus import wordnet
+from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import TweetTokenizer, RegexpTokenizer
+from bs4 import BeautifulSoup
+import numpy as np
+from itertools import combinations
+from gensim.models import Phrases
+from collections import Counter
 import regex as re
 
 #Expand all these terms
@@ -250,14 +264,102 @@ expand_dict = {
   "you're": "you are",
   "you've": "you have"
 }
+############################################################################
+def left_subtract(l1,l2):
+    lst = []
+    for i in l1:
+        if i not in l2:
+            lst.append(i)
+    return lst
+################################################################################
+def return_stop_words():
+    from nltk.corpus import stopwords
+    add_words = ["s", "m",'you', 'not',  'get', 'no', 'if', 'via', 'one', 'still', 'us', 'u', 'if',
+                'the', 'a', 'in', 'to', 'of', 'i', 'and', 'is', 'for', 'on', 'it', 'got',
+                'not', 'my', 'that', 'by', 'with', 'are', 'at', 'this', 'from', 'be', 'have', 'was']
+    from sklearn.feature_extraction import text
+    #stopWords = text.ENGLISH_STOP_WORDS.union(add_words)
+    stop_words = set(set(stopwords.words('english')).union(add_words))
+    excl =['will',"i'll",'shall',"you'll",'may',"don't","hadn't","hasn't","haven't",
+           "don't","isn't",'if',"mightn't","mustn'","mightn't",'mightn',"needn't",
+           'needn',"needn't",'no','not','shan',"shan't",'shouldn',"shouldn't","wasn't",
+          'wasn','weren',"weren't",'won',"won't",'wouldn',"wouldn't","you'd",'you',
+          "you'd","you'll","you're",'yourself','yourselves']
+    stopWords = left_subtract(stop_words,excl)
+    return sorted(stopWords)
+
+stop_words = return_stop_words()
+################################################################################
 
 c_re = re.compile('(%s)' % '|'.join(expand_dict.keys()))
 
+tokenizer = TweetTokenizer()
+pattern = r"(?u)\b\w\w+\b"
+
+lemmatizer = WordNetLemmatizer()
+
+punc = list(set(string.punctuation))
+
+def casual_tokenizer(text): #Splits words on white spaces (leaves contractions intact) and splits out trailing punctuation
+    tokens = tokenizer.tokenize(text)
+    return tokens
+
+#Function to replace the nltk pos tags with the corresponding wordnet pos tag to use the wordnet lemmatizer
+def get_word_net_pos(treebank_tag):
+    if treebank_tag.startswith('J'):
+        return wordnet.ADJ
+    elif treebank_tag.startswith('V'):
+        return wordnet.VERB
+    elif treebank_tag.startswith('N'):
+        return wordnet.NOUN
+    elif treebank_tag.startswith('R'):
+        return wordnet.ADV
+    else:
+        return None
+
+def lemma_wordnet(tagged_text):
+    final = []
+    for word, tag in tagged_text:
+        wordnet_tag = get_word_net_pos(tag)
+        if wordnet_tag is None:
+            final.append(lemmatizer.lemmatize(word))
+        else:
+            final.append(lemmatizer.lemmatize(word, pos=wordnet_tag))
+    return final
+
 def expandContractions(text, c_re=c_re):
     def replace(match):
-        return expand_dict[match.group(0)]
+        return c_dict[match.group(0)]
     return c_re.sub(replace, text)
 
+def remove_html(text):
+    soup = BeautifulSoup(text, "html5lib")
+    tags_del = soup.get_text()
+    uni = unicodedata.normalize("NFKD", tags_del)
+    bracket_del = re.sub(r'\[.*?\]', '  ', uni)
+    apostrphe = re.sub('’', "'", bracket_del)
+    string = apostrphe.replace('\r','  ')
+    string = string.replace('\n','  ')
+    extra_space = re.sub(' +',' ', string)
+    return extra_space
+
+def process_text(text):
+    soup = BeautifulSoup(text, "lxml")
+    tags_del = soup.get_text()
+    no_html = re.sub('<[^>]*>', '', tags_del)
+    tokenized = casual_tokenizer(no_html)
+    lower = [item.lower() for item in tokenized]
+    decontract = [expandContractions(item, c_re=c_re) for item in lower]
+    tagged = nltk.pos_tag(decontract)
+    lemma = lemma_wordnet(tagged)
+    no_num = [re.sub('[0-9]+', '', each) for each in lemma]
+    no_punc = [w for w in no_num if w not in punc]
+    no_stop = [w for w in no_punc if w not in stop_words]
+    return no_stop
+############################################################################
+####   THE ABOVE Entire Process_Text secion Re-used with Permission from:
+####  R O B   S A L G A D O    robert.salgado@gmail.com Thank YOU!
+#####################################################################/
 def expand_text(text):
     expanded = [expandContractions(item, c_re=c_re) for item in text]
     return ''.join(map(str, expanded))
@@ -408,7 +510,7 @@ def clean_text_using_regex(text):
     # Words with punctuations and special characters
     punctuations = '@#!?+&*[]-%.:/();$=><|{}^' + "'`"
     for p in punctuations:
-        text = text.replace(p, f' {p} ')
+        text = text.replace(p, ' %s ' %p)
 
     # ... and ..
     text = text.replace('...', ' ... ')
@@ -434,13 +536,6 @@ def print_sparse_stats(X_dtm):
     print ('Amount of Non-Zero occurences: ', X_dtm.nnz)
     print ('    Density: %.2f%%' % (100.0 * X_dtm.nnz /
                                  (X_dtm.shape[0] * X_dtm.shape[1])))
-############################################################################
-def left_subtract(l1,l2):
-    lst = []
-    for i in l1:
-        if i not in l2:
-            lst.append(i)
-    return lst
 ################################################################################
 import nltk
 def remove_stop_words(text):
@@ -483,22 +578,9 @@ def simple_preprocessor(text):
     words=re.split("\\s+",text)
     stemmed_words=[porter_stemmer.stem(word=word) for word in words]
     return ' '.join(stemmed_words)
-################################################################################
-def return_stop_words():
-    from nltk.corpus import stopwords
-    add_words = ["s", "m",'you', 'not',  'get', 'no', 'if', 'via', 'one', 'still', 'us', 'u', 'if',
-                'the', 'a', 'in', 'to', 'of', 'i', 'and', 'is', 'for', 'on', 'it', 'got',
-                'not', 'my', 'that', 'by', 'with', 'are', 'at', 'this', 'from', 'be', 'have', 'was']
-    from sklearn.feature_extraction import text
-    #stopWords = text.ENGLISH_STOP_WORDS.union(add_words)
-    stop_words = set(set(stopwords.words('english')).union(add_words))
-    excl =['will',"i'll",'shall',"you'll",'may',"don't","hadn't","hasn't","haven't",
-           "don't","isn't",'if',"mightn't","mustn'","mightn't",'mightn',"needn't",
-           'needn',"needn't",'no','not','shan',"shan't",'shouldn',"shouldn't","wasn't",
-          'wasn','weren',"weren't",'won',"won't",'wouldn',"wouldn't","you'd",'you',
-          "you'd","you'll","you're",'yourself','yourselves']
-    stopWords = left_subtract(stop_words,excl)
-    return sorted(stopWords)
+#########################################################################################
+def lower_words(text):
+    return text.map(lambda x: x.split(" ")).map(lambda row: " ".join([x.lower() for x in row ]))
 ################################################################################
 from sklearn.feature_extraction import text
 from nltk.stem.snowball import SnowballStemmer
@@ -759,21 +841,134 @@ def select_top_features_from_SVD(X, tsvd, is_train=True, top_n=100):
     print('    Time Taken for Truncated SVD = %0.0f seconds' %(time.time()-start_time) )
     return XA, tsvd
 ###########################################################################################
-def print_top_feature_grams(X, vectorizer, top_n = 25):
+def print_top_features(train,nlp_column, best_nlp_vect, target, top_nums=200):
+    """
+    #### This can be done only for C L A S S I F I C A T I O N   Data Sets ####################
+    This is an alternate way to look at classification tasks in NLP. Itis a simple technique
+    1. First separate samples into labels belonging to each class
+    1. Run a countvectorizer on each sample set.
+    1. Then append the sample sets and let there be nans where the word columns don't match
+    1. Fill those NaN's with 0's.
+    1. Now take this combined entity and run it through a Multinomial GaussianNB
+    1. See if the results are any better since the top words have different counts for different classes
+    ###########################################################################################
+    """
+    #### Make sure that you do this for only small data sets ####################
+    max_samples = min(10000,train.shape[0])
+    buswo = train.sample(max_samples, random_state=99)
+    classes = np.unique(buswo[target])
+    orig_vect = copy.deepcopy(best_nlp_vect)
+    df_names = []
+    classes_copy = copy.deepcopy(classes)
+    for itera in classes_copy:
+        if not isinstance(itera, str):
+            new_df_name = 'df_'+str(itera)
+        else:
+            new_df_name = 'df_'+itera
+        print('%s is about class=%s of shape: ' %(new_df_name,itera), end='')
+        new_df_name = buswo[(buswo[target]==itera)]
+        df_names.append(new_df_name)
+        print(new_df_name.shape)
+    #### now we split into as many data frames as there are classes in the train data set
+    df_dtms = []
+    count_df = 0
+    count_bus_wo = pd.DataFrame()
+    for each_df, each_class in zip(df_names,classes):
+        print('\nFor class = %s' %each_class)
+        eachdf_index = each_df.index
+        each_df[nlp_column] = lower_words(each_df[nlp_column])
+        each_df[nlp_column] = each_df[nlp_column].map(expand_text).values
+        each_df[nlp_column] = each_df[nlp_column].map(clean_text_using_regex).map(strip_out_special_chars).values
+        each_df[nlp_column] = each_df[nlp_column].apply(process_text).map(lambda x: " ".join(x)).astype(str)
+        #### This is for the 0 class - notice how the top words are different!
+        #### After cleaning now you have to set the Countvectorizer ####
+        cv = copy.deepcopy(best_nlp_vect)
+        top_num_feats = print_top_feature_grams(each_df[nlp_column], cv, top_nums)
+        #### This is an Alternative Method to get Top Num features ###########
+        #top_num_feats =set([" ".join(x.split("_")) for x in word_freq_bigrams(bus_texts,int(top_nums*1/2))[0].values]+[
+        #                    " ".join(x.split("_")) for x in bigram_freq(bus_texts,int(top_nums*1/3))[0].values])
+        print('    Top n-grams will be used as features in the data set of size: %d' %len(top_num_feats))
+        #### Once you do that set it as the vocab and get a dataframe built with those vocabs
+        if len(top_num_feats) > 0:
+            ### If it is zero, you want to skip setting the vocab to zero. Hence this check!
+            cv.vocabulary = top_num_feats
+            cv.fit(each_df[nlp_column])
+            each_df_dtm = cv.transform(each_df[nlp_column])
+            each_df_dtm = pd.DataFrame(each_df_dtm.toarray(),index=eachdf_index,
+                                     columns=cv.get_feature_names())
+            print('    Completed building data frame of shape: %s' %(each_df_dtm.shape,))
+            df_dtms.append(each_df_dtm)
+            if count_df == 0:
+                count_bus_wo = copy.deepcopy(each_df_dtm)
+            else:
+                count_bus_wo = count_bus_wo.append(each_df_dtm).sort_index().fillna(0).astype(int)
+            print(count_bus_wo.shape)
+        count_df += 1
+    print('Printed top n-grams for each class in the train data set')
+    #### this is where all the columns from multiple classes are put into one set ###
+    all_class_feats = count_bus_wo.columns.tolist()
+    # This is where you combine dataframe with its original target to create a new data frame
+    try:
+        buswo_dtm = count_bus_wo.join(buswo[target])
+    except:
+        ### there must be another variable with the name target so try again
+        buswo_dtm = (count_bus_wo.drop(target,axis=1)).join(buswo[target])
+    print(buswo_dtm.shape)
+    #### now return the original vectorizer with all_class_feats as the vocab
+    ###  You can now use this orig_vect to fit and transform train and test datasets
+    #### This will mean that both your train and test will contain the same columns
+    #### buswo_dtm represents the new train data set that has been transformed by cv
+    orig_vect.vocabulary = all_class_feats
+    return buswo_dtm, all_class_feats
+###########################################################################################
+import collections
+def print_top_feature_grams(X, vectorizer, top_n = 200):
     """
     This prints the top features by each n-gram using the vectorizer that is selected as best!
     """
     X = copy.deepcopy(X)
     vectorizer = copy.deepcopy(vectorizer)
+    all_sorted = []
     for i in range(1,4):
-        vectorizer.ngram_range=(i, i)
-        XA = vectorizer.fit_transform(X)
-        feature_array = vectorizer.get_feature_names()
-        top_sorted_tuples = sorted(list(zip(vectorizer.get_feature_names(),
-                                                     XA.sum(0).getA1())),
-                                         key=lambda x: x[1], reverse=True)[:top_n]
-        top_sorted = [x for (x,y) in  top_sorted_tuples]
-        print("Top %d %d-gram\n: %s" %(top_n, i, top_sorted))
+        #### set min_df to be low so that you catch at least a few  of them
+        try:
+            if i == 1:
+                top_num = int(top_n*2/3)
+            elif i == 2:
+                top_num = int(top_n*1/6)
+            else:
+                top_num = int(top_n*1/6)
+            vectorizer.ngram_range = (i,i)
+            XA = vectorizer.fit_transform(X)
+            feature_array = vectorizer.get_feature_names()
+            top_sorted_tuples = sorted(list(zip(vectorizer.get_feature_names(),
+                                                         XA.sum(0).getA1())),
+                                             key=lambda x: x[1], reverse=True)[:top_num]
+            top_sorted = [x for (x,y) in  top_sorted_tuples]
+            all_sorted += top_sorted
+        except:
+            pass
+    ### the reason you want to do "set" after each time is because you have some duplicates.
+    ### after removing spaces, you may find more duplicates, hence you do it twice
+    all_sorted_set = sorted(set(all_sorted), key=all_sorted.index)
+    all_sorted_final = sorted(set(remove_unicode_strings(all_sorted_set)),
+                                  key=remove_unicode_strings(all_sorted_set).index)
+    print("Top %d n-grams\n: %s" %(top_n, all_sorted_final))
+    return all_sorted_final
+###########################################################################################
+def remove_unicode_strings(lst):
+    try:
+        ret_lst = []
+        for string_var in lst:
+            clean_string = "".join(["" if ord(x) > 127 else x for x in string_var])
+            clean_string = " ".join(clean_string.split())
+            if len(clean_string) == 0:
+                pass
+            else:
+                ret_lst.append(clean_string)
+        return ret_lst
+    except:
+        return lst
 ###########################################################################################
 from sklearn.feature_extraction.text import TfidfVectorizer
 from collections import defaultdict
@@ -838,9 +1033,6 @@ def select_top_features_from_vectorizer(X, vectorizer,top_n=25):
     print('Combined best features array shape: %s' %(best_features_array.shape,))
     return best_df
 #########################################################################################
-def lower_words(text):
-    return text.map(lambda x: x.split(" ")).map(lambda row: " ".join([x.lower() for x in row ]))
-#########################################################################################
 from xgboost.sklearn import XGBClassifier
 from xgboost.sklearn import XGBRegressor
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
@@ -853,7 +1045,8 @@ from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.pipeline import make_pipeline
 def Auto_NLP(nlp_column, train, test, target, score_type='',
-                            modeltype='Classification',top_num_features=50, verbose=0,
+                            modeltype='Classification',
+                            top_num_features=200, verbose=0,
                             build_model=True):
     """
     ##################################################################################
@@ -952,14 +1145,14 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     train[nlp_column] = lower_words(train[nlp_column])
     train[nlp_column] = train[nlp_column].map(expand_text).values
     train[nlp_column] = train[nlp_column].map(clean_text_using_regex).map(strip_out_special_chars).values
-    #### If you are removing stopwords through max_df, then this step is not needed!
-    train[nlp_column] = remove_stop_words(train[nlp_column])
+    train[nlp_column] =  remove_stop_words(train[nlp_column])
+    train[nlp_column] = train[nlp_column].apply(process_text).map(lambda x: " ".join(x)).astype(str)
     if not isinstance(test, str):
         test[nlp_column] = lower_words(test[nlp_column])
         test[nlp_column] = test[nlp_column].map(expand_text).values
         test[nlp_column] = test[nlp_column].map(clean_text_using_regex).map(strip_out_special_chars).values
-        #### If you are removing stopwords through max_df, then this step is not needed!
-        test[nlp_column] = remove_stop_words(test[nlp_column])
+        test[nlp_column] =  remove_stop_words(test[nlp_column])
+        test[nlp_column] = test[nlp_column].apply(process_text).map(lambda x: " ".join(x)).astype(str)
     print('Train and Test data Text cleaning completed. Time taken = %d seconds' %(time.time()-start_time1))
     ##########################################################################################
     if modeltype.endswith('Classification'):
@@ -991,7 +1184,11 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     #### Convert the Feature Array from a Sparse Matrix to a Dense Array #########
     print('Setting Max Features limit to NLP vectorizer as %d' %max_features_limit)
     best_nlp_vect.max_features = max_features_limit
-    print_top_feature_grams(train[nlp_column], best_nlp_vect)
+    if modeltype == 'Regression':
+        print_top_feature_grams(train[nlp_column], best_nlp_vect, top_num_features)
+    else:
+        ### Do this only for priting top words n-grams by classes since each class may be different
+        print_top_features(train, nlp_column, best_nlp_vect, target, top_num_features)
     print('Time taken so far = %0.1f minutes' %((time.time()-start_time1)/60))
     #############   THIS IS WHERE WE USE BUILD_MODEL TO DECIDE ################################
     if build_model:
@@ -1377,23 +1574,29 @@ def create_summary_of_nlp_cols(data, col, target, is_train=False, verbose=0):
     cols = []
     stop_words = return_stop_words()
     # word_count
-    data[col+'_word_count'] = data[col].apply(lambda x: len(str(x).split()))
+    data[col+'_word_count'] = data[col].apply(lambda x: len(str(x).split(" ")))
     cols.append(col+'_word_count')
     # unique_word_count
-    data[col+'_unique_word_count'] = data[col].apply(lambda x: len(set(str(x).split())))
+    data[col+'_unique_word_count'] = data[col].apply(lambda x: len(set(str(x).split(" "))))
     cols.append(col+'_unique_word_count')
     # stop_word_count
-    data[col+'_stop_word_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split() if w in stop_words]))
+    data[col+'_stop_word_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split(" ") if w in stop_words]))
     cols.append(col+'_stop_word_count')
     # url_count
-    data[col+'_url_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split() if 'http' in w or 'https' in w]))
-    cols.append(col+'_stop_word_count')
+    data[col+'_url_count'] = data[col].apply(lambda x: len([w for w in str(x).lower().split(" ") if 'http' in w or 'https' in w]))
+    cols.append(col+'_url_count')
     # mean_word_length
-    data[col+'_mean_word_length'] = data[col].apply(lambda x: int(np.mean([len(w) for w in str(x).split()])))
-    cols.append(col+'_mean_word_length')
+    try:
+      data[col+'_mean_word_length'] = data[col].apply(lambda x: int(np.mean([len(w) for w in str(x).split(" ")])))
+      cols.append(col+'_mean_word_length')
+    except:
+      print('Error: Cannot create word length in %s due to NaNs in data' %col)
     # char_count
-    data[col+'_char_count'] = data[col].apply(lambda x: len(str(x)))
-    cols.append(col+'_char_count')
+    try:
+      data[col+'_char_count'] = data[col].apply(lambda x: len(str(x)))
+      cols.append(col+'_char_count')
+    except:
+      print('Error: Cannot create char count in %s due to NaNs in data' %col)
     # punctuation_count
     data[col+'_punctuation_count'] = data[col].apply(lambda x: len([c for c in str(x) if c in string.punctuation]))
     cols.append(col+'_punctuation_count')
@@ -1465,9 +1668,9 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.30'
+version_number = '0.0.31'
 print("""Imported Auto_NLP version: %s.. Call using:
-     train_nlp, test_nlp, nlp_transformer, preds = Auto_NLP(
+     train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type,
                 modeltype,top_num_features=50, verbose=0,
                 build_model=True)""" %version_number)

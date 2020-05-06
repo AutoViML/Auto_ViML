@@ -10,5 +10,7 @@ shap
 textblob
 vaderSentiment
 nltk
-imbalanced-learn
+imbalanced-learn>=0.6.0
 regex
+beautifulsoup4
+gensim

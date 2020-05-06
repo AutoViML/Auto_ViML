@@ -27,7 +27,9 @@ setuptools.setup(
         "nltk",
         "regex",
         "vaderSentiment",
-        "imbalanced-learn"
+        "imbalanced-learn",
+	"beautifulsoup4",
+	"gensim"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

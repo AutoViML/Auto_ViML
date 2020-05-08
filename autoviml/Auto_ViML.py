@@ -245,7 +245,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.621                                              #######
+    ######                               Version 0.1.623                                              #######
     #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -613,7 +613,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 %len(id_cols+del_cols+date_cols))
     ################## This is where real code begins ###################################################
     GPU_exists = check_if_GPU_exists()
-    GPU_exists = True
     ###### This is where we set the CPU and GPU parameters for XGBoost
     param = {}
     if Boosting_Flag:
@@ -632,25 +631,25 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #####   Set the Scoring Parameters here based on each model and preferences of user ##############
     cpu_params = {}
     if model_name == 'XGBoost':
-        #### This is only for XGBoost ###########
         if GPU_exists:
-            #param['nthread'] = CPU_count
+            #param['nthread'] = -1
             param['tree_method'] = 'gpu_hist'
             param['grow_policy'] = 'depthwise'
             param['max_depth'] = max_depth
             param['max_leaves'] = 0
             param['verbosity'] = 0
             param['gpu_id'] = 0
-            param['updater'] = 'grow_gpu_hist'
+            param['updater'] = 'prune'  ##'grow_gpu_hist'
             param['predictor'] = 'gpu_predictor'
         ##### WE should keep CPU params as backup in case GPU fails!
+        #cpu_params['nthread'] = -1
         cpu_params['tree_method'] = 'hist'
         cpu_params['grow_policy'] = 'depthwise'
         cpu_params['max_depth'] = max_depth
         cpu_params['max_leaves'] = 0
         cpu_params['verbosity'] = 0
         cpu_params['gpu_id'] = 0
-        cpu_params['updater'] = 'grow_colmaker'
+        cpu_params['updater'] = 'prune'
         cpu_params['predictor'] = 'cpu_predictor'
     elif model_name.lower() == 'catboost':
         if model_class == 'Binary-Class':
@@ -1108,11 +1107,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         "Linear": {
                             'alpha': np.logspace(-5,3),
                                 },
-                        "XGBoost": {
-                                        'learning_rate': np.linspace(0.1,0.5,5),
-                                        'gamma': np.linspace(0, 32,7).astype(int),
-                                        'max_depth': np.linspace(1, max_depth,7).astype(int),
-                                },
+                        "XGBoost":  {
+                                'learning_rate': sp.stats.uniform(scale=1),
+                                'gamma': sp.stats.randint(0, 32),
+                               'n_estimators': sp.stats.randint(100,max_estims),
+                                "max_depth": sp.stats.randint(2, 10),
+                                    },
                         "CatBoost": {
                                 'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
                                 },
@@ -1176,11 +1176,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                     "criterion":['gini','entropy'],
                                             }
             else:
+                import scipy as sp
                 c_params['XGBoost'] = {
-                                        'learning_rate': np.linspace(0.1,0.5,5),
-                                        'gamma': np.linspace(0, 32,7).astype(int),
-                                        'max_depth': np.linspace(1, max_depth,7).astype(int),
-                                    }
+                        'learning_rate': sp.stats.uniform(scale=1),
+                        'gamma': sp.stats.randint(0, 32),
+                       'n_estimators': sp.stats.randint(100,max_estims),
+                        "max_depth": sp.stats.randint(2, 10),
+                      }
                 c_params["CatBoost"] = {
                                     'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
                                 }
@@ -1355,11 +1357,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                         "max_depth": [3, 5, max_depth],
                                     }
                     else:
+                        import scipy as sp
                         c_params['XGBoost'] = {
-                                        'learning_rate': np.linspace(0.1,0.5,5),
-                                        'gamma': np.linspace(0, 32,7).astype(int),
-                                        'max_depth': np.linspace(1, max_depth,7).astype(int),
-                                    }
+                                'learning_rate': sp.stats.uniform(scale=1),
+                                'gamma': sp.stats.randint(0, 32),
+                               'n_estimators': sp.stats.randint(100, max_estims),
+                                'max_depth': sp.stats.randint(2, 10)
+                              }
                     if model_name.lower() == 'catboost':
                         xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
                                 random_state=99,one_hot_max_size=one_hot_size,
@@ -2331,7 +2335,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if modeltype != 'Regression':
                     if verbose >= 2:
                         testm[proba_cols].plot(kind='kde',figsize=(10,6),
-                                                     title='Predictive Probability Density Chart with suggested threshold in red')
+                                        title='Predictive Probability Density Chart with suggested threshold in red')
                         plt.axvline(x=m_thresh, color='r', linestyle='--')
             except:
                 print('    Error: Not able to save test modified file. Skipping...')
@@ -3761,10 +3765,10 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
             early_stopping = 5
             try:
                 if eval_set==[()]:
-                    model.fit(train_ovr[train_preds], train_ovr[target],
+                    model.fit(train_ovr[train_preds], train_ovr[df_target],
                         eval_metric=eval_metric, verbose=False)
                 else:
-                    model.fit(train_ovr[train_preds], train_ovr[target],early_stopping_rounds=early_stopping,
+                    model.fit(train_ovr[train_preds], train_ovr[df_target],early_stopping_rounds=early_stopping,
                         eval_metric=eval_metric,eval_set=eval_set,verbose=False)
             except:
                 #### On Colab, even though GPU exists, many people don't turn it on.
@@ -3773,20 +3777,20 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
                 if GPU_exists:
                     print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
                     model.estimator.set_params(**params)
-                    model.fit(train_ovr[train_preds], train_ovr[target], early_stopping_rounds=early_stopping,
+                    model.fit(train_ovr[train_preds], train_ovr[df_target], early_stopping_rounds=early_stopping,
                         eval_metric=eval_metric,eval_set=eval_set,verbose=False)
                 else:
-                    model.fit(train_ovr[train_preds], train_ovr[target],
+                    model.fit(train_ovr[train_preds], train_ovr[df_target],
                         eval_metric=eval_metric, verbose=False)
         else:
             early_stopping = 250
             if eval_set == [()]:
-                model.fit(train_ovr[train_preds], train_ovr[target], cat_features=imp_cats,plot=False)
+                model.fit(train_ovr[train_preds], train_ovr[df_target], cat_features=imp_cats,plot=False)
             else:
-                model.fit(train_ovr[train_preds], train_ovr[target], cat_features=imp_cats,
+                model.fit(train_ovr[train_preds], train_ovr[df_target], cat_features=imp_cats,
                             eval_set=eval_set, use_best_model=True, plot=True)
     else:
-        model.fit(train_ovr[train_preds], train_ovr[target])
+        model.fit(train_ovr[train_preds], train_ovr[df_target])
     print('Imbalanced class training completed.')
     return model
 ##############################################################################################
@@ -4173,7 +4177,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.622'
+version_number = '0.1.623'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

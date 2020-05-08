@@ -1,12 +1,12 @@
 ################################################################################
-####                       Auto NLP version 1.1                             ####
+####                       Auto NLP version 1.6                             ####
 ####                      Developed by Ram Seshadri                         ####
 ####                        All Rights Reserved                             ####
 ################################################################################
 #### Auto NLP applies NLP processing techniques on a dataset with one variable##
 #### You cannot give a dataframe with multiple string variables as only one ####
 ####  is allowed. It splits the dataset into train and test and returns     ####
-####  predictions on both for Classification or Regression.                 ####
+####  predictions on test for Classification or Regression problems.        ####
 ################################################################################
 import pandas as pd
 import numpy as np
@@ -75,7 +75,7 @@ import operator
 from scipy import interp
 import nltk
 from nltk.corpus import stopwords
-nltk.download('stopwords')
+nltk.download("popular")
 ############################################################################
 # define a function that accepts a vectorizer and calculates its accuracy
 def tokenize_test_by_metric(model, X_train, X_cv, y_train, y_cv,
@@ -597,7 +597,6 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     ####   a  good idea, since it results in much cleaner and much better terms selected.
     ################################################################################
     """
-    nltk.download("popular")
     stopWords = return_stop_words()
     ######################################################
     #### This calculates based on the average number of words in an NLP column how many max_features
@@ -1668,10 +1667,10 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.31'
+version_number = '0.0.33'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
-                nlp_column, train, test, target, score_type,
-                modeltype,top_num_features=50, verbose=0,
+                nlp_column, train, test, target, score_type='balanced-accuracy',
+                modeltype='Classification',top_num_features=200, verbose=0,
                 build_model=True)""" %version_number)
 ########################################################################

@@ -3761,10 +3761,10 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
             early_stopping = 5
             try:
                 if eval_set==[()]:
-                    model.fit(X_train_ovr, y_train_ovr,
+                    model.fit(train_ovr[train_preds], train_ovr[target],
                         eval_metric=eval_metric, verbose=False)
                 else:
-                    model.fit(X_train_ovr, y_train_ovr, early_stopping_rounds=early_stopping,
+                    model.fit(train_ovr[train_preds], train_ovr[target],early_stopping_rounds=early_stopping,
                         eval_metric=eval_metric,eval_set=eval_set,verbose=False)
             except:
                 #### On Colab, even though GPU exists, many people don't turn it on.
@@ -3773,20 +3773,20 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
                 if GPU_exists:
                     print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
                     model.estimator.set_params(**params)
-                    model.fit(X_train_ovr, y_train_ovr, early_stopping_rounds=early_stopping,
+                    model.fit(train_ovr[train_preds], train_ovr[target], early_stopping_rounds=early_stopping,
                         eval_metric=eval_metric,eval_set=eval_set,verbose=False)
                 else:
-                    model.fit(X_train_ovr, y_train_ovr,
+                    model.fit(train_ovr[train_preds], train_ovr[target],
                         eval_metric=eval_metric, verbose=False)
         else:
             early_stopping = 250
             if eval_set == [()]:
-                model.fit(X_train_ovr, y_train_ovr, cat_features=imp_cats,plot=False)
+                model.fit(train_ovr[train_preds], train_ovr[target], cat_features=imp_cats,plot=False)
             else:
-                model.fit(X_train_ovr, y_train_ovr, cat_features=imp_cats,
+                model.fit(train_ovr[train_preds], train_ovr[target], cat_features=imp_cats,
                             eval_set=eval_set, use_best_model=True, plot=True)
     else:
-        model.fit(X_train_ovr, y_train_ovr)
+        model.fit(train_ovr[train_preds], train_ovr[target])
     print('Imbalanced class training completed.')
     return model
 ##############################################################################################
@@ -3806,7 +3806,7 @@ def multi_f1(truth, predictions):
     return f1_score(truth, predictions,average=None)
 def multi_precision(truth, predictions):
     return precision_score(truth, predictions,average=None)
-
+##############################################################################################
 def Draw_MC_ML_PR_ROC_Curves(classifier,X_test,y_test):
     """
     ========================================================================================
@@ -4173,7 +4173,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.621'
+version_number = '0.1.622'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

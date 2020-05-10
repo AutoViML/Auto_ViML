@@ -235,6 +235,7 @@ def flatten_list(list_of_lists):
             final_ls.append(each_item)
     return final_ls
 #############################################################################################################
+import scipy as sp
 def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feature_reduction=True,
             scoring_parameter='logloss', Boosting_Flag=None, KMeans_Featurizer=False,
             Add_Poly=0, Stacking_Flag=False, Binning_Flag=False,
@@ -245,7 +246,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.623                                              #######
+    ######                               Version 0.1.624                                              #######
     #####   HUGE UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. April 15,2020       ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -372,7 +373,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     bootstrap = True #### Set this flag to control whether to bootstrap variables or not.
     n_repeats = 1 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
     Bins = 30 ### This is for plotting probabilities in a histogram. For small data sets, 30 is enough.
-    top_nlp_features = 25 ### This sets a limit on the number of features added by each NLP transformer!
+    top_nlp_features = 100 ### This sets a limit on the number of features added by each NLP transformer!
     print('##############  D A T A   S E T  A N A L Y S I S  #######################')
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
     if isinstance(Boosting_Flag,str):
@@ -419,6 +420,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         test_size = 0.20
         max_iter = 10000
         Bins = 100
+        top_nlp_features = 300
         if isinstance(Boosting_Flag,str):
             if Boosting_Flag.lower() == 'catboost':
                 max_estims = 5000
@@ -431,6 +433,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             no_iter=20
             test_size = 0.1
             max_iter = 4000
+            top_nlp_features = 250
             if isinstance(Boosting_Flag,str):
                 if Boosting_Flag.lower() == 'catboost':
                     max_estims = 3000
@@ -443,6 +446,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             no_iter=30
             test_size = 0.15
             max_iter = 7000
+            top_nlp_features = 200
             if isinstance(Boosting_Flag,str):
                 if Boosting_Flag.lower() == 'catboost':
                     max_estims = 4000
@@ -1097,6 +1101,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 },
                         }
             else:
+                import scipy as sp
                 r_params = {
                         "Forests": {
                                 "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
@@ -1755,7 +1760,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             subm[new_col] = cv_ensembles[:,each]
                         cols.append(new_col)
                     if len(cols) == 5:
-                        print('    Calculating weighted average ensemble of %d regressors' %len(cols))
+                        print('    Displaying results of weighted average ensemble of %d regressors' %len(cols))
                         ensem_pred = subm[cols[-1]]*0.5+0.125*(subm[cols[0]]+subm[
                                         cols[1]]+subm[cols[2]]+subm[cols[3]])
                     else:
@@ -1799,7 +1804,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             subm[new_col] = cv_ensembles[:,each]
                         cols.append(new_col)
                     if len(cols) == 5:
-                        print('    Calculating weighted average ensemble of %d classifiers' %len(cols))
+                        print('    Displaying results of weighted average ensemble of %d classifiers' %len(cols))
                         ensem_pred = np.round(subm[cols[-1]]*0.5+0.125*(subm[cols[0]]+subm[
                                         cols[1]]+subm[cols[2]]+subm[cols[3]])).astype(int)
                     else:
@@ -4177,7 +4182,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.623'
+version_number = '0.1.624'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -535,8 +535,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             elif len(np.unique(train[each_target])) > 2:
                 model_class = 'Multi-Class'
                 ##### If multi-class happens, then you absolutely need to do SMOTE. Otherwise, you don't get good results!
-                print('    Setting Imbalanced_Flag to True since this is a Multi_Classification problem')
-                Imbalanced_Flag = True
+                #### Unfortunately SMOTE blows up when the data set is large -> so better to turn it off!
+                #print('    Setting Imbalanced_Flag to True since this is a Multi_Classification problem')
+                #Imbalanced_Flag = True
             else:
                 print('Target label %s has less than 2 classes. Stopping' %each_target)
                 return
@@ -4278,7 +4279,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.625'
+version_number = '0.1.626'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

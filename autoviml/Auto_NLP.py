@@ -21,6 +21,7 @@ import matplotlib
 matplotlib.style.use('ggplot')
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import RandomizedSearchCV
+from sklearn.calibration import CalibratedClassifierCV
 
 from sklearn import model_selection
 import warnings
@@ -847,11 +848,11 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     #### Once you do above, there is no difference between count_vectorizer and tfidf_vectorizer
     #### Once u do above, increasing max_features from 50 to even 500 doesn't get you a higher score!
     ##########################################################################
-    print('\n#### Using Count Vectorizer with limited max_features =%d and a min_df=%s with n_gram (1-5)' %(max_features,min_df))
+    print('\n#### Using Count Vectorizer with Latin-1 encoding, limited max_features =%d and a min_df=%s with n_gram (1-5)' %(max_features,min_df))
     vect_lemma = CountVectorizer(max_df=best_max_df,
                                    max_features=max_features, strip_accents='unicode',
                                    ngram_range=(1, 5), token_pattern=r'\w{1,}',
-                                    min_df=min_df, stop_words=None,
+                                    min_df=min_df, stop_words=None, encoding='latin-1',
                                    binary=False,
                                     )
     try:
@@ -870,11 +871,13 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
                                       y_test, target, metric,
                                         tvec, seed, modeltype)
     max_features_limit = int(tvec.fit_transform(data_dtm).shape[1])
-    print('\n# Using TFIDF vectorizer with binary=False, ngram (1,3) and limited max_features')
+
+
+    print('\n# Using TFIDF vectorizer with latin-1 encoding, binary=False, ngram (1,3) and limited max_features')
     tvec2 = TfidfVectorizer( max_features=max_features, max_df=best_max_df,
                                 token_pattern=r'\w{1,}', sublinear_tf=True,
 #                                tokenizer=simple_tokenizer,preprocessor=simple_preprocessor,
-                                 tokenizer=None,
+                                 tokenizer=None, encoding='latin-1',
                                  min_df=min_df, stop_words=None,  binary=False, strip_accents='unicode',
                                  use_idf=True, ngram_range=(1,3))
     all_vecs[tvec2], all_models[tvec2] = tokenize_test_by_metric(model, X_train, X_test, y_train,
@@ -1176,16 +1179,13 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         print('    Time taken to transform train data into vectorized data = %0.2f seconds' %(time.time()-start_time) )
         print('    Train Vectorized data shape = %s, Cross Validation data shape = %s' %(X_train_dtm.shape, X_test.shape))
         if modeltype == 'Regression':
-            model_name = 'XGB Regressor'
             scv = KFold(n_splits=n_splits, random_state=seed)
-            nlp_model = XGBRegressor(learning_rate=0.1,subsample=subsample,max_depth=10,gamma=2,
-                                colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
-                                seed=1,n_jobs=-1,random_state=seed)
-            low, high = 100, 400
+            from sklearn.linear_model import LassoLars
+            model_name = 'Lasso LARS'
+            nlp_model = LassoLars()
             params = {}
-            params['learning_rate'] = sp.stats.uniform(scale=1)
-            params['gamma'] = sp.stats.randint(0,32)
-            params['n_estimators'] = sp.stats.randint(low,high)
+            params['alpha'] = sp.stats.uniform(scale=1)
+            params['max_iter'] = sp.stats.randint(100,5000)
         else:
             scv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
             model_name = 'Multinomial Naive Bayes'
@@ -1237,7 +1237,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         print('Completed selecting the best NLP transformer. Time taken = %0.1f minutes' %((time.time()-start_time)/60))
         train_best = train_best.set_index(train_index)
         train_best = train_best.fillna(0)
-        train_nlp = train.join(train_best,rsuffix='NLP_token_added')
+        train_nlp = train.join(train_best,rsuffix='_NLP_token_by_Auto_NLP')
         train_nlp['auto_nlp_source'] = 'Train'
         #################################################################################
         if type(test) != str:
@@ -1247,7 +1247,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
                                                         top_feats, is_train=False, trained_svd=trained_svd)
             test_best = test_best.set_index(test_index)
             test_best = test_best.fillna(0)
-            test_nlp = test.join(test_best, rsuffix='NLP_token_added')
+            test_nlp = test.join(test_best, rsuffix='_NLP_token_by_Auto_NLP')
             test_nlp[target] = 0
             test_nlp['auto_nlp_source'] = 'Test'
             nlp_data = train_nlp.append(test_nlp)
@@ -1702,7 +1702,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.34'
+version_number = '0.0.35'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced-accuracy',

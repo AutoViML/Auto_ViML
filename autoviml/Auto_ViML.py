@@ -536,7 +536,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 model_class = 'Multi-Class'
                 ##### If multi-class happens, then you absolutely need to do SMOTE. Otherwise, you don't get good results!
                 #### Unfortunately SMOTE blows up when the data set is large -> so better to turn it off!
-                #print('    Setting Imbalanced_Flag to True since this is a Multi_Classification problem')
+                print('ALERT! Setting Imbalanced_Flag to True in Auto_ViML for Multi_Classification problems improves results!')
                 #Imbalanced_Flag = True
             else:
                 print('Target label %s has less than 2 classes. Stopping' %each_target)
@@ -660,6 +660,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             param['gpu_id'] = 0
             param['updater'] = 'prune'  ##'grow_gpu_hist'
             param['predictor'] = 'gpu_predictor'
+            param['num_parallel_tree'] = 20
         ##### WE should keep CPU params as backup in case GPU fails!
         #cpu_params['nthread'] = -1
         cpu_params['tree_method'] = 'hist'
@@ -670,6 +671,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         cpu_params['gpu_id'] = 0
         cpu_params['updater'] = 'prune'
         cpu_params['predictor'] = 'cpu_predictor'
+        cpu_params['num_parallel_tree'] = 20
     elif model_name.lower() == 'catboost':
         if model_class == 'Binary-Class':
             catboost_scoring = 'Accuracy'
@@ -1553,6 +1555,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                            Boosting_Flag, eval_metric,
                                            modeltype, model_name,training=True,
                                            minority_class=rare_class,imp_cats=imp_cats,
+                                           calibrator_flag=calibrator_flag,
                                            GPU_exists=GPU_exists, params = cpu_params,
                                            verbose=verbose)
                     if isinstance(model, str):
@@ -1693,7 +1696,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     method=  'sigmoid' # 'isotonic' # # or 
                     model = CalibratedClassifierCV(model, method=method, cv=5)
                     model.fit(X_train, y_train)
-                    print('    Using a Calibrated Classifier in Multi_Classification models...')
+                    print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
                     calibrator_flag = True
                 except:
                     calibrator_flag = False
@@ -1849,8 +1852,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if len(classes) == 2:
                     plot_classification_results(model,X_cv, y_cv, y_pred, classes, class_nums, each_target )
                 else:
-                    Draw_ROC_MC_ML(model, X_cv, y_cv, each_target, model_name, verbose)
-                    Draw_MC_ML_PR_ROC_Curves(model,X_cv,y_cv)
+                    try:
+                        Draw_ROC_MC_ML(model, X_cv, y_cv, each_target, model_name, verbose)
+                        Draw_MC_ML_PR_ROC_Curves(model,X_cv,y_cv)
+                    except:
+                        print('Could not plot PR and ROC curves. Continuing...')
             #### In case there are special scoring_parameter requests, you can print it here!
             if scoring_parameter == 'roc_auc' or scoring_parameter == 'auc':
                 if len(classes) == 2:
@@ -1916,7 +1922,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     plot_xgb_metrics(model,catboost_scoring,eval_set,modeltype,'%s Results' %each_target,
                                     model_name)
                 else:
-                    plot_xgb_metrics(model,eval_metric,eval_set,modeltype,'%s Results' %each_target,
+                    plot_xgb_metrics(gs.best_estimator_,eval_metric,eval_set,modeltype,'%s Results' %each_target,
                                     model_name)
             else:
                  print('No evaluation metrics plot available for this type of model')
@@ -2077,14 +2083,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     print('Imbalanced Class Training using SMOTE Rare Class Oversampling method...')
                     if model_name.lower() == 'catboost':
                         print('    Setting best params for CatBoost model')
-                        if calibrator_flag:
-                            model = xgbm.base_estimator.set_params(**best_params)
-                        else:
-                            model = xgbm.set_params(**best_params)
                     model, X, y = training_with_SMOTE(X,y, eval_set, model,
                                       Boosting_Flag, eval_metric,modeltype, model_name,
                                       training=False, minority_class=rare_class,
-                                      imp_cats=imp_cats,
+                                      imp_cats=imp_cats, calibrator_flag=calibrator_flag,
                                       GPU_exists=GPU_exists, params=cpu_params,
                                       verbose=verbose)
                     if isinstance(model, str):
@@ -2112,10 +2114,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 model.fit(X, y,
                                         eval_metric=eval_metric,verbose=0)
                             else:
-                                if calibrator_flag:
-                                    model = xgbm.base_estimator.set_params(**best_params)
-                                else:
-                                    model = xgbm.set_params(**best_params)
                                 model.fit(X, y, cat_features=imp_cats, plot=False)
                     else:
                             model.fit(X, y)
@@ -2127,10 +2125,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 model.fit(X, y,
                                     eval_metric=eval_metric,verbose=0)
                         else:
-                            if calibrator_flag:
-                                model = xgbm.base_estimator.set_params(**best_params)
-                            else:
-                                model = xgbm.set_params(**best_params)
                             model.fit(X, y, cat_features=imp_cats, plot=False)
                     else:
                             model.fit(X, y)
@@ -2144,10 +2138,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         model.fit(X, y,
                             eval_metric=eval_metric,verbose=0)
                     else:
-                        if calibrator_flag:
-                            model = xgbm.base_estimator.set_params(**best_params)
-                        else:
-                            model = xgbm.set_params(**best_params)
                         model.fit(X, y, cat_features=imp_cats, use_best_model=False, plot=False)
                 else:
                         model.fit(X, y)
@@ -3783,6 +3773,7 @@ from imblearn.over_sampling import SMOTE
 def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
                                         modeltype, model_name,
                                      training=True,minority_class=1,imp_cats=[],
+                                     calibrator_flag=False,
                                      GPU_exists=False, params={},
                                      verbose=0):
     """
@@ -3798,6 +3789,11 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
     start_time = time.time()
     ### This smallest_kn is needed because if the number of samples is less than KN, then it blows up!
     smallest_kn = pd.Series(Counter(y_df)).min() - 1
+    if smallest_kn > 10:
+        smallest_kn = 10
+    elif smallest_kn < 2:
+        smallest_kn = 2
+    print('Number of K Neighbors selected for SMOTE = %d' %smallest_kn)
     smote = SMOTE(random_state=seed,sampling_strategy='all', k_neighbors=smallest_kn, n_jobs=-1)
     model = copy.deepcopy(model)
     df_target = y_df.name
@@ -3812,7 +3808,11 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
     else:
         print("Using SMOTE's over-sampling techniques to make the %d classes balanced..." %len(np.unique(y_df)))
     #### With SMOTE Oversampling, just one batch of training is enough and gives great results!
-    X_train_ovr, y_train_ovr = smote.fit_resample(X_df, y_df)
+    try:
+        X_train_ovr, y_train_ovr = smote.fit_resample(X_df, y_df)
+    except:
+        print('    SMOTE is erroring. Continuing without SMOTE...')
+        return model, X_df, y_df
     print('    SMOTE completed. Actual time taken = %0.0f seconds' %(time.time()-start_time))
     print('##################  Training Imbalanced data now...  ################')
     train_ovr = pd.DataFrame(X_train_ovr, columns=train_preds)
@@ -3826,12 +3826,14 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
         if model_name == 'XGBoost':
             early_stopping = 5
             try:
-                if eval_set==[()]:
-                    model.fit(train_ovr[train_preds], train_ovr[df_target],
-                        eval_metric=eval_metric, verbose=False)
+                if calibrator_flag:
+                    model.fit(train_ovr[train_preds], train_ovr[df_target])
                 else:
-                    model.fit(train_ovr[train_preds], train_ovr[df_target],early_stopping_rounds=early_stopping,
-                        eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                    if eval_set==[()]:
+                        model.fit(train_ovr[train_preds], train_ovr[df_target], eval_metric=eval_metric, verbose=False)
+                    else:
+                        model.fit(train_ovr[train_preds], train_ovr[df_target],early_stopping_rounds=early_stopping,
+                            eval_metric=eval_metric,eval_set=eval_set,verbose=False)
             except:
                 #### On Colab, even though GPU exists, many people don't turn it on.
                 ####  In that case, XGBoost blows up when gpu_predictor is used.
@@ -3839,11 +3841,15 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
                 if GPU_exists:
                     print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
                     model.estimator.set_params(**params)
-                    model.fit(train_ovr[train_preds], train_ovr[df_target], early_stopping_rounds=early_stopping,
-                        eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                if calibrator_flag:
+                    model.fit(train_ovr[train_preds], train_ovr[df_target])
                 else:
-                    model.fit(train_ovr[train_preds], train_ovr[df_target],
-                        eval_metric=eval_metric, verbose=False)
+                    if eval_set==[()]:
+                        model.fit(train_ovr[train_preds], train_ovr[df_target], eval_metric=eval_metric,
+                             verbose=False)
+                    else:
+                        model.fit(train_ovr[train_preds], train_ovr[df_target], early_stopping_rounds=early_stopping,
+                            eval_metric=eval_metric,eval_set=eval_set,verbose=False)
         else:
             early_stopping = 250
             if eval_set == [()]:
@@ -4279,7 +4285,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.626'
+version_number = '0.1.627'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -511,10 +511,10 @@ def print_top_features(train,nlp_column, best_nlp_vect, target, top_nums=200):
             new_df_name = 'df_'+str(itera)
         else:
             new_df_name = 'df_'+itera
-        print('%s is about class=%s of shape: ' %(new_df_name,itera), end='')
+        #print('%s is about class=%s of shape: ' %(new_df_name,itera), end='')
         new_df_name = buswo[(buswo[target]==itera)]
         df_names.append(new_df_name)
-        print(new_df_name.shape)
+        #print(new_df_name.shape)
     #### now we split into as many data frames as there are classes in the train data set
     df_dtms = []
     count_df = 0
@@ -528,7 +528,7 @@ def print_top_features(train,nlp_column, best_nlp_vect, target, top_nums=200):
         #### This is an Alternative Method to get Top Num features ###########
         #top_num_feats =set([" ".join(x.split("_")) for x in word_freq_bigrams(bus_texts,int(top_nums*1/2))[0].values]+[
         #                    " ".join(x.split("_")) for x in bigram_freq(bus_texts,int(top_nums*1/3))[0].values])
-        print('    Top n-grams will be used as features in the data set of size: %d' %len(top_num_feats))
+        print('    Top n-grams that are most frequent in this class are: %d' %len(top_num_feats))
         #### Once you do that set it as the vocab and get a dataframe built with those vocabs
         all_sorted += top_num_feats
     all_sorted_set = sorted(set(all_sorted), key=all_sorted.index)
@@ -670,6 +670,7 @@ def fit_and_predict(model, X_train, y_train, X_cv, modeltype='Classification', i
             y_preds = model.predict(X_cv.toarray())
             return y_preds
 ################################################################################
+import copy
 def tranform_combine_top_feats_with_SVD(each_df, nlp_column, big_nlp_vect, new_vect,
                                             top_feats,is_train='',trained_svd=''):
     """
@@ -709,14 +710,18 @@ def tranform_combine_top_feats_with_SVD(each_df, nlp_column, big_nlp_vect, new_v
         each_df_dtm2 = small_nlp_vect.fit_transform(each_df[nlp_column])
         each_df_dtm2 = pd.DataFrame(each_df_dtm2.toarray(),index=orig_each_df_index,
                                              columns=small_nlp_vect.get_feature_names())
-        print('Added top %d features from Train data' %(each_df_dtm2.shape[1]))
+        #### Since the top features from each class is a pretty bad idea, I am dropping it here!
+        #print('Added top %d features from Train data' %(each_df_dtm2.shape[1]))
     else:
         each_df_dtm2 = small_nlp_vect.transform(each_df[nlp_column])
         each_df_dtm2 = pd.DataFrame(each_df_dtm2.toarray(),index=orig_each_df_index,
                                              columns=small_nlp_vect.get_feature_names())
-        print('Added top %d features from Test data' %(each_df_dtm2.shape[1]))
+        #### Since the top features from each class is a pretty bad idea, I am dropping it here!
+        #print('Added top %d features from Test data' %(each_df_dtm2.shape[1]))
     # Now you have to combine them all to get a new each_df_best dataframe
-    each_df_best = each_df_dtm2.join(each_df_dtm1)
+    ### Since the top features from each class is not helping improve model, it is best dropped!
+    #each_df_best = each_df_dtm2.join(each_df_dtm1)
+    each_df_best = copy.deepcopy(each_df_dtm1)
     print('Combined Data Frame size = %s' %(each_df_best.shape,))
     return each_df_best, big_nlp_vect, small_nlp_vect, trained_svd
 ###########################################################################
@@ -1642,28 +1647,21 @@ def create_summary_of_nlp_cols(data, col, target, is_train=False, verbose=0):
     cols.append(col+'_mention_count')
     if verbose >= 1:
         if is_train:
-            plot_nlp_column(data[col+'_unique_word_count'],"Word Count")
-    if verbose > 1:
-        if is_train:
-            plot_nlp_column(data[col+'_char_count'],"Character Count")
+            fig, (ax1,ax2) = plt.subplots(1,2,figsize=(15,6))
+            plot_nlp_column(data[col+'_unique_word_count'],"Word Count", ax1, 'r')
+            plot_nlp_column(data[col+'_char_count'],"Character Count", ax2, 'b')
     if verbose >= 2:
         if is_train:
             draw_dist_plots_summary_cols(data, target, cols)
     return data, cols
 #############################################################################
-def plot_nlp_column(df_col,label_title):
+def plot_nlp_column(df_col, label_title, ax,color='r'):
     """
     We want to know the average number of words per row of text.
     So we first plot the distribution of number of words per text row.
     """
-    color_string = 'bryclg'
-    cnt_srs = df_col.value_counts()
-    plt.figure(figsize=(12,6))
-    sns.barplot(cnt_srs.index, cnt_srs.values, alpha=0.8, color=color_string[0])
-    plt.ylabel('Number of Occurrences', fontsize=12)
-    plt.xlabel('Distribution of %s in newly created %s column' %(label_title,df_col.name),fontsize=12)
-    plt.xticks(rotation='vertical')
-    plt.show();
+    df_col.hist(bins=30,ax=ax, color=color)
+    ax.set_title(label_title);
 #############################################################################
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -1702,7 +1700,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.35'
+version_number = '0.0.36'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced-accuracy',

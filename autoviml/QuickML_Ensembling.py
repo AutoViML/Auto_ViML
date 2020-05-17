@@ -121,12 +121,8 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             model5 = LinearDiscriminantAnalysis()
             model_tuples.append(('Linear_Discriminant',model5))
         else:
-            if num_classes == 2:
-                model5 = LogisticRegressionCV(Cs=[0.001,0.01,0.1,1,10,100],
+            model5 = LogisticRegressionCV(Cs=[0.001,0.01,0.1,1,10,100],
                                           solver='liblinear', random_state=seed)
-            else:
-                model5 = LogisticRegressionCV(Cs=[0.001,0.01,0.1,1,10,100],
-                        solver='newton-cg',random_state=seed)
             model_tuples.append(('Logistic_Regression_CV',model5))
         if Boosting_Flag is None:
             model6 = DecisionTreeClassifier(max_depth=5,min_samples_leaf=2)

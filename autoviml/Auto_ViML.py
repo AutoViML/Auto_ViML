@@ -1567,6 +1567,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################################################################################################################################
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
+        pdb.set_trace()
         if Imbalanced_Flag:
             if modeltype == 'Regression':
                 ###########  In case someone sets the Imbalanced_Flag mistakenly to True and it is Regression, you must set it to False ######
@@ -4335,7 +4336,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.633'
+version_number = '0.1.634'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

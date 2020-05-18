@@ -658,17 +658,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #####   Set the Scoring Parameters here based on each model and preferences of user ##############
     cpu_params = {}
     if model_name == 'XGBoost':
-        if GPU_exists:
-            param['nthread'] = -1
-            param['tree_method'] = 'gpu_hist'
-            param['grow_policy'] = 'depthwise'
-            param['max_depth'] = max_depth
-            param['max_leaves'] = 0
-            param['verbosity'] = 0
-            param['gpu_id'] = 0
-            param['updater'] = 'grow_gpu_hist' #'prune'
-            param['predictor'] = 'gpu_predictor'
-            param['num_parallel_tree'] = 1
         ##### WE should keep CPU params as backup in case GPU fails!
         cpu_params['nthread'] = -1
         cpu_params['tree_method'] = 'hist'
@@ -680,7 +669,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         cpu_params['updater'] = 'grow_colmaker'
         cpu_params['predictor'] = 'cpu_predictor'
         cpu_params['num_parallel_tree'] = 1
-        param = copy.deepcopy(cpu_params)
+        if GPU_exists:
+            param['nthread'] = -1
+            param['tree_method'] = 'gpu_hist'
+            param['grow_policy'] = 'depthwise'
+            param['max_depth'] = max_depth
+            param['max_leaves'] = 0
+            param['verbosity'] = 0
+            param['gpu_id'] = 0
+            param['updater'] = 'grow_gpu_hist' #'prune'
+            param['predictor'] = 'gpu_predictor'
+            param['num_parallel_tree'] = 1
+        else:
+            param = copy.deepcopy(cpu_params)
         validation_metric = copy.deepcopy(scoring_parameter)
     elif model_name.lower() == 'catboost':
         if model_class == 'Binary-Class':
@@ -4335,7 +4336,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.637'
+version_number = '0.1.638'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

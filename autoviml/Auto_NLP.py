@@ -1703,7 +1703,7 @@ module_type = 'Running' if  __name__ == "__main__" else 'Imported'
 version_number = '0.0.36'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
-                nlp_column, train, test, target, score_type='balanced-accuracy',
+                nlp_column, train, test, target, score_type='balanced_accuracy',
                 modeltype='Classification',top_num_features=200, verbose=0,
                 build_model=True)""" %version_number)
 ########################################################################

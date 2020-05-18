@@ -369,6 +369,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #### 'lbfgs' is the fastest one but doesnt provide accurate results. Newton-CG is slower but accurate!
     #### SAGA is extremely slow. Even slower than Newton-CG. Liblinear is the fastest and as accurate as Newton-CG!
     solvers = ['liblinear'] ### Other solvers for Logistic Regression model: ['newton-cg','lbfgs','saga','liblinear']
+    solver = 'liblinear'  ### This is the next fastest solver after liblinear. Useful for Multi-class problems!
     penalties = ['l2','l1'] ### This is to determine the penalties for LogisticRegression
     n_steps = 6 ### number of estimator steps between 100 and max_estims
     max_depth = 10 ##### This limits the max_depth used in decision trees and other classifiers
@@ -380,6 +381,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     top_nlp_features = 100 ### This sets a limit on the number of features added by each NLP transformer!
     removed_features_threshold = 5 #### This triggers the Truncated_SVD if number of removed features from XGB exceeds this!
     calibrator_flag = False  ### In Multi-class data sets, a CalibratedClassifier works better than regular classifiers!
+    max_class_length = 1 ### It turns out the number of classes is directly correlated to Estimated Time. Hence this!
     print('##############  D A T A   S E T  A N A L Y S I S  #######################')
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
     if isinstance(Boosting_Flag,str):
@@ -605,6 +607,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print('    Target %s is already numeric. No transformation done.' %each_target)
             if rare_class != 1:
                 print('Alert! Rare Class is not 1 but %s in this data set' %rare_class)
+        else:
+            #### In Regression problems, max_class_length is artificially set to one.
+            #### It turns out that Estimated Time is correlated to number of classes in data set. Hence we use this!
+            max_class_length = 1
     ###########################################################################################
     ####  This is where we start doing the iterative hyper tuning parameters #####
     params_dict = defaultdict(list)
@@ -1293,7 +1299,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         xgbm.set_params(**param)
                 elif Boosting_Flag is None:
                     #### I have set the Verbose to be False here since it produces too much output ###
-                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver='lbfgs',
+                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver=solver,
                                                 fit_intercept=True, tol=tolerance,
                                              warm_start=warm_start, max_iter=max_iter)
                 else:
@@ -1412,30 +1418,24 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             c_params['Linear'] = {
                                         'C': Cs,
                                     'class_weight':[None, 'balanced'],
-                                    'multi_class': ['multinomial'],
                                     }
                         else:
                             c_params['Linear'] = {
                                         'C': Cs,
-                                        'solver' : solvers,
-                                        'multi_class': ['ovr','multinomial'],
                                             }
                     else:
                         if Imbalanced_Flag:
                             c_params['Linear'] = {
                                     'C': sp.stats.uniform(scale=100),
                                     'class_weight':[None, 'balanced'],
-                                    'multi_class': ['multinomial'],
                                     }
                         else:
                             c_params['Linear'] = {
                                     'C': sp.stats.uniform(scale=100),
-                                        'solver' : solvers,
-                                        'multi_class': ['ovr','multinomial'],
                                             }
                     #### I have set the Verbose to be False here since it produces too much output ###
-                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver='lbfgs',
-                                                fit_intercept=True, tol=tolerance,
+                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver=solver,
+                                                fit_intercept=True, tol=tolerance, multi_class='auto',
                                               max_iter=max_iter, warm_start=False,
                                               )
                 else:
@@ -1524,37 +1524,37 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             if Boosting_Flag:
                 if model_name.lower() == 'catboost':
                     data_dim = data_dim*one_hot_size/len(preds)
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(3000000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(50000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
             elif Boosting_Flag is None:
-                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(80000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(80000.*CPU_count)))
             else:
-                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(40000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(40000.*CPU_count)))
         else:
             if hyper_param == 'GS':
                 if Boosting_Flag:
                     if model_name.lower() == 'catboost':
                         data_dim = data_dim*one_hot_size/len(preds)
-                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(3000000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
                     else:
-                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(50000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
                 elif Boosting_Flag is None:
                     #### A Linear model is usually the fastest ###########
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(25000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(25000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim/(20000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(20000.*CPU_count)))
             else:
                 if Boosting_Flag:
                     if model_name.lower() == 'catboost':
                         data_dim = data_dim*one_hot_size/len(preds)
-                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(3000000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
                     else:
-                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(60000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(60000.*CPU_count)))
                 elif Boosting_Flag is None:
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(50000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim/(25000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(25000.*CPU_count)))
         ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
         ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
         model_start_time = time.time()
@@ -3827,7 +3827,7 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
         smallest_kn = 10
     elif smallest_kn <= 2:
         smallest_kn = 1
-    print('Number of K Neighbors selected for SMOTE = %d' %smallest_kn)
+    print('    Number of K Neighbors selected for SMOTE = %d' %smallest_kn)
     smote = SMOTE(random_state=seed,sampling_strategy='all', k_neighbors=smallest_kn, n_jobs=-1)
     model = copy.deepcopy(model)
     df_target = y_df.name
@@ -4318,7 +4318,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.628'
+version_number = '0.1.629'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

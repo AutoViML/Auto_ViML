@@ -1567,7 +1567,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################################################################################################################################
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
-        pdb.set_trace()
         if Imbalanced_Flag:
             if modeltype == 'Regression':
                 ###########  In case someone sets the Imbalanced_Flag mistakenly to True and it is Regression, you must set it to False ######
@@ -1601,7 +1600,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                     ####  This is to turn it back to cpu_predictor in case GPU errors!
                                     if GPU_exists:
                                         print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
-                                        model.estimator.set_params(**params)
+                                        model.estimator.set_params(**cpu_params)
                                         model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
                                             eval_metric=eval_metric,eval_set=eval_set,verbose=False)
                                     else:
@@ -1646,7 +1645,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             ####  This is to turn it back to cpu_predictor in case GPU errors!
                             if GPU_exists:
                                 print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
-                                model.estimator.set_params(**params)
+                                model.estimator.set_params(**cpu_params)
                                 model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
                                     eval_metric=eval_metric,eval_set=eval_set,verbose=False)
                             else:
@@ -4336,7 +4335,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.634'
+version_number = '0.1.635'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

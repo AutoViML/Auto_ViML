@@ -669,19 +669,18 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             param['updater'] = 'grow_gpu_hist' #'prune'
             param['predictor'] = 'gpu_predictor'
             param['num_parallel_tree'] = 1
-        else:
-            ##### WE should keep CPU params as backup in case GPU fails!
-            cpu_params['nthread'] = -1
-            cpu_params['tree_method'] = 'hist'
-            cpu_params['grow_policy'] = 'depthwise'
-            cpu_params['max_depth'] = max_depth
-            cpu_params['max_leaves'] = 0
-            cpu_params['verbosity'] = 0
-            cpu_params['gpu_id'] = 0
-            cpu_params['updater'] = 'grow_colmaker'
-            cpu_params['predictor'] = 'cpu_predictor'
-            cpu_params['num_parallel_tree'] = 1
-            param = copy.deepcopy(cpu_params)
+        ##### WE should keep CPU params as backup in case GPU fails!
+        cpu_params['nthread'] = -1
+        cpu_params['tree_method'] = 'hist'
+        cpu_params['grow_policy'] = 'depthwise'
+        cpu_params['max_depth'] = max_depth
+        cpu_params['max_leaves'] = 0
+        cpu_params['verbosity'] = 0
+        cpu_params['gpu_id'] = 0
+        cpu_params['updater'] = 'grow_colmaker'
+        cpu_params['predictor'] = 'cpu_predictor'
+        cpu_params['num_parallel_tree'] = 1
+        param = copy.deepcopy(cpu_params)
         validation_metric = copy.deepcopy(scoring_parameter)
     elif model_name.lower() == 'catboost':
         if model_class == 'Binary-Class':
@@ -4336,7 +4335,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.636'
+version_number = '0.1.637'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

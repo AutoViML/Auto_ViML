@@ -29,6 +29,7 @@ setuptools.setup(
         "vaderSentiment",
         "imbalanced-learn",
     	"beautifulsoup4",
+        "shap",
     	"gensim"
     ],
     classifiers=[

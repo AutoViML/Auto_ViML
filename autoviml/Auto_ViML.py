@@ -363,8 +363,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     one_hot_size = 500 #### This determines the max length of one_hot_max_size parameter of CatBoost algrithm
     Alpha_min = -3 #### The lowest value of Alpha in LOGSPACE that is used in CatBoost
     Alpha_max = 2 #### The highest value of Alpha in LOGSPACE that is used in Lasso or Ridge Regression
-    #Cs = [0.001,0.005,0.01,0.05,0.1,0.25,0.5,1,2,4,6,10,20,30,40,50,100,150,200,400,800,1000,2000]
-    Cs = np.logspace(-2,3,40) ### The list of values of C used in Logistic Regression
+    Cs = [0.001,0.005,0.01,0.05,0.1,0.25,0.5,1,2,4,6,10,20,30,40,50,100,150,200,400,800,1000,2000]
+    #Cs = np.logspace(-4,3,40) ### The list of values of C used in Logistic Regression
     tolerance = 0.001 #### This tolerance is needed to speed up Logistic Regression. Otherwise, SAGA takes too long!!
     #### 'lbfgs' is the fastest one but doesnt provide accurate results. Newton-CG is slower but accurate!
     #### SAGA is extremely slow. Even slower than Newton-CG. Liblinear is the fastest and as accurate as Newton-CG!
@@ -391,12 +391,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     if not Boosting_Flag:  ### there is also a chance Boosting_Flag is None - This is to eliminate that chance!
         if orig_train.shape[0] >= 10000:
             hyper_param = 'RS' 
-            print('    Changing hyperparameter search to RS. Otherwise, Random Forests will take too long for 10,000+ rows')
+            print('Changing hyperparameter search to RS. Otherwise, Random Forests will take too long for 10,000+ rows')
     elif Boosting_Flag: ### there is also a chance Boosting_Flag is None - This is to eliminate that chance!
         if not isinstance(Boosting_Flag, str):
             if orig_train.shape[0] >= 10000:
                 hyper_param = 'RS' 
-                print('    Changing hyperparameter search to RS. Otherwise XGBoost will take too long for 10,000+ rows.')
+                print('Changing hyperparameter search to RS. Otherwise XGBoost will take too long for 10,000+ rows.')
     ###########    T H I S   I S  W H E R E   H Y P E R O P T    P A R A M S  A R E   S E T #########
     if hyper_param == 'HO':
         ########### HyperOpt related objective functions are defined here #################
@@ -1215,7 +1215,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         "max_depth": sp.stats.randint(1, 10),
                       }
                 c_params["CatBoost"] = {
-                                    'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
+                                    'learning_rate': sp.stats.uniform(scale=1),
                                 }
                 if Imbalanced_Flag:
                     c_params['Linear'] = {
@@ -1388,6 +1388,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                         'gamma': np.linspace(0, 32,7).astype(int),
                                         "max_depth": [3, 5, max_depth],
                                     }
+                        c_params["CatBoost"] = {
+                                        'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
+                                        }
                     else:
                         import scipy as sp
                         c_params['XGBoost'] = {
@@ -1396,6 +1399,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                'n_estimators': sp.stats.randint(100, max_estims),
                                 'max_depth': sp.stats.randint(1, 10)
                               }
+                        c_params['CatBoost'] = {
+                                'learning_rate': sp.stats.uniform(scale=1),
+                                }
                     if model_name.lower() == 'catboost':
                         xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
                                 random_state=99,one_hot_max_size=one_hot_size,
@@ -1536,23 +1542,23 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if Boosting_Flag:
                     if model_name.lower() == 'catboost':
                         data_dim = data_dim*one_hot_size/len(preds)
-                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(300000.*CPU_count)))
                     else:
-                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(5000.*CPU_count)))
                 elif Boosting_Flag is None:
                     #### A Linear model is usually the fastest ###########
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(25000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(2500.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(20000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(2000.*CPU_count)))
             else:
                 if Boosting_Flag:
                     if model_name.lower() == 'catboost':
                         data_dim = data_dim*one_hot_size/len(preds)
                         print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
                     else:
-                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(60000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(10000.*CPU_count)))
                 elif Boosting_Flag is None:
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(20000.*CPU_count)))
                 else:
                     print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(25000.*CPU_count)))
         ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
@@ -1721,6 +1727,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     calibrator_flag = False
                     pass
         ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
+        print('Best Model selected and its parameters are:\n    %s' %model)
         performed_ensembling = False
         if modeltype != 'Regression':
             m_thresh = 0.5
@@ -1945,27 +1952,42 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 except:
                     print('Could not plot Cross Validation Parameters')
         print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
-        if Boosting_Flag is None:
-            if modeltype == 'Regression':
-                if calibrator_flag:
-                    imp = pd.DataFrame(model.base_estimator.coef_[:len(important_features)].T, index=important_features)
+        try:
+            if Boosting_Flag is None:
+                if modeltype == 'Regression':
+                    if calibrator_flag:
+                        imp = pd.DataFrame(model.base_estimator.coef_[:len(important_features)].T, index=important_features)
+                    else:
+                        imp = pd.DataFrame(model.coef_[:len(important_features)].T, index=important_features)
                 else:
-                    imp = pd.DataFrame(model.coef_[:len(important_features)].T, index=important_features)
+                    if calibrator_flag:
+                        imp = pd.DataFrame(model.base_estimator.coef_[0][:len(important_features)].T, index=important_features)
+                    else:
+                        imp = pd.DataFrame(model.coef_[0][:len(important_features)].T, index=important_features)
+                imp_features_df = imp.sort_values(0,ascending=False)
             else:
                 if calibrator_flag:
-                    imp = pd.DataFrame(model.base_estimator.coef_[0][:len(important_features)].T, index=important_features)
-                else:
-                    imp = pd.DataFrame(model.coef_[0][:len(important_features)].T, index=important_features)
-            imp_features_df = imp.sort_values(0,ascending=False)
-        else:
-            if calibrator_flag:
-                imp_features_df = pd.DataFrame(model.base_estimator.feature_importances_, columns=['Feature Weightings'],
+                    if model_name.lower() == 'xgboost':
+                        imp_features_df = pd.DataFrame(list(model.base_estimator.get_booster().get_score(importance_type='weight').values()),columns=['Feature Weightings'],
+                                 index=important_features).sort_values('Feature Weightings',
+                                 ascending=False)
+                    elif model_name == 'Forests':
+                        imp_features_df = pd.DataFrame(model.base_estimator.feature_importances_, columns=['Feature Weightings'],
                              index=important_features).sort_values('Feature Weightings',
                              ascending=False)
-            else:
-                imp_features_df = pd.DataFrame(model.feature_importances_, columns=['Feature Weightings'],
-                         index=important_features).sort_values('Feature Weightings',
-                         ascending=False)
+                else:
+                    imp_features_df = pd.DataFrame(model.feature_importances_, columns=['Feature Weightings'],
+                             index=important_features).sort_values('Feature Weightings',
+                             ascending=False)
+            ### Now draw the feature importances using the data frame above!
+            height_size = 5
+            width_size = 10
+            color_string = 'byrcmgkbyrcmgkbyrcmgkbyrcmgk'
+            print('Plotting Feature Importances to explain the output of model')
+            imp_features_df[:10].plot(kind='barh',title='Feature Importances for predicting %s' %each_target,
+                                 figsize=(width_size, height_size), color=color_string);
+        except:
+            print('Could not draw feature importance plot due to an error')
         ###########   D R A W  SHAP  VALUES USING TREE BASED MODELS. THE REST WILL NOT GET SHAP ############
         if verbose >= 1:
             try:
@@ -2004,12 +2026,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                          Boosting_Flag, matplotlib_flag,verbose)
                         print('Plotting SHAP (SHapley Additive exPlanations) values to explain the output of model')
             except:
-                height_size = 5
-                width_size = 10
-                color_string = 'byrcmgkbyrcmgkbyrcmgkbyrcmgk'
-                print('Plotting Feature Importances to explain the output of model')
-                imp_features_df[:10].plot(kind='barh',title='Feature Importances for predicting %s' %each_target,
-                                 figsize=(width_size, height_size), color=color_string);
+                print('Could not plot SHAP values since SHAP is not installed or could not import SHAP in this machine')
         print('############### P R E D I C T I O N  O N  T E S T  #################')
         print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
         print('Training model on complete Train data and Predicting using give Test Data...')
@@ -2757,7 +2774,7 @@ def plot_RS_params(cv_results, score, mname):
     fig = plt.figure(figsize=(width_size,rows*height_size))
     fig.suptitle('Training and Validation: Hyper Parameter Tuning for target=%s' %mname, fontsize=20,y=1.01)
     #### If the values are negative, convert them to positive ############
-    if len(df[(df[cols]<0)]) > 0:
+    if len(df.loc[df[cols[0]]<0]) > 0:
         df[cols] = df[cols]*-1
     for each_param, count in zip(params, range(noplots)):
         plt.subplot(rows,ncols,count+1)
@@ -2771,7 +2788,7 @@ def plot_RS_params(cv_results, score, mname):
                 df[[each_param]+cols].groupby(each_param).mean().plot(kind='line',
                             title='%s for %s' %(each_param,mname), ax=ax1)
             except:
-                df[[each_param]+cols].groupby(each_param).mean().plot(kind='bar',stacked=True,
+                df[[each_param]+cols].groupby(each_param).mean().plot(kind='bar',stacked=False,
                             title='%s for %s' %(each_param,mname), ax=ax1)
     #### This is to plot the test_mean_score against params to see how it increases
     for each_param in params:
@@ -4318,7 +4335,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.631'
+version_number = '0.1.633'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

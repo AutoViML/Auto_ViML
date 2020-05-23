@@ -18,6 +18,9 @@ import warnings
 warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
 warnings.filterwarnings(action='ignore', category=DataConversionWarning)
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+from numpy import inf
 
 from sklearn.linear_model import LassoCV, RidgeCV
 from sklearn.linear_model import Lasso, Ridge
@@ -1000,90 +1003,105 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ### If we use the whole of Train for entropy binning then there will be data leakage and our
         ### cross validation test scores will not be so accurate. So don't change the next 5 lines here!
         ################     I  M  P  O  R  T  A  N  T  ##################################################
-        train_num = int((1-test_size)*train.shape[0])
-        part_train = train[:train_num]
-        part_cv = train[train_num:]
+        if modeltype ==  'Regression':
+            skf = KFold(n_splits=n_splits, random_state=seed)
+        else:
+            skf = StratifiedKFold(n_splits=n_splits, random_state=seed, shuffle=True)
+        cv_train_index, cv_index = next(skf.split(X, y))
+        print('Train CV Split completed with', "TRAIN size:", cv_train_index.shape, "CV size:", cv_index.shape)
+        X_train, X_cv = X.loc[cv_train_index], X.loc[cv_index]
+        y_train, y_cv = y.loc[cv_train_index], y.loc[cv_index]
+        ################   IMPORTANT ENTROPY  BINNING   #####################################
+        ### The reason we don't use train_test_split is because we want only a partial train entropy binned
+        part_train = train.loc[cv_train_index]
+        part_cv = train.loc[cv_index]
         ############   Add Entropy Binning of Continuous Variables Here ##############################
+        num_vars = np.array(important_features)[(train[important_features].dtypes==float)].tolist()
         saved_important_features = copy.deepcopy(important_features)  ### these are original features without '_bin' added
+        #### saved_num_vars is an important variable: it contains the orig_num_vars before they were binned
         saved_num_vars = copy.deepcopy(num_vars)  ### these are original numeric features without '_bin' added
-        if len(saved_num_vars) > 0:
+        ###############    BINNING   FIRST    TIME ##################################################
+        if Binning_Flag and len(saved_num_vars) > 0:
             #### Do binning only when there are numeric features ####
-            part_train, num_vars, important_features, part_cv = add_entropy_binning(part_train, each_target, num_vars,
-                                                                 important_features, part_cv, modeltype,Binning_Flag)
+            #### When we Bin the first time, we set the entropy_binning flag to False so
+            ####    no numeric variables are removed. But next time, we will remove them later!
+            part_train, num_vars, important_features, part_cv = add_entropy_binning(part_train,
+                                            each_target, saved_num_vars,
+                                            saved_important_features, part_cv,
+                                            modeltype,False,verbose)
+            #### In saved_num_vars we send in all the continuous_vars but we bin only the top few vars.
+            ###  Those that are binned are removed from saved_num_vars and the remaining become num_vars
+            ### Our job is to find the names of those original numeric variables which were binned.
+            ### orig_num_vars contains original num vars. num_vars contains binned versions of those vars.
+            ### Those binned variables have now become categorical vars and must be added to imp_cats.
+            orig_num_vars = left_subtract(saved_num_vars,num_vars)
+            imp_cats += num_vars
+            #### Also note that important_features does not contain orig_num_vars which have been erased.
+        else:
+            print('    Binning_Flag set to False or there are no numeric vars in data set to be binned')
+        #######################   KMEANS   FIRST   TIME     ############################
         ### Now we add another Feature tied to KMeans clustering using Predictor and Target variables ###
-        X_train, X_cv, y_train, y_cv = part_train[important_features],part_cv[important_features
-                                                   ],train[each_target][:train_num],train[each_target][train_num:]
-        ##############################################################################
         if KMeans_Featurizer and len(num_vars) > 0:
             ### DO KMeans Featurizer only if there are numeric features in the data set!
-            print('    Adding one Feature named "KMeans_Clusters" using KMeans_Featurizer...')
+            print('    Adding one Feature named "KMeans_Clusters" based on KMeans_Featurizer_Flag=True...')
             km_label = 'KMeans_Clusters'
             if modeltype != 'Regression':
-                ### If it is Classification, you can specify the number of clusters same as classes
-                train_clusters, cv_clusters = Transform_KM_Features(X_train, y_train, X_cv, len(classes))
+                #### Make the number of clusters as the same as log10 of number of rows in Train
+                num_clusters = int(np.round(max(2,np.log10(train.shape[0]))))
+                #### Make the number of clusters as the same as log10 of number of rows in Train
+                train_clusters, cv_clusters = Transform_KM_Features(part_train[
+                                    important_features], part_train[each_target],
+                                    part_cv[important_features], num_clusters)
             else:
                 ### If it is Regression, you don't have to specify the number of clusters
-                train_clusters, cv_clusters = Transform_KM_Features(X_train, y_train, X_cv)
+                train_clusters, cv_clusters = Transform_KM_Features(part_train[
+                                    important_features], part_train[each_target],
+                                    part_cv[important_features])
             #### Since this is returning the each_target in X_train, we need to drop it here ###
-            X_train[km_label] = train_clusters
-            X_cv[km_label] = cv_clusters
+            print('    Used KMeans to naturally cluster Train predictor variables into %d clusters' %num_clusters)
+            part_train[km_label] = train_clusters
+            part_cv[km_label] = cv_clusters
             #X_train.drop(each_target,axis=1,inplace=True)
             imp_cats.append(km_label)
             for imp_cat in imp_cats:
-                X_train[imp_cat] = X_train[imp_cat].astype(int)
-                X_cv[imp_cat] = X_cv[imp_cat].astype(int)
+                part_train[imp_cat] = part_train[imp_cat].astype(int)
+                part_cv[imp_cat] = part_cv[imp_cat].astype(int)
             ####### The features are checked again once we add the cluster feature ####
-            important_features = [x for x in list(X_train) if x not in [each_target]]
+            important_features.append(km_label)
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:
             #### In order to join, you need X_train to be a Pandas Series here ##
-            print('CAUTION: Stacking can produce Highly Overfit models on Training Data...')
+            print('Alert! Stacking can produce Highly Overfit models on Training Data...')
             ### In order to avoid overfitting, we are going to learn from a small sample of data
-            ### That is why we are using X_cv to train on and using it to predict on X_train!
-            addcol, stacks1 = QuickML_Stacking(X_train,y_train,X_train,
+            ### That is why we are using X_train to train on and using it to predict on X_cv!
+            addcol, stacks1 = QuickML_Stacking(part_train[important_features],part_train[
+                                each_target],part_train[important_features],
                           modeltype, Boosting_Flag, scoring_parameter,verbose)
-            addcol, stacks2 = QuickML_Stacking(X_train,y_train,X_cv,
+            addcol, stacks2 = QuickML_Stacking(part_train[important_features],part_train[
+                                each_target],part_cv[important_features],
                           modeltype, Boosting_Flag, scoring_parameter,verbose)
-            X_train = X_train.join(pd.DataFrame(stacks1,index=X_train.index,
+            part_train = part_train.join(pd.DataFrame(stacks1,index=cv_train_index,
                                               columns=addcol))
             ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
-            X_cv = X_cv.join(pd.DataFrame(stacks2,index=X_cv.index,
+            part_cv = part_cv.join(pd.DataFrame(stacks2,index=cv_index,
                                               columns=addcol))
             print('    Adding %d Stacking feature(s) to training data' %len(addcol))
             ######  We make sure that we remove any new features that are highly correlated ! #####
             #addcol = remove_variables_using_fast_correlation(X_train,addcol,corr_limit,verbose)
             important_features += addcol
+        ###############################################################################
+        #### part train contains the unscaled original train. It also contains binned and orig_num_vars!
+        #### DO NOT DO TOUCH part_train and part_cv -> we need it to recrate train later!
         ####################### Now do Feature Scaling Here #################################
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-        from numpy import inf
-        ####################### Now do Feature Scaling Here #################################
-        new_num_vars = np.array(important_features)[(train[important_features].dtypes==float) | (train[important_features].dtypes==np.int64) | (
-                            train[important_features].dtypes==np.int32) | (train[important_features].dtypes==np.int16) | (train[important_features].dtypes==np.int8)].tolist()
-        if model_name.lower() != 'catboost':
-            for each_num_var in new_num_vars:
-                try:
-                    train[each_num_var] = SS.fit_transform(train[each_num_var].values.reshape(-1,1))
-                except:
-                    train.loc[train[each_num_var]==inf,each_num_var]=1
-                    train.loc[train[each_num_var]==-inf,each_num_var]=0
-                    train[each_num_var] = SS.fit_transform(train[each_num_var].values.reshape(-1,1))
-                ##### DO SCALING ON TEST HERE ############
-                if type(test) != str:
-                    try:
-                        test[each_num_var] = SS.transform(test[each_num_var].values.reshape(-1,1))
-                    except:
-                        print('Scaling is erroring when transforming Test %s column. Correcting errors in test data and continuing' %each_num_var)
-                        test.loc[test[each_num_var]==inf,each_num_var]=1
-                        test.loc[test[each_num_var]==-inf,each_num_var]=0
-                        test[each_num_var] = SS.transform(test[each_num_var].values.reshape(-1,1))
-            print('Feature scaling for float and integer variables using %s...' %SS)
-        else:
-            print('For CatBoost, feature scaling is not required. Continuing...')
-        #### This is where we divide train and test into Train and CV Test Sets #################
+        part_train_scaled, part_cv_scaled = perform_scaling_numeric_vars(part_train, important_features,
+                                                part_cv, model_name, SS)
+        #### part_train_scaled has both predictor and target variables. Target must be removed!
+        important_features = find_remove_duplicates(important_features)
+        X_train =  part_train_scaled[important_features]
+        X_cv = part_cv_scaled[important_features]
         #### Remember that the next 2 lines are crucial: if X and y are dataframes, then predict_proba
-        ###     will have to also predict on dataframes. So don't confuse values with df's.
-        ##      Be consistent with XGB. That's the best way.
+        ###     will return  dataframes or series. Otherwise it will return Numpy array's.
+        ##      Be consistent when using dataframes with XGB. That's the best way to keep feature names!
         print('###############  M O D E L   B U I L D I N G  B E G I N S  ####################')
         print('Rows in Train data set = %d' %X_train.shape[0])
         print('  Features in Train data set = %d' %X_train.shape[1])
@@ -1963,31 +1981,58 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     print('Could not plot Cross Validation Parameters')
         print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
         print('Training model on complete Train data and Predicting using give Test Data...')
-        ###############################################################################################################
+        ################        I M P O R T A N T: C O M B I N I N G  D A T A ######################
+        #### This is Second time: we combine train and CV into Train and Test Sets #################
+        train = part_train.append(part_cv)
+        important_features = [x for x in list(train) if x not in [each_target]]
+        ############################################################################################
         ###### Now that we have used partial data to make stacking predictors, we can remove them from consideration!
         if Stacking_Flag:
             important_features = left_subtract(important_features, addcol)
+            try:
+                train.drop(addcol,axis=1, inplace=True)
+            except:
+                pass
+        ###### Similarly we will have to create KMeans_Clusters again using full Train data!
+        if KMeans_Featurizer:
+            important_features = left_subtract(important_features, km_label)
+            try:
+                train.drop(km_label,axis=1, inplace=True)
+            except:
+                pass
+        ########################## BINNING SECOND TIME  ###############################
+        new_num_vars = np.array(important_features)[(train[important_features].dtypes==float)].tolist()
+        ## Now we re-use the saved_num_vars which contained a list of num_vars for binning now!
         ###### Once again we do Entropy Binning on the Full Train Data Set !!
-        if len(num_vars) > 0:
+        ########################## BINNING SECOND TIME  ###############################
+        if Binning_Flag and len(saved_num_vars) > 0:
             ### Do Entropy Binning only if there are numeric variables in the data set! #####
+            #### When we Bin the second first time, we set the entropy_binning flag to True so
+            ####    that all numeric variables that are binned are removed. This way, only bins remain.
             train, num_vars, important_features, test = add_entropy_binning(train, each_target,
-                                                  saved_num_vars, saved_important_features, test, modeltype,Binning_Flag)
+                                                  saved_num_vars, important_features, test,
+                                                  modeltype, True,verbose)
+            #### In saved_num_vars we send in all the continuous_vars but we bin only the top few vars.
+            ###  Those that are binned are removed from saved_num_vars and the remaining become num_vars
+            ### Our job is to find the names of those original numeric variables which were binned.
+            ### orig_num_vars contains original num vars. num_vars contains binned versions of those vars.
+            ### Those binned variables have now become categorical vars and must be added to imp_cats.
+            #### Also note that important_features does not contain orig_num_vars which have been erased.
+        else:
+            print('    Binning_Flag set to False or there are no numeric vars in data set to be binned')
         ### Now we add another Feature tied to KMeans clustering using Predictor and Target variables ###
-        if KMeans_Featurizer and len(num_vars) > 0:
+        #######################   KMEANS   SECOND   TIME     ############################
+        if KMeans_Featurizer and len(saved_num_vars) > 0:
             #### Perform KMeans Featurizer only if there are numeric variables in data set! #########
-            print('    Adding one Feature named "KMeans_Clusters" using KMeans_Featurizer...')
+            print('Adding one feature named "KMeans_Clusters" using KMeans_Featurizer...')
             km_label = 'KMeans_Clusters'
-            if isinstance(test, str):
-                if modeltype != 'Regression':
-                    train_cluster, _ = Transform_KM_Features(train[important_features], train[each_target], train[important_features], len(classes))
-                else:
-                    train_cluster, _ = Transform_KM_Features(train[important_features], train[each_target], train[important_features])
+            if modeltype != 'Regression':
+                #### Make the number of clusters as the same as log10 of number of rows in Train
+                train_cluster, test_cluster = Transform_KM_Features(train[important_features], train[each_target], test[important_features], num_clusters)
             else:
-                if modeltype != 'Regression':
-                    train_cluster, test_cluster = Transform_KM_Features(train[important_features], train[each_target], test[important_features], len(classes))
-                else:
-                    train_cluster, test_cluster = Transform_KM_Features(train[important_features], train[each_target], test[important_features])
+                train_cluster, test_cluster = Transform_KM_Features(train[important_features], train[each_target], test[important_features])
             #### Now make sure that the cat features are either string or integers ######
+            print('    Used KMeans to naturally cluster Train predictor variables into %d clusters' %num_clusters)
             train[km_label] = train_cluster
             if not isinstance(test, str):
                 test[km_label] = test_cluster
@@ -1996,7 +2041,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 train[imp_cat] = train[imp_cat].astype(int)
                 if not isinstance(test, str):
                     test[imp_cat] = test[imp_cat].astype(int)
-            important_features = [x for x in list(train) if x not in [each_target]]
+            saved_num_vars.append(km_label) ### You need to add it to this variable list for Scaling later!
+            important_features.append(km_label)
+        ########################## STACKING SECOND TIME  ###############################
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:
             #### In order to join, you need X_train to be a Pandas Series here ##
@@ -2006,8 +2053,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             addcol, stacks1 = QuickML_Stacking(train[important_features],train[each_target],'',
                           modeltype, Boosting_Flag, scoring_parameter,verbose)
             ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
-            #### The reason we add the word "Partial" is to show that these Stacking results are from Partial data!
-            addcols = ['Partial_Input_'+x for x in addcol]
+            #### The reason we add the word "Partial_Train" is to show that these Stacking results are from Partial Train data!
+            addcols = ['Partial_Train_'+x for x in addcol]
             ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
             train = train.join(pd.DataFrame(stacks1,index=train.index,
                                               columns=addcols))
@@ -2027,12 +2074,22 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ######  We make sure that we remove too many features that are highly correlated ! #####
             #addcol = remove_variables_using_fast_correlation(train,addcol,corr_limit,verbose)
             important_features += addcols
+            saved_num_vars.append(addcol) ### You need to add it for binning later!
         ############################################################################################
         if len(important_features) == 0:
             print('No important features found. Using all input features...')
             important_features = copy.deepcopy(saved_important_features)
             #important_features = copy.deepcopy(red_preds)
-        #### This is Second time: divide train and test into Train and Test Sets #################
+        ############################################################################################
+        if model_name.lower() == 'catboost':
+            print('    Setting best params for CatBoost model from Initial State since you cannot change params to a fitted Catboost model ')
+            model = xgbm.set_params(**best_params)
+            print('    Number of Categorical and Integer variables used in CatBoost training = %d' %len(imp_cats))
+        #### Perform Scaling of Train data a second time using FULL TRAIN data set this time !
+        #### important_features keeps track of all variables that we need to ensure they are scaled!
+        train, test = perform_scaling_numeric_vars(train, important_features, test,
+                                    model_name, SS)
+        ################   T R A I N I N G   M O D E L  A  S E C O N D   T I M E  ###################
         ### The next 2 lines are crucial: if X and y are dataframes, then next 2 should be df's
         ###   They should not be df.values since they will become numpy arrays and XGB will error.
         trainm = train[important_features+[each_target]]
@@ -2047,8 +2104,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 try:
                     print('##################  Imbalanced Flag Set  ############################')
                     print('Imbalanced Class Training using SMOTE Rare Class Oversampling method...')
-                    if model_name.lower() == 'catboost':
-                        print('    Setting best params for CatBoost model')
                     model, X, y = training_with_SMOTE(X,y, eval_set, model,
                                       Boosting_Flag, eval_metric,modeltype, model_name,
                                       training=False, minority_class=rare_class,
@@ -2070,7 +2125,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                     model.fit(X, y,
                                             eval_metric=eval_metric,verbose=0)
                                 else:
-                                    model = xgbm.set_params(**best_params)
                                     model.fit(X, y, cat_features=imp_cats, plot=False)
                             else:
                                     model.fit(X, y)
@@ -2369,12 +2423,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                         'Feature Importances',ascending=False)
             else:
                 if model_name.lower() == 'xgboost':
+                    #####  SHAP requires this step: XGBoost models must have been "predicted"
+                    _ = plot_model.predict(X_test)
                     ### It is possible that in some cases, XGBoost has fewer features than what was sent in.
                     ### In those cases, we need to identify and know which features in XGBoost are in and which are out
                     #### In that case, we need to find those features and then do a feature importance
                     dictf = plot_model.get_booster().get_score(importance_type='gain')
-                    #####  SHAP requires this step: XGBoost models must have been "predicted"
-                    _ = plot_model.predict(X_test)
                     if len(left_subtract(plot_model.get_booster().feature_names,important_features)) > 0:
                         #### If feature names from XGBoost and important_features are not same,you must transform dictf like this!
                         dicta = dict(zip(plot_model.get_booster().feature_names,important_features))
@@ -3646,6 +3700,16 @@ def return_cluster_labels(km, tfid_terms, num_cluster, is_train):
     km, cluster = cluster_using_k_means(km, X_terms, num_cluster, is_train)
     return km, cluster
 ###################################################################################
+# Removes duplicates from a list to return unique values - USED ONLYONCE
+def find_remove_duplicates(values):
+    output = []
+    seen = set()
+    for value in values:
+        if value not in seen:
+            output.append(value)
+            seen.add(value)
+    return output
+###################################################################################
 def split_data_new(trainfile, testfile, target,sep, modeltype='Regression', randomstate=0):
     """
     Split your file or data frame into 2 or 3 splits. Stratified by Class automatically.
@@ -3964,6 +4028,41 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
         model.fit(train_ovr[train_preds], train_ovr[df_target])
     print('Imbalanced class training completed.')
     return model, train_ovr[train_preds], train_ovr[df_target]
+##############################################################################################
+def perform_scaling_numeric_vars(train, train_preds, test, model_name, SS):
+    """
+    ###### YOU MUST NOT SEND TARGET VARIABLE! OTHERWISE IT WILL BE SCALED AS WELL!!##########
+    This is where we do Feature Scaling of Numeric variables for certain models.
+    This is not required for CatBoost since we have Label Encoded categorical vars into Integers
+    Since they are integers if we scale them, they become Float and will not be accepted as cat vars.
+    """
+    train = copy.deepcopy(train)
+    test = copy.deepcopy(test)
+    new_num_vars = np.array(train_preds)[(train[train_preds].dtypes==float) | (train[train_preds].dtypes==np.int64) | (
+                    train[train_preds].dtypes==np.int32) | (train[train_preds].dtypes==np.int16) | (
+                    train[train_preds].dtypes==np.int8)].tolist()
+    if model_name.lower() != 'catboost':
+        for each_num_var in new_num_vars:
+            try:
+                train[each_num_var] = SS.fit_transform(train[each_num_var].values.reshape(-1,1))
+            except:
+                train.loc[train[each_num_var]==inf,each_num_var]=1
+                train.loc[train[each_num_var]==-inf,each_num_var]=0
+                train[each_num_var] = SS.fit_transform(train[each_num_var].values.reshape(-1,1))
+            ##### DO SCALING ON TEST HERE ############
+            if type(test) != str:
+                try:
+                    test[each_num_var] = SS.transform(test[each_num_var].values.reshape(-1,1))
+                except:
+                    print('Scaling is erroring when transforming Test %s column. Correcting errors in test data and continuing' %each_num_var)
+                    test.loc[test[each_num_var]==inf,each_num_var]=1
+                    test.loc[test[each_num_var]==-inf,each_num_var]=0
+                    test[each_num_var] = SS.transform(test[each_num_var].values.reshape(-1,1))
+        print('Feature scaling for total %d float and integer variables completed using %s...' %(
+                                    len(train_preds),SS))
+    else:
+        print('For CatBoost, feature scaling is not required. Continuing...')
+    return train, test
 ##############################################################################################
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -4311,80 +4410,93 @@ def return_list_matching_keys(dicto,list_keys):
     return results
 ###########################################
 def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_test,
-                       modeltype, entropy_binning):
+                       modeltype, entropy_binning,verbose=0):
     """
         ######   This is where we do ENTROPY BINNING OF CONTINUOUS VARS ###########
         #### It is best to do Binning on ONLY on the top most variables from Important_Features!
         #### Make sure that the Top 2-10 vars are all CONTINUOUS VARS! Otherwise Binning is Waste!
         #### This method ensures you get the Best Results by generalizing on the top numeric vars!
     """
+    temp_train = copy.deepcopy(temp_train)
+    temp_test = copy.deepcopy(temp_test)
     max_depth = 10
     seed = 99
+    num_vars = copy.deepcopy(num_vars)
     continuous_vars = copy.deepcopy(num_vars)
-    if entropy_binning:
-        if len(continuous_vars) > 0 and len(continuous_vars) <= 2:
-            max_depth =  2
-            continuous_vars = continuous_vars[:]
-        elif len(continuous_vars) > 2 and len(continuous_vars) <= 5:
-            max_depth = len(continuous_vars) - 2
-            continuous_vars = continuous_vars[:2]
-            entropy_binning = True
-        elif len(continuous_vars) > 5 and len(continuous_vars) <= 10:
-            max_depth = 5
-            continuous_vars = continuous_vars[:5]
-            entropy_binning = True
-        elif len(continuous_vars) > 10 and len(continuous_vars) <= 50:
-            max_depth = max_depth
-            continuous_vars = continuous_vars[:10]
-            entropy_binning = True
-        else:
-            max_depth = max_depth
-            continuous_vars = continuous_vars[:50]
-        print('Entropy Binning %d continuous variables...' %len(continuous_vars))
-        new_bincols = []
-        ###   This is an Awesome Entropy Based Binning Method for Continuous Variables ###########
-        from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-        if modeltype == 'Regression':
-            clf = DecisionTreeRegressor(criterion='mse',min_samples_leaf=2,
-                                        max_depth=max_depth,
-                                        random_state=seed)
-        else:
-            clf = DecisionTreeClassifier(criterion='entropy',min_samples_leaf=2,
-                                             max_depth=max_depth,
-                                             random_state=seed)
-        entropy_threshold = []
-        for each_num in continuous_vars:
-            try:
-                clf.fit(temp_train[each_num].values.reshape(-1,1),temp_train[targ].values)
-                entropy_threshold = clf.tree_.threshold[clf.tree_.threshold>-2]
-                entropy_threshold = np.sort(entropy_threshold)
+    important_features = copy.deepcopy(important_features)
+    print('Determining which of %d continuous variables should be Entropy Binned...' %len(continuous_vars))
+    if len(continuous_vars) > 0 and len(continuous_vars) <= 2:
+        max_depth =  2
+        continuous_vars = continuous_vars[:]
+    elif len(continuous_vars) > 2 and len(continuous_vars) <= 5:
+        max_depth = len(continuous_vars) - 2
+        continuous_vars = continuous_vars[:2]
+        entropy_binning = True
+    elif len(continuous_vars) > 5 and len(continuous_vars) <= 10:
+        max_depth = 5
+        continuous_vars = continuous_vars[:5]
+        entropy_binning = True
+    elif len(continuous_vars) > 10 and len(continuous_vars) <= 50:
+        max_depth = max_depth
+        continuous_vars = continuous_vars[:10]
+        entropy_binning = True
+    else:
+        max_depth = max_depth
+        continuous_vars = continuous_vars[:50]
+    new_bincols = []
+    ###   This is an Awesome Entropy Based Binning Method for Continuous Variables ###########
+    from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+    if modeltype == 'Regression':
+        clf = DecisionTreeRegressor(criterion='mse',min_samples_leaf=2,
+                                    max_depth=max_depth,
+                                    random_state=seed)
+    else:
+        clf = DecisionTreeClassifier(criterion='entropy',min_samples_leaf=2,
+                                         max_depth=max_depth,
+                                         random_state=seed)
+    entropy_threshold = []
+    for each_num in continuous_vars:
+        try:
+            clf.fit(temp_train[each_num].values.reshape(-1,1),temp_train[targ].values)
+            entropy_threshold = clf.tree_.threshold[clf.tree_.threshold>-2]
+            entropy_threshold = np.sort(entropy_threshold)
+            if isinstance(each_num, str):
+                bincol = each_num+'_bin'
+                temp_train[bincol] = np.digitize(temp_train[each_num].values, entropy_threshold)
+            else:
+                bincol = 'bin_'+str(each_num)
+                temp_train[bincol] = np.digitize(temp_train[each_num].values, entropy_threshold)
+            #### We Drop the original continuous variable after you have created the bin when Flag is true
+            ### We Don't drop these original numeric vars since they will be used later for full train binning
+            if type(temp_test) != str:
                 if isinstance(each_num, str):
                     bincol = each_num+'_bin'
-                    temp_train[bincol] = np.digitize(temp_train[each_num].values, entropy_threshold)
+                    temp_test[bincol] = np.digitize(temp_test[each_num].values, entropy_threshold)
                 else:
                     bincol = 'bin_'+str(each_num)
-                    temp_train[bincol] = np.digitize(temp_train[each_num].values, entropy_threshold)
-                #### Drop the original continuous variable after you have created the bin ###
-                temp_train.drop(each_num,axis=1,inplace=True)
-                if type(temp_test) != str:
-                    if isinstance(each_num, str):
-                        bincol = each_num+'_bin'
-                        temp_test[bincol] = np.digitize(temp_test[each_num].values, entropy_threshold)
-                    else:
-                        bincol = 'bin_'+str(each_num)
-                        temp_test[bincol] = np.digitize(temp_test[each_num].values, entropy_threshold)
-                    #### Drop the original continuous variable after you have created the bin ###
+                    temp_test[bincol] = np.digitize(temp_test[each_num].values, entropy_threshold)
+                #### We Drop the original continuous variable after you have created the bin when Flag is true
+                ### We Don't drop these original numeric vars since they will be used later for full train binning
+                if entropy_binning:
                     temp_test.drop(each_num,axis=1,inplace=True)
+            if entropy_binning:
+                ### In the second time, we don't repeat adding binned vars since they have already been added!
+                #### we also make sure that the orig num vars which have now been binned are removed!
+                temp_train.drop(each_num,axis=1,inplace=True)
+            else:
+                #### In the first time, we add binned vars to  important_features  ###
+                ### In the second time, we don't repeat that since they have already been added!
                 important_features.append(bincol)
-                important_features.remove(each_num)
-                num_vars.append(bincol)
-                num_vars.remove(each_num)
-                new_bincols.append(bincol)
-            except:
-                print('Error in %s during Entropy Binning' %each_num)
-        print('    Binning and replacing %s numeric features.' %(len(new_bincols)))
-    else:
-        print('    No Entropy Binning specified or there are no numeric vars in data set to Bin')
+            num_vars.append(bincol)
+            important_features.remove(each_num)
+            #### Drop these original continuous variable from further consideration that's all! ###
+            num_vars.remove(each_num)
+            new_bincols.append(bincol)
+        except:
+            print('Error in %s during Entropy Binning' %each_num)
+    print('    Selected and binned only top %s continuous variables.' %(len(new_bincols)))
+    if verbose and len(new_bincols) <= 30:
+        print('    %s' %new_bincols)
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'

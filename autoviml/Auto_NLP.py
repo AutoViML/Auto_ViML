@@ -1122,10 +1122,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         best_nlp_vect, model, train_dtm, max_features_limit = select_best_nlp_vectorizer(model, train, nlp_column, target,
                     score_type, seed, modeltype,min_df)
     elif modeltype == 'Regression':
-        if float(xgb.__version__[0])<1:
-            objective = 'reg:linear'
-        else:
-            objective = 'reg:squarederror'
+        objective = 'reg:squarederror'
         model = XGBRegressor( n_estimators=300,subsample=subsample,objective=objective,learning_rate=0.1,
                                 gamma = 2, max_depth = 8,
                                 colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,

@@ -247,8 +247,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.639                                              #######
-    #####   GPU UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade. May 15,2020         ######
+    ######                               Version 0.1.640                                              #######
+    #####   GPU UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade.  May 15,2020         ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
@@ -390,12 +390,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #### Similarly for Random Forests Model, it takes too long with Grid Search, so MAKE IT RandomizedSearch!
     if not Boosting_Flag:  ### there is also a chance Boosting_Flag is None - This is to eliminate that chance!
         if orig_train.shape[0] >= 10000:
-            hyper_param = 'RS' 
+            hyper_param = 'RS'
             print('Changing hyperparameter search to RS. Otherwise, Random Forests will take too long for 10,000+ rows')
     elif Boosting_Flag: ### there is also a chance Boosting_Flag is None - This is to eliminate that chance!
         if not isinstance(Boosting_Flag, str):
             if orig_train.shape[0] >= 10000:
-                hyper_param = 'RS' 
+                hyper_param = 'RS'
                 print('Changing hyperparameter search to RS. Otherwise XGBoost will take too long for 10,000+ rows.')
     ###########    T H I S   I S  W H E R E   H Y P E R O P T    P A R A M S  A R E   S E T #########
     if hyper_param == 'HO':
@@ -527,10 +527,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         if modeltype == 'Regression':
             scv = RepeatedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=seed)
             eval_metric = 'rmse'
-            if float(xgb.__version__[0])<1:
-                objective = 'reg:linear'
-            else:
-                objective = 'reg:squarederror'
+            objective = 'reg:squarederror'
             model_class = 'Regression'
             start_train = copy.deepcopy(orig_train)
         else:
@@ -770,21 +767,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     num_bool_vars.append(new_missing_col)
                     preds.append(new_missing_col)
                     missing_flag_cols.append(new_missing_col)
-                ##### DO SCALING ON TRAIN HERE ############
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    try:
-                        start_train[f] = SS.fit_transform(start_train[f].values.reshape(-1,1))
-                    except:
-                        start_train.loc[start_train[f]==np.inf,f]=0
-                        start_train[f] = SS.fit_transform(start_train[f].values.reshape(-1,1))
-                ##### DO SCALING ON TEST HERE ############
-                if type(orig_test) != str:
-                    try:
-                        start_test[f] = SS.transform(start_test[f].values.reshape(-1,1))
-                    except:
-                        start_test.loc[start_test[f]==np.inf,f]=0
-                        start_test[f] = SS.fit_transform(start_test[f].values.reshape(-1,1))
         ###########################################################################################
         if orig_train.isnull().sum().sum() > 0:
             ### If there are missing values in remaining features print it here ####
@@ -812,7 +794,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         print('    Could not find any variables in your data set. Please check your dataset and try again')
         return
     ###########################################################################################
-    print('Completed Scaling of Train and Test Data using %s ...' %SS)
+    print('Completed Label Encoding and Filling of Missing Values for Train and Test Data')
     ### This is a minor test to make sure that Boolean vars are Integers if they are Numeric!
     if len(num_bool_vars) > 0:
         ### Just make sure that numeric Boolean vars are set as Integer type -> otherwise CatBoost will blow up
@@ -1071,11 +1053,38 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ######  We make sure that we remove any new features that are highly correlated ! #####
             #addcol = remove_variables_using_fast_correlation(X_train,addcol,corr_limit,verbose)
             important_features += addcol
+        ####################### Now do Feature Scaling Here #################################
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+        from numpy import inf
+        ####################### Now do Feature Scaling Here #################################
+        new_num_vars = np.array(important_features)[(train[important_features].dtypes==float) | (train[important_features].dtypes==np.int64) | (
+                            train[important_features].dtypes==np.int32) | (train[important_features].dtypes==np.int16) | (train[important_features].dtypes==np.int8)].tolist()
+        if model_name.lower() != 'catboost':
+            for each_num_var in new_num_vars:
+                try:
+                    train[each_num_var] = SS.fit_transform(train[each_num_var].values.reshape(-1,1))
+                except:
+                    train.loc[train[each_num_var]==inf,each_num_var]=1
+                    train.loc[train[each_num_var]==-inf,each_num_var]=0
+                    train[each_num_var] = SS.fit_transform(train[each_num_var].values.reshape(-1,1))
+                ##### DO SCALING ON TEST HERE ############
+                if type(test) != str:
+                    try:
+                        test[each_num_var] = SS.transform(test[each_num_var].values.reshape(-1,1))
+                    except:
+                        print('Scaling is erroring when transforming Test %s column. Correcting errors in test data and continuing' %each_num_var)
+                        test.loc[test[each_num_var]==inf,each_num_var]=1
+                        test.loc[test[each_num_var]==-inf,each_num_var]=0
+                        test[each_num_var] = SS.transform(test[each_num_var].values.reshape(-1,1))
+            print('Feature scaling for float and integer variables using %s...' %SS)
+        else:
+            print('For CatBoost, feature scaling is not required. Continuing...')
         #### This is where we divide train and test into Train and CV Test Sets #################
         #### Remember that the next 2 lines are crucial: if X and y are dataframes, then predict_proba
         ###     will have to also predict on dataframes. So don't confuse values with df's.
         ##      Be consistent with XGB. That's the best way.
-        print('###############  M O D E L   B U I L D I N G ####################')
+        print('###############  M O D E L   B U I L D I N G  B E G I N S  ####################')
         print('Rows in Train data set = %d' %X_train.shape[0])
         print('  Features in Train data set = %d' %X_train.shape[1])
         print('    Rows in held-out data set = %d' %X_cv.shape[0])
@@ -1544,12 +1553,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         data_dim = data_dim*one_hot_size/len(preds)
                         print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(300000.*CPU_count)))
                     else:
-                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(5000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(10000.*CPU_count)))
                 elif Boosting_Flag is None:
                     #### A Linear model is usually the fastest ###########
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(2500.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(1000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(2000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(8000.*CPU_count)))
             else:
                 if Boosting_Flag:
                     if model_name.lower() == 'catboost':
@@ -1567,6 +1576,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################################################################################################################################
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
+        ###
         if Imbalanced_Flag:
             if modeltype == 'Regression':
                 ###########  In case someone sets the Imbalanced_Flag mistakenly to True and it is Regression, you must set it to False ######
@@ -1718,8 +1728,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             model = gs.best_estimator_
             if modeltype == 'Multi_Classification':
                 try:
-                    method=  'sigmoid' # 'isotonic' # # or 
-                    model = CalibratedClassifierCV(model, method=method, cv=5)
+                    method=  'sigmoid' # 'isotonic' # # or
+                    model = CalibratedClassifierCV(model, method=method, cv="prefit")
                     model.fit(X_train, y_train)
                     print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
                     calibrator_flag = True
@@ -1952,83 +1962,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 except:
                     print('Could not plot Cross Validation Parameters')
         print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
-        try:
-            if Boosting_Flag is None:
-                if modeltype == 'Regression':
-                    if calibrator_flag:
-                        imp = pd.DataFrame(model.base_estimator.coef_[:len(important_features)].T, index=important_features)
-                    else:
-                        imp = pd.DataFrame(model.coef_[:len(important_features)].T, index=important_features)
-                else:
-                    if calibrator_flag:
-                        imp = pd.DataFrame(model.base_estimator.coef_[0][:len(important_features)].T, index=important_features)
-                    else:
-                        imp = pd.DataFrame(model.coef_[0][:len(important_features)].T, index=important_features)
-                imp_features_df = imp.sort_values(0,ascending=False)
-            else:
-                if calibrator_flag:
-                    if model_name.lower() == 'xgboost':
-                        imp_features_df = pd.DataFrame(list(model.base_estimator.get_booster().get_score(importance_type='weight').values()),columns=['Feature Weightings'],
-                                 index=important_features).sort_values('Feature Weightings',
-                                 ascending=False)
-                    elif model_name == 'Forests':
-                        imp_features_df = pd.DataFrame(model.base_estimator.feature_importances_, columns=['Feature Weightings'],
-                             index=important_features).sort_values('Feature Weightings',
-                             ascending=False)
-                else:
-                    imp_features_df = pd.DataFrame(model.feature_importances_, columns=['Feature Weightings'],
-                             index=important_features).sort_values('Feature Weightings',
-                             ascending=False)
-            ### Now draw the feature importances using the data frame above!
-            height_size = 5
-            width_size = 10
-            color_string = 'byrcmgkbyrcmgkbyrcmgkbyrcmgk'
-            print('Plotting Feature Importances to explain the output of model')
-            imp_features_df[:10].plot(kind='barh',title='Feature Importances for predicting %s' %each_target,
-                                 figsize=(width_size, height_size), color=color_string);
-        except:
-            print('Could not draw feature importance plot due to an error')
-        ###########   D R A W  SHAP  VALUES USING TREE BASED MODELS. THE REST WILL NOT GET SHAP ############
-        if verbose >= 1:
-            try:
-                if model_name.lower() == 'catboost':
-                    if verbose > 0:
-                        import shap
-                        from catboost import Pool
-                        if calibrator_flag:
-                            shap_values = model.base_estimator.get_feature_importance(Pool(X_cv, label=y_cv,cat_features=imp_cats),type="ShapValues")
-                        else:
-                            shap_values = model.get_feature_importance(Pool(X_cv, label=y_cv,cat_features=imp_cats),type="ShapValues")
-                        shap.initjs()
-                        shap_df = pd.DataFrame(np.c_[X_cv.values,y_cv],columns=[list(X_cv)+[each_target]])
-                        if modeltype != 'Multi_Classification':
-                            shap.summary_plot(shap_values, shap_df, plot_type="violin")
-                        else:
-                            shap.summary_plot(shap_values[:,:,0], shap_df, plot_type="violin")
-                    if verbose > 1 and modeltype != 'Multi_Classification':
-                        ### Dont draw this for multiclassification since it is the same plot as the previous one ####
-                        shap.initjs()
-                        shap.summary_plot(shap_values, X_cv.join(y_cv), plot_type="bar");
-                else:
-                    if calibrator_flag:
-                        SHAP_model = copy.deepcopy(model.base_estimator)
-                    else:
-                        SHAP_model = copy.deepcopy(model)
-                    if len(X_train) >10000:
-                        SHAP_model.fit(X_train[:10000],y_train[:10000])
-                        #### This is to make sure that SHAP values plotting doesn't take too long ############
-                        plot_SHAP_values(SHAP_model,
-                                         pd.DataFrame(X_train[:10000].T,columns=important_features),modeltype,
-                                         Boosting_Flag, matplotlib_flag,verbose)
-                        print('Plotting SHAP (first 10,000) values to explain the output of model')
-                    else:
-                        plot_SHAP_values(SHAP_model,pd.DataFrame(X_train,columns=important_features),modeltype,
-                                         Boosting_Flag, matplotlib_flag,verbose)
-                        print('Plotting SHAP (SHapley Additive exPlanations) values to explain the output of model')
-            except:
-                print('Could not plot SHAP values since SHAP is not installed or could not import SHAP in this machine')
-        print('############### P R E D I C T I O N  O N  T E S T  #################')
-        print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
         print('Training model on complete Train data and Predicting using give Test Data...')
         ###############################################################################################################
         ###### Now that we have used partial data to make stacking predictors, we can remove them from consideration!
@@ -2127,53 +2060,65 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         model = copy.deepcopy(best_model)
                         print('Error in training Imbalanced model second time. Trying regular model..')
                         Imbalanced_Flag = False
-                        if Boosting_Flag:
-                                #### Set the Verbose to 0 since we don't want too much output ##
-                            if model_name == 'XGBoost':
-                                #### Set the Verbose to 0 since we don't want too much output ##
-                                model.fit(X, y,
-                                        eval_metric=eval_metric,verbose=0)
-                            else:
-                                model = xgbm.set_params(**best_params)
-                                model.fit(X, y, cat_features=imp_cats, plot=False)
+                        if calibrator_flag:
+                            model.fit(X, y)
                         else:
-                                model.fit(X, y)
+                            if Boosting_Flag:
+                                    #### Set the Verbose to 0 since we don't want too much output ##
+                                if model_name == 'XGBoost':
+                                    #### Set the Verbose to 0 since we don't want too much output ##
+                                    model.fit(X, y,
+                                            eval_metric=eval_metric,verbose=0)
+                                else:
+                                    model = xgbm.set_params(**best_params)
+                                    model.fit(X, y, cat_features=imp_cats, plot=False)
+                            else:
+                                    model.fit(X, y)
                 except:
                     print('Error in training Imbalanced model second time. Trying regular model..')
                     Imbalanced_Flag = False
-                    if Boosting_Flag:
+                    if calibrator_flag:
+                        model.fit(X, y)
+                    else:
+                        if Boosting_Flag:
+                                if model_name == 'XGBoost':
+                                    #### Set the Verbose to 0 since we don't want too much output ##
+                                    model.fit(X, y,
+                                            eval_metric=eval_metric,verbose=0)
+                                else:
+                                    model.fit(X, y, cat_features=imp_cats, plot=False)
+                        else:
+                                model.fit(X, y)
+            else:
+                try:
+                    if calibrator_flag:
+                        model.fit(X, y)
+                    else:
+                        if Boosting_Flag:
                             if model_name == 'XGBoost':
-                                #### Set the Verbose to 0 since we don't want too much output ##
-                                model.fit(X, y,
+                                ### Since second time we don't have X_cv, we remove it
+                                    model.fit(X, y,
                                         eval_metric=eval_metric,verbose=0)
                             else:
                                 model.fit(X, y, cat_features=imp_cats, plot=False)
-                    else:
-                            model.fit(X, y)
-            else:
-                try:
-                    if Boosting_Flag:
-                        if model_name == 'XGBoost':
-                            ### Since second time we don't have X_cv, we remove it
-                                model.fit(X, y,
-                                    eval_metric=eval_metric,verbose=0)
                         else:
-                            model.fit(X, y, cat_features=imp_cats, plot=False)
-                    else:
-                            model.fit(X, y)
+                                model.fit(X, y)
                 except:
                     print('Training regular model second time erroring: Check if Input is correct...')
                     return
         else:
             try:
-                if Boosting_Flag:
-                    if model_name == 'XGBoost':
-                        model.fit(X, y,
-                            eval_metric=eval_metric,verbose=0)
-                    else:
-                        model.fit(X, y, cat_features=imp_cats, use_best_model=False, plot=False)
+                if calibrator_flag:
+                    model.fit(X, y)
                 else:
-                        model.fit(X, y)
+                    if Boosting_Flag:
+                        if model_name == 'XGBoost':
+                            model.fit(X, y,
+                                eval_metric=eval_metric,verbose=0)
+                        else:
+                            model.fit(X, y, cat_features=imp_cats, use_best_model=False, plot=False)
+                    else:
+                            model.fit(X, y)
             except:
                 print('Training model second time is Erroring: Check if Input is correct...')
                 return
@@ -2411,6 +2356,118 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 new_cols.append(new_col)
                 if not isinstance(sample_submission, str):
                     sample_submission[each_target] = pd.Series(y_pred).map(transformer).values
+        #####################   P L O T   F E A T U R E   I M P O R T A N C E S   H E R E ###################
+        if calibrator_flag:
+            plot_model = model.base_estimator
+        else:
+            plot_model = copy.deepcopy(model)
+        try:
+            if Boosting_Flag is None:
+                    ### If you don't use absolute values, you won't get the right set of features in order. Make sure!
+                    imp_features_df = pd.DataFrame(abs(plot_model.coef_[0]),
+                                        columns=['Feature Importances'],index=important_features).sort_values(
+                                        'Feature Importances',ascending=False)
+            else:
+                if model_name.lower() == 'xgboost':
+                    ### It is possible that in some cases, XGBoost has fewer features than what was sent in.
+                    ### In those cases, we need to identify and know which features in XGBoost are in and which are out
+                    #### In that case, we need to find those features and then do a feature importance
+                    dictf = plot_model.get_booster().get_score(importance_type='gain')
+                    #####  SHAP requires this step: XGBoost models must have been "predicted"
+                    _ = plot_model.predict(X_test)
+                    if len(left_subtract(plot_model.get_booster().feature_names,important_features)) > 0:
+                        #### If feature names from XGBoost and important_features are not same,you must transform dictf like this!
+                        dicta = dict(zip(plot_model.get_booster().feature_names,important_features))
+                        featdict = dict([(x,dicta[x]) for x in dictf.keys()])
+                        featdict2 = dict([(dicta[x],dictf[x]) for x in featdict.keys()])
+                        imp_features_df =  pd.DataFrame(featdict2.values(),index=featdict2.keys(),
+                                        columns = ['Feature Importances']).sort_values('Feature Importances',
+                                        ascending=False)
+                    else:
+                        #### If the feature names from XGBoost and the important_features are same, you can plot dictf immediately!
+                        imp_features_df =  pd.DataFrame(dictf.values(),index=dictf.keys(),
+                                        columns = ['Feature Importances']).sort_values('Feature Importances',
+                                        ascending=False)
+                elif model_name == 'Forests':
+                    imp_features_df = pd.DataFrame(plot_model.feature_importances_, columns=['Feature Importances'],
+                         index=important_features).sort_values('Feature Importances',
+                         ascending=False)
+                elif model_name.lower() == 'catboost':
+                    from catboost import Pool
+                    imp_features_df = pd.DataFrame(plot_model.get_feature_importance(Pool(X_cv, label=y_cv,cat_features=imp_cats)),
+                                        columns=['Feature Importances'],index=important_features).sort_values('Feature Importances',ascending=False)
+            ### Now draw the feature importances using the data frame above!
+            height_size = 5
+            width_size = 10
+            color_string = 'byrcmgkbyrcmgkbyrcmgkbyrcmgk'
+            print('Plotting Feature Importances to explain the output of model')
+            imp_features_df[:15].plot(kind='barh',title='Feature Importances for predicting %s' %each_target,
+                                 figsize=(width_size, height_size), color=color_string);
+        except:
+            print('Could not draw feature importance plot due to an error')
+        ###########   D R A W  SHAP  VALUES USING TREE BASED MODELS. THE REST WILL NOT GET SHAP ############
+        print('Trying to plot SHAP values if SHAP is installed in this machine...')
+        if verbose >= 2:
+            try:
+                if model_name.lower() == 'catboost':
+                    if verbose > 0:
+                        import shap
+                        from catboost import Pool
+                        shap.initjs()
+                        plt.figure()
+                        shap_values = plot_model.get_feature_importance(Pool(X_cv, label=y_cv,cat_features=imp_cats),type="ShapValues")
+                        shap_df = pd.DataFrame(np.c_[X_cv.values,y_cv],columns=[list(X_cv)+[each_target]])
+                        if modeltype == 'Multi_Classification':
+                            for each_i in range(len(classes)):
+                                ### This is needed for Catboost models but it is very cumbersome!
+                                ### You need to cycle through multiple values of classes from 0 to n_classes-1.
+                                ### There is no way to force it in an Ax => so you are stuck printing multiple charts
+                                shap.summary_plot(shap_values[:,each_i,:], shap_df, plot_type="violin")
+                        else:
+                            shap.summary_plot(shap_values, shap_df, plot_type="violin")
+                else:
+                    import shap
+                    shap.initjs()
+                    #### This works well for RFC and XGBoost for multiclass problems #####
+                    #### This plots a violin plot that is different from the bar chart above!
+                    #### This does not work for CatBoost so try something else!
+                    if model_name.lower() == 'linear':
+                        explainer = shap.LinearExplainer(plot_model, X_test, feature_dependence="independent")
+                        shap_values = explainer.shap_values(X_test)
+                        plt.figure()
+                        shap.summary_plot(shap_values, X_test, plot_type="bar")
+                        if modeltype != 'Regression':
+                            plt.figure()
+                            shap.summary_plot(shap_values, X_test)
+                    elif model_name.lower() == 'forests':
+                        #### This works well for RFC and XGBoost for multiclass problems #####
+                        ### It works for both binary and multi-class problems ########
+                        ### However, it does NOT work for CatBoost models!
+                        explainer = shap.TreeExplainer(plot_model)
+                        shap_values = explainer.shap_values(X_test)
+                        plt.figure()
+                        shap.summary_plot(shap_values, X_test, plot_type="bar")
+                        ### There is no single violin plot for Random Forests in SHAP
+                        #### It actually has multiple outputs so you can loop through it for each class
+                        if modeltype != 'Regression':
+                            for each_i in range(len(classes)):
+                                plt.figure()
+                                shap.summary_plot(shap_values[each_i], X_test)
+                    elif model_name.lower() == 'xgboost':
+                        #### This works well for RFC and XGBoost for multiclass problems #####
+                        ### It works for both binary and multi-class problems ########
+                        ### However, it does NOT work for CatBoost models!
+                        explainer = shap.TreeExplainer(plot_model)
+                        shap_values = explainer.shap_values(X_test)
+                        plt.figure()
+                        shap.summary_plot(shap_values, X_test, plot_type="bar")
+                        if modeltype != 'Regression':
+                            plt.figure()
+                            shap.summary_plot(shap_values, X_test)
+            except:
+                print('Could not plot SHAP values since SHAP is not installed or could not import SHAP in this machine')
+        print('############### P R E D I C T I O N  O N  T E S T   C O M P L E T E D  #################')
+        print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
         ##  Write the test and submission files to disk ###
         print('Writing Output files to disk...')
         #############################################################################################
@@ -2475,7 +2532,6 @@ def plot_SHAP_values(m,X,modeltype,Boosting_Flag=False,matplotlib_flag=False,ver
     if not matplotlib_flag:
         shap.initjs();
     # explain the model's predictions using SHAP values
-    plt.figure(figsize=(10,10))
     explainer = shap.TreeExplainer(m)
     shap_values = explainer.shap_values(X)
     if not Boosting_Flag is None:
@@ -2572,10 +2628,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     print('############## F E A T U R E   S E L E C T I O N  ####################')
     important_features = []
     if modeltype == 'Regression':
-        if float(xgb.__version__[0])<1:
-            objective = 'reg:linear'
-        else:
-            objective = 'reg:squarederror'
+        objective = 'reg:squarederror'
         model_xgb = XGBRegressor( n_estimators=100,subsample=subsample,objective=objective,
                                 colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
                                  seed=1,n_jobs=-1,random_state=1)
@@ -4335,7 +4388,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.639'
+version_number = '0.1.640'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

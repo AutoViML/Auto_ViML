@@ -1008,13 +1008,23 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         else:
             skf = StratifiedKFold(n_splits=n_splits, random_state=seed, shuffle=True)
         cv_train_index, cv_index = next(skf.split(X, y))
-        print('Train CV Split completed with', "TRAIN size:", cv_train_index.shape, "CV size:", cv_index.shape)
-        X_train, X_cv = X.loc[cv_train_index], X.loc[cv_index]
-        y_train, y_cv = y.loc[cv_train_index], y.loc[cv_index]
-        ################   IMPORTANT ENTROPY  BINNING   #####################################
-        ### The reason we don't use train_test_split is because we want only a partial train entropy binned
-        part_train = train.loc[cv_train_index]
-        part_cv = train.loc[cv_index]
+        ################     TRAIN CV TEST SPLIT HERE  ##################################################
+        try:
+            #### Sometimes this works but other times, it gives an error!
+            X_train, X_cv = X.loc[cv_train_index], X.loc[cv_index]
+            y_train, y_cv = y.loc[cv_train_index], y.loc[cv_index]
+            ### The reason we don't use train_test_split is because we want only a partial train entropy binned
+            part_train = train.loc[cv_train_index]
+            part_cv = train.loc[cv_index]
+        except:
+            #### This works when the above method gives an error!
+            X_train, X_cv = X.iloc[cv_train_index], X.iloc[cv_index]
+            y_train, y_cv = y.iloc[cv_train_index], y.iloc[cv_index]
+            ### The reason we don't use train_test_split is because we want only a partial train entropy binned
+            part_train = train.iloc[cv_train_index]
+            part_cv = train.iloc[cv_index]
+        print('Train CV Split completed with', "TRAIN rows:", cv_train_index.shape[0], "CV rows:", cv_index.shape[0])
+        ################   IMPORTANT ENTROPY  BINNING FIRST TIME   #####################################
         ############   Add Entropy Binning of Continuous Variables Here ##############################
         num_vars = np.array(important_features)[(train[important_features].dtypes==float)].tolist()
         saved_important_features = copy.deepcopy(important_features)  ### these are original features without '_bin' added
@@ -1041,7 +1051,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             print('    Binning_Flag set to False or there are no numeric vars in data set to be binned')
         #######################   KMEANS   FIRST   TIME     ############################
         ### Now we add another Feature tied to KMeans clustering using Predictor and Target variables ###
-        if KMeans_Featurizer and len(num_vars) > 0:
+        if KMeans_Featurizer and len(saved_num_vars) > 0:
             ### DO KMeans Featurizer only if there are numeric features in the data set!
             print('    Adding one Feature named "KMeans_Clusters" based on KMeans_Featurizer_Flag=True...')
             km_label = 'KMeans_Clusters'
@@ -1068,6 +1078,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 part_cv[imp_cat] = part_cv[imp_cat].astype(int)
             ####### The features are checked again once we add the cluster feature ####
             important_features.append(km_label)
+        else:
+            print('    KMeans_Featurizer set to False or there are no numeric vars in data')
+            km_label = ''
+        #######################   STACKING   FIRST   TIME     ############################
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:
             #### In order to join, you need X_train to be a Pandas Series here ##
@@ -1574,18 +1588,18 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(10000.*CPU_count)))
                 elif Boosting_Flag is None:
                     #### A Linear model is usually the fastest ###########
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(1000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(8000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(16000.*CPU_count)))
             else:
                 if Boosting_Flag:
                     if model_name.lower() == 'catboost':
                         data_dim = data_dim*one_hot_size/len(preds)
                         print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
                     else:
-                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(10000.*CPU_count)))
+                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(40000.*CPU_count)))
                 elif Boosting_Flag is None:
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(20000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(100000.*CPU_count)))
                 else:
                     print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(25000.*CPU_count)))
         ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
@@ -1755,7 +1769,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     calibrator_flag = False
                     pass
         ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
-        print('Best Model selected and its parameters are:\n    %s' %model)
+        if model_name.lower() == 'catboost':
+            print('Best Model selected and its parameters are:\n    %s' %model.get_all_params())
+        else:
+            print('Best Model selected and its parameters are:\n    %s' %model)
         performed_ensembling = False
         if modeltype != 'Regression':
             m_thresh = 0.5
@@ -2054,7 +2071,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                           modeltype, Boosting_Flag, scoring_parameter,verbose)
             ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
             #### The reason we add the word "Partial_Train" is to show that these Stacking results are from Partial Train data!
-            addcols = ['Partial_Train_'+x for x in addcol]
+            addcols = copy.deepcopy(addcol)
             ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
             train = train.join(pd.DataFrame(stacks1,index=train.index,
                                               columns=addcols))
@@ -2438,7 +2455,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                         columns = ['Feature Importances']).sort_values('Feature Importances',
                                         ascending=False)
                     else:
-                        #### If the feature names from XGBoost and the important_features are same, you can plot dictf immediately!
+                        #### If the feature names from XGBoost and the important_features are same,
+                        ###     you can plot dictf immediately!
                         imp_features_df =  pd.DataFrame(dictf.values(),index=dictf.keys(),
                                         columns = ['Feature Importances']).sort_values('Feature Importances',
                                         ascending=False)
@@ -2448,8 +2466,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                          ascending=False)
                 elif model_name.lower() == 'catboost':
                     from catboost import Pool
-                    imp_features_df = pd.DataFrame(plot_model.get_feature_importance(Pool(X_cv, label=y_cv,cat_features=imp_cats)),
-                                        columns=['Feature Importances'],index=important_features).sort_values('Feature Importances',ascending=False)
+                    imp_features_df = pd.DataFrame(plot_model.get_feature_importance(
+                                    Pool(X_cv, label=y_cv,cat_features=imp_cats)),
+                                    columns=['Feature Importances'],
+                                    index=important_features).sort_values(
+                                    'Feature Importances',ascending=False)
             ### Now draw the feature importances using the data frame above!
             height_size = 5
             width_size = 10
@@ -2460,8 +2481,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         except:
             print('Could not draw feature importance plot due to an error')
         ###########   D R A W  SHAP  VALUES USING TREE BASED MODELS. THE REST WILL NOT GET SHAP ############
-        print('Trying to plot SHAP values if SHAP is installed in this machine...')
         if verbose >= 2:
+            print('Trying to plot SHAP values if SHAP is installed in this machine...')
             try:
                 if model_name.lower() == 'catboost':
                     if verbose > 0:
@@ -4500,7 +4521,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.640'
+version_number = '0.1.650'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

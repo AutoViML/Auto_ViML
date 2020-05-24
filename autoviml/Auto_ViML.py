@@ -250,7 +250,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.640                                              #######
+    ######                               Version 0.1.651                                              #######
     #####   GPU UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade.  May 15,2020         ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -2736,57 +2736,56 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         iter_limit = int(train_p.shape[1]/5+0.5)
     print('Current number of predictors = %d ' %(train_p.shape[1],))
     print('    Finding Important Features using Boosted Trees algorithm...')
-    for i in range(0,train_p.shape[1],iter_limit):
-        new_xgb = copy.deepcopy(save_xgb)
-        print('        using %d variables...' %(train_p.shape[1]-i))
-        if train_p.shape[1]-i < iter_limit:
-            X = train_p.iloc[:,i:]
-            if modeltype == 'Regression':
-                train_part = int((1-test_size)*X.shape[0])
-                X_train, X_cv, y_train, y_cv = X[:train_part],X[train_part:],y[:train_part],y[train_part:]
-            else:
-                X_train, X_cv, y_train, y_cv = train_test_split(X, y,
-                                                            test_size=test_size, random_state=seed)
-            try:
-                eval_set = [(X_train,y_train),(X_cv,y_cv)]
-                model_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,eval_set=eval_set,
-                                    eval_metric=eval_metric,verbose=False)
-            except:
-                new_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,eval_set=eval_set,
-                                    eval_metric=eval_metric,verbose=False)
-                print('XGB has a bug in version xgboost 1.02. Try to install version 0.90 or 1.10 - continuing...')
-            try:
-                [important_features.append(x) for x in list(pd.concat([pd.Series(model_xgb.feature_importances_
-                        ),pd.Series(list(X_train.columns.values))],axis=1).rename(columns={0:'importance',1:'column'
-                    }).sort_values(by='importance',ascending=False)[:top_num]['column'])]
-            except:
-                print('Finding top features using XGB is crashing. Continuing with all predictors...')
-                important_features = copy.deepcopy(preds)
-                return important_features, [], []
-        else:
-            X = train_p[list(train_p.columns.values)[i:train_p.shape[1]]]
-            #### Split here into train and test #####
-            if modeltype == 'Regression':
-                train_part = int((1-test_size)*X.shape[0])
-                X_train, X_cv, y_train, y_cv = X[:train_part],X[train_part:],y[:train_part],y[train_part:]
-            else:
-                X_train, X_cv, y_train, y_cv = train_test_split(X, y,
-                                                            test_size=test_size, random_state=seed)
-            eval_set = [(X_train,y_train),(X_cv,y_cv)]
-            try:
-                model_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,
-                              eval_set=eval_set,eval_metric=eval_metric,verbose=False)
-            except:
-                new_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,
-                              eval_set=eval_set,eval_metric=eval_metric,verbose=False)
-            try:
-                [important_features.append(x) for x in list(pd.concat([pd.Series(model_xgb.feature_importances_
-                        ),pd.Series(list(X_train.columns.values))],axis=1).rename(columns={0:'importance',1:'column'
-                    }).sort_values(by='importance',ascending=False)[:top_num]['column'])]
+    try:
+        for i in range(0,train_p.shape[1],iter_limit):
+            new_xgb = copy.deepcopy(save_xgb)
+            print('        using %d variables...' %(train_p.shape[1]-i))
+            if train_p.shape[1]-i < iter_limit:
+                X = train_p.iloc[:,i:]
+                if modeltype == 'Regression':
+                    train_part = int((1-test_size)*X.shape[0])
+                    X_train, X_cv, y_train, y_cv = X[:train_part],X[train_part:],y[:train_part],y[train_part:]
+                else:
+                    X_train, X_cv, y_train, y_cv = train_test_split(X, y,
+                                                                test_size=test_size, random_state=seed)
+                try:
+                    eval_set = [(X_train,y_train),(X_cv,y_cv)]
+                    model_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,eval_set=eval_set,
+                                        eval_metric=eval_metric,verbose=False)
+                    important_features += pd.Series(model_xgb.get_booster().get_score(
+                                importance_type='gain')).sort_values(ascending=False)[:top_num].index.tolist()
+                except:
+                    new_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,eval_set=eval_set,
+                                        eval_metric=eval_metric,verbose=False)
+                    print('XGB has a bug in version xgboost 1.02 for feature importances. Try to install version 0.90 or 1.10 - continuing...')
+                    important_features += pd.Series(new_xgb.get_booster().get_score(
+                                importance_type='gain')).sort_values(ascending=False)[:top_num].index.tolist()
                 important_features = list(OrderedDict.fromkeys(important_features))
-            except:
-                print('Multi Label possibly no feature importances.')
-                important_features = copy.deepcopy(preds)
+            else:
+                X = train_p[list(train_p.columns.values)[i:train_p.shape[1]]]
+                #### Split here into train and test #####
+                if modeltype == 'Regression':
+                    train_part = int((1-test_size)*X.shape[0])
+                    X_train, X_cv, y_train, y_cv = X[:train_part],X[train_part:],y[:train_part],y[train_part:]
+                else:
+                    X_train, X_cv, y_train, y_cv = train_test_split(X, y,
+                                                                test_size=test_size, random_state=seed)
+                eval_set = [(X_train,y_train),(X_cv,y_cv)]
+                try:
+                    model_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,
+                                  eval_set=eval_set,eval_metric=eval_metric,verbose=False)
+                    important_features += pd.Series(model_xgb.get_booster().get_score(
+                                importance_type='gain')).sort_values(ascending=False)[:top_num].index.tolist()
+                except:
+                    new_xgb.fit(X_train,y_train,early_stopping_rounds=early_stopping,
+                                  eval_set=eval_set,eval_metric=eval_metric,verbose=False)
+                    important_features += pd.Series(model_xgb.get_booster().get_score(
+                                importance_type='gain')).sort_values(ascending=False)[:top_num].index.tolist()
+                important_features = list(OrderedDict.fromkeys(important_features))
+    except:
+        print('Finding top features using XGB is crashing. Continuing with all predictors...')
+        important_features = copy.deepcopy(preds)
+        return important_features, [], []
     important_features = list(OrderedDict.fromkeys(important_features))
     print('Found %d important features' %len(important_features))
     #print('    Time taken (in seconds) = %0.0f' %(time.time()-start_time))
@@ -3912,7 +3911,7 @@ def write_file_to_folder(df, each_target, base_filename, verbose=1):
             os.mkdir(dir_name)
         df.to_csv(filename,index=False)
 ##############################################################
-def create_features(df, tscol):
+def create_ts_features(df, tscol):
     """
     Creates time series features from datetime index
     """
@@ -3942,7 +3941,7 @@ def create_time_series_features(series, ts_column):
     try:
         series[ts_column] = pd.to_datetime(series[ts_column],
                         infer_datetime_format=True)
-        return create_features(series,ts_column)
+        return create_ts_features(series,ts_column)
     except:
         print('Error in Processing %s column for date time features. Continuing...' %ts_column)
         return ''
@@ -4521,7 +4520,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.650'
+version_number = '0.1.651'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

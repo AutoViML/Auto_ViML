@@ -250,7 +250,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.651                                              #######
+    ######                               Version 0.1.652                                              #######
     #####   GPU UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade.  May 15,2020         ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -1038,14 +1038,17 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             part_train, num_vars, important_features, part_cv = add_entropy_binning(part_train,
                                             each_target, saved_num_vars,
                                             saved_important_features, part_cv,
-                                            modeltype,False,verbose)
+                                            modeltype, entropy_binning=False,verbose=verbose)
             #### In saved_num_vars we send in all the continuous_vars but we bin only the top few vars.
             ###  Those that are binned are removed from saved_num_vars and the remaining become num_vars
             ### Our job is to find the names of those original numeric variables which were binned.
             ### orig_num_vars contains original num vars. num_vars contains binned versions of those vars.
             ### Those binned variables have now become categorical vars and must be added to imp_cats.
+            ### you get the name of the original vars which were binned here in this orig_num_vars variable!
             orig_num_vars = left_subtract(saved_num_vars,num_vars)
-            imp_cats += num_vars
+            #### you need to know the name of the binner variables. This is where you get it!
+            binned_num_vars = left_subtract(num_vars,saved_num_vars)
+            imp_cats += binned_num_vars
             #### Also note that important_features does not contain orig_num_vars which have been erased.
         else:
             print('    Binning_Flag set to False or there are no numeric vars in data set to be binned')
@@ -1608,7 +1611,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################################################################################################################################
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
-        ###
+        #######
         if Imbalanced_Flag:
             if modeltype == 'Regression':
                 ###########  In case someone sets the Imbalanced_Flag mistakenly to True and it is Regression, you must set it to False ######
@@ -2023,12 +2026,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ###### Once again we do Entropy Binning on the Full Train Data Set !!
         ########################## BINNING SECOND TIME  ###############################
         if Binning_Flag and len(saved_num_vars) > 0:
+            ### when you bin the second time, you have to send in important_features with original
+            ### numeric variables so that it works on binning only those. Otherwise it will fail.
             ### Do Entropy Binning only if there are numeric variables in the data set! #####
             #### When we Bin the second first time, we set the entropy_binning flag to True so
             ####    that all numeric variables that are binned are removed. This way, only bins remain.
             train, num_vars, important_features, test = add_entropy_binning(train, each_target,
-                                                  saved_num_vars, important_features, test,
-                                                  modeltype, True,verbose)
+                                                  orig_num_vars, important_features, test,
+                                                  modeltype,  entropy_binning=True,verbose=verbose)
             #### In saved_num_vars we send in all the continuous_vars but we bin only the top few vars.
             ###  Those that are binned are removed from saved_num_vars and the remaining become num_vars
             ### Our job is to find the names of those original numeric variables which were binned.
@@ -3323,7 +3328,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
                  fit_intercept=True, normalize=False)
     else:
         lm = LogisticRegression(C=0.01,fit_intercept=True,tol=tolerance,
-                            max_iter=2000,solver='newton-cg',n_jobs=-1,
+                            max_iter=2000,solver='liblinear',n_jobs=-1,
                           penalty='l2',dual=False, random_state=0)
     predictors = copy.deepcopy(numvars)
     #### number of original features in data set ####
@@ -3374,12 +3379,13 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     else:
         max_iter = 2000
     ###### BUILDING COMPARISON MODEL WITH INTERACTION VARIABLES ########################
+    start_time = time.time()
     if modeltype == 'Regression':
         lm = Lasso(alpha=0.001, max_iter=max_iter,
                  fit_intercept=True, normalize=False)
     else:
         lm = LogisticRegression(C=0.01,fit_intercept=True, tol=tolerance,
-                            max_iter=max_iter,solver='newton-cg',n_jobs=-1,
+                            max_iter=max_iter,solver='liblinear',n_jobs=-1,
                           penalty='l2',dual=False, random_state=0)
     ########### Here starts the conversion of X variables into Text feature variable names #####################
     XP1 = pd.DataFrame(XP,index=orig_data_index, columns=xnames) ## XP1 has all the Xvars:incl orig+poly+intxn vars
@@ -3449,6 +3455,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         ###################################################################################
         print('Building Comparison Model with only Poly and Interaction variables...')
         lm_p, _ = print_model_metrics(modeltype,lm,XP1X,Y,True)
+        print('    Time Taken: %0.0f (in seconds)' %(time.time()-start_time))
         ####  We need to build a dataframe to hold coefficients from the model for each variable ###
         dfx = pd.DataFrame([new_addx_vars, new_addtext_vars])
         df = dfx.T
@@ -4451,15 +4458,12 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     elif len(continuous_vars) > 2 and len(continuous_vars) <= 5:
         max_depth = len(continuous_vars) - 2
         continuous_vars = continuous_vars[:2]
-        entropy_binning = True
     elif len(continuous_vars) > 5 and len(continuous_vars) <= 10:
         max_depth = 5
         continuous_vars = continuous_vars[:5]
-        entropy_binning = True
     elif len(continuous_vars) > 10 and len(continuous_vars) <= 50:
         max_depth = max_depth
         continuous_vars = continuous_vars[:10]
-        entropy_binning = True
     else:
         max_depth = max_depth
         continuous_vars = continuous_vars[:50]
@@ -4475,6 +4479,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
                                          max_depth=max_depth,
                                          random_state=seed)
     entropy_threshold = []
+    ####### This is where we bin each variable through a method known as Entropy Binning ##############
     for each_num in continuous_vars:
         try:
             clf.fit(temp_train[each_num].values.reshape(-1,1),temp_train[targ].values)
@@ -4520,7 +4525,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.651'
+version_number = '0.1.652'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -1213,13 +1213,10 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         #####  Now AFTER TRAINING, make predictions on the given test data set!
         start_time = time.time()
         pipe.fit(X,y)
-        if not isinstance(test, str):
-            y_pred = pipe.predict(test[nlp_column])
-        print('    Time taken to train Pipeline on full Train shape (%s) and test on (%s) = %0.2f seconds' %(
-                            X.shape,test.shape,time.time()-start_time) )
-        print('Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
+        print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
         print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
         if not isinstance(test, str):
+            y_pred = pipe.predict(test[nlp_column])
             return train, test, pipe, y_pred
         else:
             return train, '', pipe, ''
@@ -1697,7 +1694,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.36'
+version_number = '0.0.37'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',

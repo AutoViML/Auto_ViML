@@ -44,7 +44,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
     FOLDS = 5
     model_dict = {}
     model_tuples = []
-    if len(X_train) <= 100000 or X_train.shape[1] < 50:
+    if len(X_train) <= 100000 and X_train.shape[1] < 50:
         NUMS = 100
     else:
         try:

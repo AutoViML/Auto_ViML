@@ -1763,7 +1763,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             model = gs.best_estimator_
             if modeltype == 'Multi_Classification':
                 try:
-                    method=  'sigmoid' # 'isotonic' # # or
+                    if X_cv.shape[0] <= 1000:
+                        # THis works well for small data sets and is similar to parametric
+                        method=  'sigmoid' # 'isotonic' # # 
+                    else:
+                        # THis works well for large data sets and is non-parametric
+                        method=  'isotonic' 
                     model = CalibratedClassifierCV(model, method=method, cv="prefit")
                     model.fit(X_train, y_train)
                     print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')

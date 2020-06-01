@@ -24,11 +24,26 @@ import pdb
 import time
 import copy
 from collections import Counter
+from collections import defaultdict
+from collections import OrderedDict
 #############################################################################
-def accu(results, y_cv):
-    return (results==y_cv).astype(int).sum(axis=0)/(y_cv.shape[0])
-def rmse(results, y_cv):
-    return np.sqrt(np.mean((results - y_cv)**2, axis=0))
+def find_rare_class(classes, verbose=0):
+    ######### Print the % count of each class in a Target variable  #####
+    """
+    Works on Multi Class too. Prints class percentages count of target variable.
+    It returns the name of the Rare class (the one with the minimum class member count).
+    This can also be helpful in using it as pos_label in Binary and Multi Class problems.
+    """
+    counts = OrderedDict(Counter(classes))
+    total = sum(counts.values())
+    if verbose >= 1:
+        print(' Class  -> Counts -> Percent')
+        for cls in counts.keys():
+            print("%6s: % 7d  ->  % 5.1f%%" % (cls, counts[cls], counts[cls]/total*100))
+    if type(pd.Series(counts).idxmin())==str:
+        return pd.Series(counts).idxmin()
+    else:
+        return int(pd.Series(counts).idxmin())
 ################################################################################
 def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boosting_Flag=False, 
                     scoring='', verbose=0):
@@ -36,6 +51,9 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
     Quickly build Stacks of multiple model results 
     Input must be a clean data set (only numeric variables, no categorical or string variables).
     """
+    X_train = copy.deepcopy(X_train)
+    X_test = copy.deepcopy(X_test)
+    y_train = copy.deepcopy(y_train)
     start_time = time.time()
     seed = 99
     if len(X_train) <= 100000 or X_train.shape[1] < 50:
@@ -79,6 +97,15 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
                 estimator_length.append(1)
         else:
             n_classes = len(Counter(y_train))
+            if n_classes > 2:
+                #### In multi-class setting, it makes sense to turn it into binary class in stage-1
+                #### In stage 2, a complex model will take the inputs of this model and try to predict
+                rare_class = find_rare_class(y_train)
+                if rare_class == 0:
+                    majority_class = 1
+                else:
+                    majority_class = 0
+                y_train = y_train.map(lambda x: rare_class if x==rare_class else majority_class)
             if scoring == '':
                 scoring = 'accuracy'
             scv = StratifiedKFold(n_splits=FOLDS, random_state=seed, shuffle=True)
@@ -139,6 +166,15 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
                 estimator_length.append(1)
         else:
             n_classes = len(Counter(y_train))
+            if n_classes > 2:
+                #### In multi-class setting, it makes sense to turn it into binary class in stage-1
+                #### In stage 2, a complex model will take the inputs of this model and try to predict
+                rare_class = find_rare_class(y_train)
+                if rare_class == 0:
+                    majority_class = 1
+                else:
+                    majority_class = 0
+                y_train = y_train.map(lambda x: rare_class if x==rare_class else majority_class)
             if scoring == '':
                 scoring = 'accuracy'
             scv = StratifiedKFold(n_splits=FOLDS, random_state=seed, shuffle=True)

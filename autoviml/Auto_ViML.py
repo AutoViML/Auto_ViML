@@ -286,7 +286,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ####   sep: if you have a spearator in the file such as "," or "\t" mention it here. Default is ",". ####
     ####   scoring_parameter: if you want your own scoring parameter such as "f1" give it here. If not, #####
     ####       it will assume the appropriate scoring param for the problem and it will build the model.#####
-    ####   hyper_param: Tuning options are GridSearch ('GS'), RandomizedSearch ('RS')and now HyperOpt ('HO')#
+    ####   hyper_param: Tuning options are GridSearch ('GS'), RandomizedSearch ('RS')                   #####
     ####        Default setting is 'GS'. Auto_ViML with HyperOpt is approximately 3X Faster than Auto_ViML###
     ####   feature_reduction: Default = 'True' but it can be set to False if you don't want automatic    ####
     ####         feature_reduction since in Image data sets like digits and MNIST, you get better       #####

@@ -1196,8 +1196,12 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             params['alpha'] = sp.stats.uniform(scale=1)
         gs = RandomizedSearchCV(nlp_model,params, n_iter=10, cv=scv,
                                 scoring=score_type, random_state=seed)
-        gs.fit(X_train_dtm,y_train)
-        y_pred = gs.predict(X_test_dtm)
+        try:
+            gs.fit(X_train_dtm,y_train)
+            y_pred = gs.predict(X_test_dtm)
+        except:
+            gs.fit(X_train_dtm.toarray(),y_train)
+            y_pred = gs.predict(X_test_dtm.toarray())
         ##### Print the model results on Cross Validation data set (held out)
         if modeltype == 'Regression':
             print_regression_model_stats(y_test, y_pred,'%s Model: Predicted vs Actual for %s' %(model_name,target))
@@ -1694,7 +1698,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.37'
+version_number = '0.0.38'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',

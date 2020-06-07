@@ -1222,7 +1222,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         try:
             pipe.fit(X,y)
         except:
-            pipe.fit(X.toarray(),y)
+            return train, '', pipe, ''
         print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
         print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
         if not isinstance(test, str):

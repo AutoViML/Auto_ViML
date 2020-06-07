@@ -1183,11 +1183,14 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         if modeltype == 'Regression':
             scv = KFold(n_splits=n_splits, random_state=seed)
             from sklearn.linear_model import LassoLars
-            model_name = 'Lasso LARS'
-            nlp_model = LassoLars()
+            #model_name = 'Lasso LARS'
+            model_name = 'Linear_SVR'
+            from sklearn.svm import LinearSVR
+            nlp_model = LinearSVR(epsilon=0.0, tol=0.01, C=1.0)
+            #nlp_model = LassoLars()
             params = {}
-            params['alpha'] = sp.stats.uniform(scale=1)
-            params['max_iter'] = sp.stats.randint(100,5000)
+            params['epsilon'] = sp.stats.uniform(scale=1)
+            params['C'] = sp.stats.uniform(scale=100)
         else:
             scv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
             model_name = 'Multinomial Naive Bayes'
@@ -1216,11 +1219,17 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         print('Training Pipeline on full Train data. This will take time...')
         #####  Now AFTER TRAINING, make predictions on the given test data set!
         start_time = time.time()
-        pipe.fit(X,y)
+        try:
+            pipe.fit(X,y)
+        except:
+            pipe.fit(X.toarray(),y)
         print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
         print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
         if not isinstance(test, str):
-            y_pred = pipe.predict(test[nlp_column])
+            try:
+                y_pred = pipe.predict(test[nlp_column])
+            except:
+                y_pred = pipe.predict(test[nlp_column])
             return train, test, pipe, y_pred
         else:
             return train, '', pipe, ''

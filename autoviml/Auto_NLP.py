@@ -1182,12 +1182,9 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         print('    Train Vectorized data shape = %s, Cross Validation data shape = %s' %(X_train_dtm.shape, X_test.shape))
         if modeltype == 'Regression':
             scv = KFold(n_splits=n_splits, random_state=seed)
-            from sklearn.linear_model import LassoLars
-            #model_name = 'Lasso LARS'
-            model_name = 'Linear_SVR'
             from sklearn.svm import LinearSVR
-            nlp_model = LinearSVR(epsilon=0.0, tol=0.01, C=1.0)
-            #nlp_model = LassoLars()
+            model_name = 'Linear_SVR'
+            nlp_model = LinearSVR(epsilon=0.0, tol=0.001, C=1.0)
             params = {}
             params['epsilon'] = sp.stats.uniform(scale=1)
             params['C'] = sp.stats.uniform(scale=100)
@@ -1214,22 +1211,20 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         #### Now select the best estimator from the RandomizedSearchCV models
         nlp_model = gs.best_estimator_
         #### Build a pipeline with the best estimator and the best vectorizer together here!
-        pipe = make_pipeline(cvect,nlp_model)
+        from sklearn.preprocessing import FunctionTransformer
+        pipe = make_pipeline(
+             cvect,
+             FunctionTransformer(lambda x: x.todense(), accept_sparse=True),
+             nlp_model)
         ### Train the Pipeline on the full data set !
         print('Training Pipeline on full Train data. This will take time...')
         #####  Now AFTER TRAINING, make predictions on the given test data set!
         start_time = time.time()
-        try:
-            pipe.fit(X,y)
-        except:
-            return train, '', pipe, ''
+        pipe.fit(X,y)
         print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
         print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
         if not isinstance(test, str):
-            try:
-                y_pred = pipe.predict(test[nlp_column])
-            except:
-                y_pred = pipe.predict(test[nlp_column])
+            y_pred = pipe.predict(test[nlp_column])
             return train, test, pipe, y_pred
         else:
             return train, '', pipe, ''

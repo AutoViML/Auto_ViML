@@ -13,7 +13,6 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 ################################################################################
-from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
 import warnings
 warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
@@ -21,12 +20,14 @@ warnings.filterwarnings(action='ignore', category=DataConversionWarning)
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 from numpy import inf
-
+################################################################################
+from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
+from sklearn.svm import LinearSVR
 from sklearn.linear_model import LassoCV, RidgeCV
 from sklearn.linear_model import Lasso, Ridge
 from sklearn.model_selection import StratifiedShuffleSplit
 import matplotlib.pylab as plt
-get_ipython().magic(u'matplotlib inline')
+#get_ipython().magic(u'matplotlib inline')
 from matplotlib.pylab import rcParams
 rcParams['figure.figsize'] = 10, 6
 from sklearn.metrics import classification_report, confusion_matrix
@@ -250,7 +251,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.652                                              #######
+    ######                               Version 0.1.653                                              #######
     #####   GPU UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade.  May 15,2020         ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -921,12 +922,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     tfidf_term_array = create_tfidf_terms(nlp_column_train, best_nlp_transformer,
                                             is_train=True, max_features_limit=max_features_limit)
                     print ('Creating word clusters using term matrix of size: %d for Train data set...' %len(tfidf_term_array['terms']))
-                    num_clusters = int(np.sqrt(len(tfidf_term_array['terms']))/2)
-                    if num_clusters < 2:
-                        num_clusters = 2
+                    n_clusters = int(np.sqrt(len(tfidf_term_array['terms']))/2)
+                    if n_clusters < 2:
+                        n_clusters = 2
                     ##### Always set verbose to 0 since we KMEANS running is too verbose!
-                    km = KMeans(n_clusters=num_clusters, random_state=seed, verbose=0)
-                    kme, cluster_labels = return_cluster_labels(km, tfidf_term_array, num_clusters,
+                    km = KMeans(n_clusters=n_clusters, random_state=seed, verbose=0)
+                    kme, cluster_labels = return_cluster_labels(km, tfidf_term_array, n_clusters,
                                             is_train=True)
                     if isinstance(nlp_column, str):
                         cluster_col = nlp_column + '_word_cluster_label'
@@ -937,7 +938,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     if not isinstance(orig_test, str):
                         tfidf_term_array_test = create_tfidf_terms(nlp_column_test, best_nlp_transformer,
                                                     is_train=False, max_features_limit=max_features_limit)
-                        _, cluster_labels_test = return_cluster_labels(kme, tfidf_term_array_test, num_clusters,
+                        _, cluster_labels_test = return_cluster_labels(kme, tfidf_term_array_test, n_clusters,
                                                     is_train=False)
                         test1[cluster_col] = cluster_labels_test
                         print ('Created word clusters using same sized term matrix for Test data set...')
@@ -1058,9 +1059,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ### DO KMeans Featurizer only if there are numeric features in the data set!
             print('    Adding one Feature named "KMeans_Clusters" based on KMeans_Featurizer_Flag=True...')
             km_label = 'KMeans_Clusters'
+            #### Make the number of clusters as the same as log10 of number of rows in Train
+            num_clusters = int(np.round(max(2,np.log10(train.shape[0]))))
             if modeltype != 'Regression':
-                #### Make the number of clusters as the same as log10 of number of rows in Train
-                num_clusters = int(np.round(max(2,np.log10(train.shape[0]))))
                 #### Make the number of clusters as the same as log10 of number of rows in Train
                 train_clusters, cv_clusters = Transform_KM_Features(part_train[
                                     important_features], part_train[each_target],
@@ -1159,7 +1160,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 #"criterion" : ['mse','mae'],
                                 },
                         "Linear": {
-                            'alpha': np.logspace(-5,3),
+                            #'alpha': np.logspace(-5,3),
+                            'epsilon': [0, 0.01, 0.06, 0.1, 0.3, 0.5, 0.8],
+                            'C': [0.01, 0.1,1,1.5, 10,100]
                                 },
                         "XGBoost": {
                                         'learning_rate': np.linspace(0.1,0.5,5),
@@ -1180,7 +1183,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 #"criterion" : ['mse','mae'],
                                 },
                         "Linear": {
-                                'alpha': sp.stats.uniform(scale=1000),
+                                #'alpha': sp.stats.uniform(scale=1000),
+                                'epsilon': sp.stats.uniform(scale=1),
+                                'C': sp.stats.uniform(scale=100)
                                 },
                         "XGBoost":  {
                                 'learning_rate': sp.stats.uniform(scale=1),
@@ -1207,7 +1212,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     xgbm.set_params(**param)
             elif Boosting_Flag is None:
                 #xgbm = Lasso(max_iter=max_iter,random_state=seed)
-                xgbm = Lasso(max_iter=max_iter,random_state=seed)
+                #xgbm = Lasso(max_iter=max_iter,random_state=seed)
+                xgbm = LinearSVR(epsilon=0.0, tol=0.001, C=1.0,random_state=seed)
             else:
                 xgbm = RandomForestRegressor(
                                 **{
@@ -1765,10 +1771,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 try:
                     if X_cv.shape[0] <= 1000:
                         # THis works well for small data sets and is similar to parametric
-                        method=  'sigmoid' # 'isotonic' # # 
+                        method=  'sigmoid' # 'isotonic' # #
                     else:
                         # THis works well for large data sets and is non-parametric
-                        method=  'isotonic' 
+                        method=  'isotonic'
                     model = CalibratedClassifierCV(model, method=method, cv="prefit")
                     model.fit(X_train, y_train)
                     print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
@@ -2031,13 +2037,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ###### Once again we do Entropy Binning on the Full Train Data Set !!
         ########################## BINNING SECOND TIME  ###############################
         if Binning_Flag and len(saved_num_vars) > 0:
+            important_features = left_subtract(important_features,binned_num_vars)
+            train = train[important_features+[each_target]]
             ### when you bin the second time, you have to send in important_features with original
             ### numeric variables so that it works on binning only those. Otherwise it will fail.
             ### Do Entropy Binning only if there are numeric variables in the data set! #####
             #### When we Bin the second first time, we set the entropy_binning flag to True so
             ####    that all numeric variables that are binned are removed. This way, only bins remain.
             train, num_vars, important_features, test = add_entropy_binning(train, each_target,
-                                                  orig_num_vars, important_features, test,
+                                                  saved_num_vars, important_features, test,
                                                   modeltype,  entropy_binning=True,verbose=verbose)
             #### In saved_num_vars we send in all the continuous_vars but we bin only the top few vars.
             ###  Those that are binned are removed from saved_num_vars and the remaining become num_vars
@@ -2055,9 +2063,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             km_label = 'KMeans_Clusters'
             if modeltype != 'Regression':
                 #### Make the number of clusters as the same as log10 of number of rows in Train
-                train_cluster, test_cluster = Transform_KM_Features(train[important_features], train[each_target], test[important_features], num_clusters)
+                train_cluster, test_cluster = Transform_KM_Features(train[important_features], train[
+                                        each_target], test[important_features], num_clusters)
             else:
-                train_cluster, test_cluster = Transform_KM_Features(train[important_features], train[each_target], test[important_features])
+                train_cluster, test_cluster = Transform_KM_Features(train[important_features], train[
+                                        each_target], test[important_features])
             #### Now make sure that the cat features are either string or integers ######
             print('    Used KMeans to naturally cluster Train predictor variables into %d clusters' %num_clusters)
             train[km_label] = train_cluster
@@ -2444,10 +2454,16 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             plot_model = copy.deepcopy(model)
         try:
             if Boosting_Flag is None:
-                    ### If you don't use absolute values, you won't get the right set of features in order. Make sure!
-                    imp_features_df = pd.DataFrame(abs(plot_model.coef_[0]),
-                                        columns=['Feature Importances'],index=important_features).sort_values(
-                                        'Feature Importances',ascending=False)
+                    if modeltype == 'Regression':
+                        ### If you use LinearSVR  then use all absolute values, so you can plot them in decreasing order of importance
+                        imp_features_df = pd.DataFrame(abs(plot_model.coef_),
+                                            columns=['Feature Importances'],index=important_features).sort_values(
+                                            'Feature Importances',ascending=False)
+                    else:
+                        ### If you don't use absolute values, you won't get the right set of features in order. Make sure!
+                        imp_features_df = pd.DataFrame(abs(plot_model.coef_[0]),
+                                            columns=['Feature Importances'],index=important_features).sort_values(
+                                            'Feature Importances',ascending=False)
             else:
                 if model_name.lower() == 'xgboost':
                     #####  SHAP requires this step: XGBoost models must have been "predicted"
@@ -2499,7 +2515,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         import shap
                         from catboost import Pool
                         shap.initjs()
-                        plt.figure()
                         shap_values = plot_model.get_feature_importance(Pool(X_cv, label=y_cv,cat_features=imp_cats),type="ShapValues")
                         shap_df = pd.DataFrame(np.c_[X_cv.values,y_cv],columns=[list(X_cv)+[each_target]])
                         if modeltype == 'Multi_Classification':
@@ -2507,8 +2522,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 ### This is needed for Catboost models but it is very cumbersome!
                                 ### You need to cycle through multiple values of classes from 0 to n_classes-1.
                                 ### There is no way to force it in an Ax => so you are stuck printing multiple charts
+                                plt.figure()
                                 shap.summary_plot(shap_values[:,each_i,:], shap_df, plot_type="violin")
                         else:
+                            plt.figure()
                             shap.summary_plot(shap_values, shap_df, plot_type="violin")
                 else:
                     import shap
@@ -3708,8 +3725,8 @@ def Draw_ROC_MC_ML(model, X_test, y_true, target, model_name, verbose=0):
 ###################################################################################
 from sklearn.cluster import KMeans
 ####  These functions are for creating word cluster labels using each NLP column if it exists
-def cluster_using_k_means(km, tfidf_matrix, num_clusters, is_train=True):
-    print ("    Running k-means on NLP token matrix to create " + str(num_clusters) + " word clusters.")
+def cluster_using_k_means(km, tfidf_matrix, num_cluster, is_train=True):
+    print ("    Running k-means on NLP token matrix to create " + str(num_cluster) + " word clusters.")
     if is_train:
         clusters = km.fit_predict(tfidf_matrix)
     else:
@@ -4507,12 +4524,12 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
                     temp_test[bincol] = np.digitize(temp_test[each_num].values, entropy_threshold)
                 #### We Drop the original continuous variable after you have created the bin when Flag is true
                 ### We Don't drop these original numeric vars since they will be used later for full train binning
-                if entropy_binning:
-                    temp_test.drop(each_num,axis=1,inplace=True)
             if entropy_binning:
                 ### In the second time, we don't repeat adding binned vars since they have already been added!
                 #### we also make sure that the orig num vars which have now been binned are removed!
                 temp_train.drop(each_num,axis=1,inplace=True)
+                if type(temp_test) != str:
+                    temp_test.drop(each_num,axis=1,inplace=True)
             else:
                 #### In the first time, we add binned vars to  important_features  ###
                 ### In the second time, we don't repeat that since they have already been added!
@@ -4530,7 +4547,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.652'
+version_number = '0.1.653'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -1184,7 +1184,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             scv = KFold(n_splits=n_splits, random_state=seed)
             from sklearn.svm import LinearSVR
             model_name = 'Linear_SVR'
-            nlp_model = LinearSVR(epsilon=0.0, tol=0.001, C=1.0)
+            nlp_model = LinearSVR(epsilon=0.0, tol=0.001, C=1.0,random_state=99)
             params = {}
             params['epsilon'] = sp.stats.uniform(scale=1)
             params['C'] = sp.stats.uniform(scale=100)

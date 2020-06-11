@@ -358,7 +358,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     col_sub_sample = 0.7   ### Leave this low for the same reason above
     poly_degree = 2  ### this create 2-degree polynomial variables in Add_Poly. Increase if you want more degrees
     booster = 'gbtree'   ### this is the booster for XGBoost. The other option is "Linear".
-    n_splits = 5  ### This controls the number of splits for Cross Validation. Increasing will take longer time.
+    n_splits = 7  ### This controls the number of splits for Cross Validation. Increasing will take longer time.
     matplotlib_flag = True #(default) This is for drawing SHAP values. If this is False, initJS is used.
     early_stopping = 20 #### Early stopping rounds for XGBoost ######
     encoded = '_Label_Encoded' ### This is the tag we add to feature names in the end to indicate they are label encoded
@@ -3200,7 +3200,10 @@ def classify_columns(df_preds, verbose=0):
                    len_sum_all_cols, orig_cols_total))
         ls = sum_all_cols.values()
         flat_list = [item for sublist in ls for item in sublist]
-        print('    Missing columns = %s' %set(list(train))-set(flat_list))
+        if len(left_subtract(list(train),flat_list)) == 0:
+            print(' Missing columns = None')
+        else:
+            print(' Missing columns = %s' %left_subtract(list(train),flat_list))
     return sum_all_cols
 #################################################################################
 def left_subtract(l1,l2):
@@ -4547,7 +4550,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.653'
+version_number = '0.1.654'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

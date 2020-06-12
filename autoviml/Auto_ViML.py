@@ -2586,7 +2586,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print('    Error: Not able to save test modified file. Skipping...')
         #############################################################################################
         if isinstance(sample_submission, str):
-            sample_submission = testm[id_cols+[each_target+'_predictions']]
+            try:
+                sample_submission = testm[id_cols+[each_target+'_predictions']]
+            except:
+                print('Error: Could not create sample submission file from Test data')
         try:
             write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
         except:

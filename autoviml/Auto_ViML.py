@@ -2382,7 +2382,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 testm[new_col] = ensem_pred
                 new_cols.append(new_col)
                 if not isinstance(sample_submission, str):
-                    sample_submission[each_target] = y_pred
+                    try:
+                        sample_submission[each_target] = y_pred
+                    except:
+                        print('Error: Sample submission file is incorrect. Please check it. continuing...')
             else:
             #########    T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
                 ### if there is a transformer, then you must convert the predicted classes to orig classes

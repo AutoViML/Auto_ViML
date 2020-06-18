@@ -3954,23 +3954,35 @@ def create_ts_features(df, tscol):
     Creates time series features from datetime index
     """
     df = copy.deepcopy(df)
+    dt_adds = []
     try:
-        df['hour'] = df[tscol].dt.hour
-        df['minute'] = df[tscol].dt.minute
+        df[tscol+'_hour'] = df[tscol].dt.hour
+        dt_adds.append(tscol+'_hour')
+        df[tscol+'_minute'] = df[tscol].dt.minute
+        dt_adds.append(tscol+'_minute')
     except:
-        pass
-    df['dayofweek'] = df[tscol].dt.dayofweek
-    df['quarter'] = df[tscol].dt.quarter
-    df['month'] = df[tscol].dt.month
-    df['year'] = df[tscol].dt.year
-    df['dayofyear'] = df[tscol].dt.dayofyear
-    df['dayofmonth'] = df[tscol].dt.day
-    df['weekofyear'] = df[tscol].dt.weekofyear
-    weekends = (df['dayofweek'] == 5) | (df['dayofweek'] == 6)
-    df['weekend'] = 0
-    df.loc[weekends, 'weekend'] = 1
-    dt_adds = ['hour','dayofweek','quarter','month','year',
-           'dayofyear','dayofmonth','weekofyear','weekend']
+        print('    Error in creating hour-second derived features. Continuing...')
+    try:
+        df[tscol+'_dayofweek'] = df[tscol].dt.dayofweek
+        dt_adds.append(tscol+'_dayofweek')
+        df[tscol+'_quarter'] = df[tscol].dt.quarter
+        dt_adds.append(tscol+'_quarter')
+        df[tscol+'_month'] = df[tscol].dt.month
+        dt_adds.append(tscol+'_month')
+        df[tscol+'_year'] = df[tscol].dt.year
+        dt_adds.append(tscol+'_year')
+        df[tscol+'_dayofyear'] = df[tscol].dt.dayofyear
+        dt_adds.append(tscol+'_dayofyear')
+        df[tscol+'_dayofmonth'] = df[tscol].dt.day
+        dt_adds.append(tscol+'_dayofmonth')
+        df[tscol+'_weekofyear'] = df[tscol].dt.weekofyear
+        dt_adds.append(tscol+'_weekofyear')
+        weekends = (df[tscol+'_dayofweek'] == 5) | (df[tscol+'_dayofweek'] == 6)
+        df[tscol+'_weekend'] = 0
+        df.loc[weekends, tscol+'_weekend'] = 1
+        dt_adds.append(tscol+'_weekend')
+    except:
+        print('    Error in creating date time derived features. Continuing...')
     X = df[dt_adds].fillna(0)
     return X
 

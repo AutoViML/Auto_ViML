@@ -1088,25 +1088,29 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         #######################   STACKING   FIRST   TIME     ############################
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:
-            #### In order to join, you need X_train to be a Pandas Series here ##
-            print('Alert! Stacking can produce Highly Overfit models on Training Data...')
-            ### In order to avoid overfitting, we are going to learn from a small sample of data
-            ### That is why we are using X_train to train on and using it to predict on X_cv!
-            addcol, stacks1 = QuickML_Stacking(part_train[important_features],part_train[
-                                each_target],part_train[important_features],
-                          modeltype, Boosting_Flag, scoring_parameter,verbose)
-            addcol, stacks2 = QuickML_Stacking(part_train[important_features],part_train[
-                                each_target],part_cv[important_features],
-                          modeltype, Boosting_Flag, scoring_parameter,verbose)
-            part_train = part_train.join(pd.DataFrame(stacks1,index=cv_train_index,
-                                              columns=addcol))
-            ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
-            part_cv = part_cv.join(pd.DataFrame(stacks2,index=cv_index,
-                                              columns=addcol))
-            print('    Adding %d Stacking feature(s) to training data' %len(addcol))
-            ######  We make sure that we remove any new features that are highly correlated ! #####
-            #addcol = remove_variables_using_fast_correlation(X_train,addcol,corr_limit,verbose)
-            important_features += addcol
+            try:
+                #### In order to join, you need X_train to be a Pandas Series here ##
+                print('Alert! Stacking can produce Highly Overfit models on Training Data...')
+                ### In order to avoid overfitting, we are going to learn from a small sample of data
+                ### That is why we are using X_train to train on and using it to predict on X_cv!
+                addcol, stacks1 = QuickML_Stacking(part_train[important_features],part_train[
+                                    each_target],part_train[important_features],
+                              modeltype, Boosting_Flag, scoring_parameter,verbose)
+                addcol, stacks2 = QuickML_Stacking(part_train[important_features],part_train[
+                                    each_target],part_cv[important_features],
+                              modeltype, Boosting_Flag, scoring_parameter,verbose)
+                part_train = part_train.join(pd.DataFrame(stacks1,index=cv_train_index,
+                                                  columns=addcol))
+                ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
+                part_cv = part_cv.join(pd.DataFrame(stacks2,index=cv_index,
+                                                  columns=addcol))
+                print('    Adding %d Stacking feature(s) to training data' %len(addcol))
+                ######  We make sure that we remove any new features that are highly correlated ! #####
+                #addcol = remove_variables_using_fast_correlation(X_train,addcol,corr_limit,verbose)
+                important_features += addcol
+            except:
+                print('    Error in Stacking first time. Continuing without Stacking for this data set...')
+                Stacking_Flag = False
         ###############################################################################
         #### part train contains the unscaled original train. It also contains binned and orig_num_vars!
         #### DO NOT DO TOUCH part_train and part_cv -> we need it to recrate train later!
@@ -2083,35 +2087,38 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ########################## STACKING SECOND TIME  ###############################
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:
-            #### In order to join, you need X_train to be a Pandas Series here ##
-            print('CAUTION: Stacking can produce Highly Overfit models on Training Data...')
-            ### In order to avoid overfitting, we are going to learn from a small sample of data
-            ### That is why we are using X_cv to train on and using it to predict on X_train!
-            addcol, stacks1 = QuickML_Stacking(train[important_features],train[each_target],'',
-                          modeltype, Boosting_Flag, scoring_parameter,verbose)
-            ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
-            #### The reason we add the word "Partial_Train" is to show that these Stacking results are from Partial Train data!
-            addcols = copy.deepcopy(addcol)
-            ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
-            train = train.join(pd.DataFrame(stacks1,index=train.index,
-                                              columns=addcols))
-            ##### Leaving multiple columns for Stacking is best! Do not do the average of predictions!
-            print('    Adding %d Stacking feature(s) to training data' %len(addcols))
-            if not isinstance(orig_test, str):
+            try:
+                #### In order to join, you need X_train to be a Pandas Series here ##
+                print('CAUTION: Stacking can produce Highly Overfit models on Training Data...')
                 ### In order to avoid overfitting, we are going to learn from a small sample of data
-                ### That is why we are using X_train to train on and using it to predict on X_test
-                _, stacks2 = QuickML_Stacking(train[important_features],train[each_target],test[important_features],
-                          modeltype, Boosting_Flag, scoring_parameter,verbose)
+                ### That is why we are using X_cv to train on and using it to predict on X_train!
+                addcol, stacks1 = QuickML_Stacking(train[important_features],train[each_target],'',
+                              modeltype, Boosting_Flag, scoring_parameter,verbose)
                 ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
-                test = test.join(pd.DataFrame(stacks2,index=test.index,
+                #### The reason we add the word "Partial_Train" is to show that these Stacking results are from Partial Train data!
+                addcols = copy.deepcopy(addcol)
+                ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
+                train = train.join(pd.DataFrame(stacks1,index=train.index,
                                                   columns=addcols))
-                ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
-                #test = test.join(pd.DataFrame(stacks2.mean(axis=1).round().astype(int),
-                #                             columns=[addcol],index=test.index))
-            ######  We make sure that we remove too many features that are highly correlated ! #####
-            #addcol = remove_variables_using_fast_correlation(train,addcol,corr_limit,verbose)
-            important_features += addcols
-            saved_num_vars.append(addcol) ### You need to add it for binning later!
+                ##### Leaving multiple columns for Stacking is best! Do not do the average of predictions!
+                print('    Adding %d Stacking feature(s) to training data' %len(addcols))
+                if not isinstance(orig_test, str):
+                    ### In order to avoid overfitting, we are going to learn from a small sample of data
+                    ### That is why we are using X_train to train on and using it to predict on X_test
+                    _, stacks2 = QuickML_Stacking(train[important_features],train[each_target],test[important_features],
+                              modeltype, Boosting_Flag, scoring_parameter,verbose)
+                    ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
+                    test = test.join(pd.DataFrame(stacks2,index=test.index,
+                                                      columns=addcols))
+                    ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
+                    #test = test.join(pd.DataFrame(stacks2.mean(axis=1).round().astype(int),
+                    #                             columns=[addcol],index=test.index))
+                ######  We make sure that we remove too many features that are highly correlated ! #####
+                #addcol = remove_variables_using_fast_correlation(train,addcol,corr_limit,verbose)
+                important_features += addcols
+                saved_num_vars.append(addcol) ### You need to add it for binning later!
+            except:
+                print('Error in Stacking second time. Continuing...')
         ############################################################################################
         if len(important_features) == 0:
             print('No important features found. Using all input features...')

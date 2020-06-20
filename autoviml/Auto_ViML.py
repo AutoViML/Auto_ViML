@@ -196,7 +196,7 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
     if not isinstance(start_test,str) :
         if start_test[col].isnull().sum() > 0:
             #### IN some rare cases, Test data has missing values while Train data doesn.t
-            #### This section is take care of those rare cases. We need to create a missing col
+            #### This section is to take care of such rare cases. We need to create a missing col
             ####  We need to create that missing flag column in both train and test in that case
             if not missing_flag:
                 missing_flag = True
@@ -241,6 +241,8 @@ def flatten_list(list_of_lists):
     return final_ls
 #############################################################################################################
 import scipy as sp
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
+#############################################################################################################
 def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feature_reduction=True,
             scoring_parameter='logloss', Boosting_Flag=None, KMeans_Featurizer=False,
             Add_Poly=0, Stacking_Flag=False, Binning_Flag=False,
@@ -251,7 +253,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.653                                              #######
+    ######                               Version 0.1.654                                              #######
     #####   GPU UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade.  May 15,2020         ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -724,7 +726,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     num_bool_vars.append(new_missing_col)
                     preds.append(new_missing_col)
                     missing_flag_cols.append(new_missing_col)
-            elif start_train[f].dtype == np.int64 or start_train[f].dtype == np.int32 or start_train[f].dtype == np.int16:
+            elif start_train[f].dtype in [np.int64, np.int32, np.int16, np.int8]:
                 ### if there are integer variables, don't scale them. Leave them as is.
                 fill_num = start_train[f].min() - 1
                 if start_train[f].isnull().sum() > 0:
@@ -744,6 +746,20 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     num_bool_vars.append(new_missing_col)
                     preds.append(new_missing_col)
                     missing_flag_cols.append(new_missing_col)
+            elif is_datetime(start_train[f]):
+                ### if it is a date time variable then you need to fill any missing values with ffill method
+                if start_train[f].isnull().sum() > 0:
+                    missing_flag = True
+                    new_missing_col = f + '_Missing_Flag'
+                    start_train[new_missing_col] = 0
+                    start_train.loc[start_train[f].isnull(),new_missing_col]=1
+                    start_train[f] = start_train[f].fillna(method='ffill')
+                if type(orig_test) != str:
+                    if missing_flag:
+                        start_test[new_missing_col] = 0
+                    if start_test[f].isnull().sum() > 0:
+                        start_test.loc[start_test[f].isnull(),new_missing_col]=1
+                        start_test[f] = start_test[f].fillna(method='ffill')
             elif f in factor_cols:
                 start_train, start_test,missing_flag,new_missing_col = convert_train_test_cat_col_to_numeric(start_train, start_test,f,False)
                 if missing_flag:
@@ -1024,6 +1040,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ### The reason we don't use train_test_split is because we want only a partial train entropy binned
             part_train = train.iloc[cv_train_index]
             part_cv = train.iloc[cv_index]
+            ### Once you change the index by number, you have to change the saved values as well to match it!
+            cv_train_index = part_train.index
+            cv_index = part_cv.index
         print('Train CV Split completed with', "TRAIN rows:", cv_train_index.shape[0], "CV rows:", cv_index.shape[0])
         ################   IMPORTANT ENTROPY  BINNING FIRST TIME   #####################################
         ############   Add Entropy Binning of Continuous Variables Here ##############################
@@ -2041,10 +2060,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ###### Once again we do Entropy Binning on the Full Train Data Set !!
         ########################## BINNING SECOND TIME  ###############################
         if Binning_Flag and len(saved_num_vars) > 0:
-            important_features = left_subtract(important_features,binned_num_vars)
-            train = train[important_features+[each_target]]
             ### when you bin the second time, you have to send in important_features with original
             ### numeric variables so that it works on binning only those. Otherwise it will fail.
+            #important_features = left_subtract(important_features,binned_num_vars)
+            #train = train[important_features+[each_target]]
             ### Do Entropy Binning only if there are numeric variables in the data set! #####
             #### When we Bin the second first time, we set the entropy_binning flag to True so
             ####    that all numeric variables that are binned are removed. This way, only bins remain.
@@ -2154,6 +2173,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                       imp_cats=imp_cats, calibrator_flag=calibrator_flag,
                                       GPU_exists=GPU_exists, params=cpu_params,
                                       verbose=verbose)
+                    ## This is where we test if the previous training with SMOTE went smoothly. If not, we  try with a different method here.
                     if isinstance(model, str):
                         #### If downsampling model failed, it will just be an empty string, so you can try regular model ###
                         model = copy.deepcopy(best_model)
@@ -3958,50 +3978,78 @@ def write_file_to_folder(df, each_target, base_filename, verbose=1):
 ##############################################################
 def create_ts_features(df, tscol):
     """
-    Creates time series features from datetime index
+    This takes in input a dataframe and a date variable.
+    It then creates time series features using the pandas .dt.weekday kind of syntax.
+    It also returns the data frame of added features with each variable as an integer variable.
     """
     df = copy.deepcopy(df)
     dt_adds = []
     try:
-        df[tscol+'_hour'] = df[tscol].dt.hour
+        df[tscol+'_hour'] = df[tscol].dt.hour.astype(int)
+        df[tscol+'_minute'] = df[tscol].dt.minute.astype(int)
         dt_adds.append(tscol+'_hour')
-        df[tscol+'_minute'] = df[tscol].dt.minute
         dt_adds.append(tscol+'_minute')
     except:
         print('    Error in creating hour-second derived features. Continuing...')
     try:
-        df[tscol+'_dayofweek'] = df[tscol].dt.dayofweek
+        df[tscol+'_dayofweek'] = df[tscol].dt.dayofweek.astype(int)
         dt_adds.append(tscol+'_dayofweek')
-        df[tscol+'_quarter'] = df[tscol].dt.quarter
+        df[tscol+'_quarter'] = df[tscol].dt.quarter.astype(int)
         dt_adds.append(tscol+'_quarter')
-        df[tscol+'_month'] = df[tscol].dt.month
+        df[tscol+'_month'] = df[tscol].dt.month.astype(int)
         dt_adds.append(tscol+'_month')
-        df[tscol+'_year'] = df[tscol].dt.year
+        df[tscol+'_year'] = df[tscol].dt.year.astype(int)
         dt_adds.append(tscol+'_year')
-        df[tscol+'_dayofyear'] = df[tscol].dt.dayofyear
+        df[tscol+'_dayofyear'] = df[tscol].dt.dayofyear.astype(int)
         dt_adds.append(tscol+'_dayofyear')
-        df[tscol+'_dayofmonth'] = df[tscol].dt.day
+        df[tscol+'_dayofmonth'] = df[tscol].dt.day.astype(int)
         dt_adds.append(tscol+'_dayofmonth')
-        df[tscol+'_weekofyear'] = df[tscol].dt.weekofyear
+        df[tscol+'_weekofyear'] = df[tscol].dt.weekofyear.astype(int)
         dt_adds.append(tscol+'_weekofyear')
         weekends = (df[tscol+'_dayofweek'] == 5) | (df[tscol+'_dayofweek'] == 6)
         df[tscol+'_weekend'] = 0
         df.loc[weekends, tscol+'_weekend'] = 1
+        df[tscol+'_weekend'] = df[tscol+'_weekend'].astype(int)
         dt_adds.append(tscol+'_weekend')
     except:
         print('    Error in creating date time derived features. Continuing...')
-    X = df[dt_adds].fillna(0)
-    return X
+    df = df[dt_adds].fillna(0).astype(int)
+    return df
 
-def create_time_series_features(series, ts_column):
-    series = copy.deepcopy(series)
+def create_time_series_features(dtf, ts_column):
+    """
+    This creates between 8 and 10 date time features for each date variable. The number of features
+    depends on whether it is just a year variable or a year+month+day and whether it has hours and mins+secs.
+    So this can create all these features using just the date time column that you send in.
+    It returns the entire dataframe with added variables as output.
+    """
+    dtf = copy.deepcopy(dtf)
     try:
-        series[ts_column] = pd.to_datetime(series[ts_column],
-                        infer_datetime_format=True)
-        return create_ts_features(series,ts_column)
+        ### In some extreme cases, date time vars are not processed yet and hence we must fill missing values here!
+        if dtf[ts_column].isnull().sum() > 0:
+            missing_flag = True
+            new_missing_col = ts_column + '_Missing_Flag'
+            dtf[new_missing_col] = 0
+            dtf.loc[dtf[ts_column].isnull(),new_missing_col]=1
+            dtf[ts_column] = dtf[ts_column].fillna(method='ffill')
+        if dtf[ts_column].dtype == float:
+            dtf[ts_column] = dtf[ts_column].astype(int)
+        ### if we have already found that it was a date time var, then leave it as it is. Thats good enough!
+        items = dtf[ts_column].apply(str).apply(len).values
+        #### In some extreme cases,
+        if all(items[0] == item for item in items):
+            if items[0] == 4:
+                ### If it is just a year variable alone, you should leave it as just a year!
+                dtf[ts_column] = pd.to_datetime(dtf[ts_column],format='%Y')
+            else:
+                ### if it is not a year alone, then convert it into a date time variable
+                dtf[ts_column] = pd.to_datetime(dtf[ts_column], infer_datetime_format=True)
+        else:
+            dtf[ts_column] = pd.to_datetime(dtf[ts_column], infer_datetime_format=True)
+        dtf = create_ts_features(dtf,ts_column)
     except:
         print('Error in Processing %s column for date time features. Continuing...' %ts_column)
-        return ''
+    return dtf
 ########################################
 from collections import Counter
 import time
@@ -4036,7 +4084,9 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
     smallest_kn =  rare_samples - 1
     if smallest_kn > 10:
         smallest_kn = 10
-    elif smallest_kn <= 2:
+    elif smallest_kn > 2:
+        smallest_kn = 2
+    else :
         smallest_kn = 1
     print('    Number of K Neighbors selected for SMOTE = %d' %smallest_kn)
     smote = SMOTE(random_state=seed,sampling_strategy='all', k_neighbors=smallest_kn, n_jobs=-1)

@@ -45,10 +45,10 @@ def find_rare_class(classes, verbose=0):
     else:
         return int(pd.Series(counts).idxmin())
 ################################################################################
-def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boosting_Flag=False, 
+def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boosting_Flag=False,
                     scoring='', verbose=0):
     """
-    Quickly build Stacks of multiple model results 
+    Quickly build Stacks of multiple model results
     Input must be a clean data set (only numeric variables, no categorical or string variables).
     """
     X_train = copy.deepcopy(X_train)

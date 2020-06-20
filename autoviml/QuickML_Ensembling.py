@@ -33,7 +33,7 @@ import time
 import copy
 import operator
 #########################################################
-def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regression', 
+def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regression',
                        Boosting_Flag=False,
                        scoring='', verbose=0):
     """
@@ -82,7 +82,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
                                         n_estimators=NUMS,random_state=seed)
         model_tuples.append(('Bagging_Regressor',model7))
         if Boosting_Flag is None:
-            #### If the Boosting_Flag is True, it means Boosting model is present. 
+            #### If the Boosting_Flag is True, it means Boosting model is present.
             ###   So choose a different kind of classifier here
             model8 = RandomForestRegressor(bootstrap = False,
                                        max_depth = 10,
@@ -92,7 +92,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
                                        random_state=99)
             model_tuples.append(('RF_Regressor',model8))
         elif not Boosting_Flag:
-            #### If the Boosting_Flag is True, it means Boosting model is present. 
+            #### If the Boosting_Flag is True, it means Boosting model is present.
             ###   So choose a different kind of classifier here
             model8 = AdaBoostRegressor(base_estimator=DecisionTreeRegressor(
                                     random_state=seed, max_depth=1, min_samples_leaf=2
@@ -139,7 +139,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             model7 = MultinomialNB()
         model_tuples.append(('Naive_Bayes',model7))
         if Boosting_Flag is None:
-            #### If the Boosting_Flag is True, it means Boosting model is present. 
+            #### If the Boosting_Flag is True, it means Boosting model is present.
             ###   So choose a different kind of classifier here
             model8 = RandomForestClassifier(bootstrap = False,
                                        max_depth = 10,
@@ -149,7 +149,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
                                        random_state=99)
             model_tuples.append(('Bagging_Classifier',model8))
         elif not Boosting_Flag:
-            #### If the Boosting_Flag is True, it means Boosting model is present. 
+            #### If the Boosting_Flag is True, it means Boosting model is present.
             ###   So choose a different kind of classifier here
             sgd_best_model = SGDClassifier(alpha=1e-06,
                                 loss='log',
@@ -170,20 +170,20 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
                                        random_state=99)
             model_tuples.append(('Bagging_Classifier',model8))
     model_dict = dict(model_tuples)
-    models, results = run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, 
+    models, results = run_ensemble_models(model_dict, X_train, y_train, X_test, y_test,
                                           scoring, modeltype)
     return models, results
 #########################################################
 from sklearn.metrics import balanced_accuracy_score,accuracy_score,precision_score,recall_score,f1_score
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import copy
-def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, modeltype):   
+def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, modeltype):
     start_time = time.time()
     model_name,  bac_score_list, ac_score_list, p_score_list, r_score_list, f1_score_list = [], [], [], [], [], []
     iteration = 0
     estimators = []
     estim_tuples = []
-    for k,v in model_dict.items():   
+    for k,v in model_dict.items():
         estimator_name = k
         model_name.append(k)
         if str(v).split("(")[0] == 'MultinomialNB':
@@ -191,8 +191,20 @@ def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, m
             v.fit(abs(X_train), y_train)
             y_pred = v.predict(abs(X_test))
         else:
-            v.fit(X_train, y_train)
-            y_pred = v.predict(X_test)
+            try:
+                v.fit(X_train, y_train)
+                y_pred = v.predict(X_test)
+            except:
+                if modeltype != 'Regression':
+                    k = 'Logistic_Regression'
+                    from sklearn.linear_model import LogisticRegression
+                    v = LogisticRegression()
+                else:
+                    k = 'Linear_Regression'
+                    from sklearn.linear_model import LinearRegression
+                    v = LinearRegression()
+                v.fit(X_train, y_train)
+                y_pred = v.predict(X_test)                    
         if iteration == 0:
             stacks = copy.deepcopy(y_pred)
             iteration += 1

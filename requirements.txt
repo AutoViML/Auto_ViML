@@ -1,6 +1,6 @@
 ipython
 jupyter
-xgboost
+xgboost==0.90
 pandas
 matplotlib
 seaborn

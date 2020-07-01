@@ -966,7 +966,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     test = test1[red_preds]
         ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####
         ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
-        train_sel = np.array(red_preds)[(train[red_preds].dtypes==float).values].tolist()
+        train_sel = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
         #########   A D D   D A T E  T I M E    F E A T U R E S ####################
         if len(date_cols) > 0:
             #### Do this only if date time columns exist in your data set!
@@ -1046,7 +1046,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         print('Train CV Split completed with', "TRAIN rows:", cv_train_index.shape[0], "CV rows:", cv_index.shape[0])
         ################   IMPORTANT ENTROPY  BINNING FIRST TIME   #####################################
         ############   Add Entropy Binning of Continuous Variables Here ##############################
-        num_vars = np.array(important_features)[(train[important_features].dtypes==float)].tolist()
+        num_vars = train[important_features].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
         saved_important_features = copy.deepcopy(important_features)  ### these are original features without '_bin' added
         #### saved_num_vars is an important variable: it contains the orig_num_vars before they were binned
         saved_num_vars = copy.deepcopy(num_vars)  ### these are original numeric features without '_bin' added
@@ -1640,7 +1640,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################################################################################################################################
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
-        #######
+        ##### This is where you start training the model ###
         if Imbalanced_Flag:
             if modeltype == 'Regression':
                 ###########  In case someone sets the Imbalanced_Flag mistakenly to True and it is Regression, you must set it to False ######
@@ -1702,6 +1702,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         #######   Though this next step looks like it is a Coding Mistake by Me, don't change it!!! ###################
         #######   This is for case when Imbalanced with Classification succeeds, this next step is skipped ############
         ################################################################################################################################
+        ### The model blows up when you use average-precision in Multi-Classes -> needs checking!
         if not Imbalanced_Flag:
             ########### This is for both regular Regression and regular Classification Model Training. It is not a Mistake #############
             ########### In case Imbalanced training fails, this method is also tried. That's why we test the Flag here!!  #############
@@ -1844,10 +1845,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 predicted [:,1] = (predicted [:,1] > m_thresh).astype('int')
                 if m_thresh != 0.5:
                     y_pred = predicted[:,rare_class]
-            else:
-                y_proba = model.predict_proba(X_cv)
-                y_pred = model.predict(X_cv)
         else:
+            #### This is where you predict for Regression models #####
             y_pred = model.predict(X_cv)
         ###   This is where you print out the First Model's Results ########
         print('########################################################')
@@ -2055,7 +2054,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             except:
                 pass
         ########################## BINNING SECOND TIME  ###############################
-        new_num_vars = np.array(important_features)[(train[important_features].dtypes==float)].tolist()
+        new_num_vars = train[important_features].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
         ## Now we re-use the saved_num_vars which contained a list of num_vars for binning now!
         ###### Once again we do Entropy Binning on the Full Train Data Set !!
         ########################## BINNING SECOND TIME  ###############################
@@ -2720,6 +2719,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     seed = 1
     early_stopping = 5
     ####### All the default parameters are set up now #########
+    pdb.set_trace()
     kf = KFold(n_splits=n_splits, random_state=33)
     rem_vars = left_subtract(preds,numvars)
     catvars = copy.deepcopy(rem_vars)

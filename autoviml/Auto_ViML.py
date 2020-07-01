@@ -2719,7 +2719,6 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     seed = 1
     early_stopping = 5
     ####### All the default parameters are set up now #########
-    pdb.set_trace()
     kf = KFold(n_splits=n_splits, random_state=33)
     rem_vars = left_subtract(preds,numvars)
     catvars = copy.deepcopy(rem_vars)

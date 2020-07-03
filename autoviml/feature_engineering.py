@@ -1,7 +1,10 @@
 ######### NEW And FAST WAY to ADD Feature Engg COLUMNS IN A DATA SET #######
 ###   Modify Dataframe by adding Features using Feature Tools ####
 def add_features( df, add_types=[], idcolumn=''):
-    import featuretools as ft
+    try:
+        import featuretools as ft
+    except:
+        print('You must install featuretools to use feature_engineering functions. Install it and try again.')
     df = copy.deepcopy(df)
     projectid = 'project_prediction'
     dataid = 'project_data'

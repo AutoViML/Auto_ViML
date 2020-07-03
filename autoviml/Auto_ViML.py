@@ -47,6 +47,7 @@ from autoviml.QuickML_Stacking import QuickML_Stacking
 from autoviml.Transform_KM_Features import Transform_KM_Features
 from autoviml.QuickML_Ensembling import QuickML_Ensembling
 from autoviml.Auto_NLP import Auto_NLP, select_top_features_from_SVD
+from autoviml.feature_engineering import feature_engineering
 import xgboost as xgb
 import sys
 ##################################################################################

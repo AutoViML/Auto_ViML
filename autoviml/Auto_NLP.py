@@ -330,7 +330,7 @@ pattern = r"(?u)\b\w\w+\b"
 
 lemmatizer = WordNetLemmatizer()
 
-punc = list(set(string.punctuation))
+punc = list(set(string.punctuation))+['/;','//']
 
 def casual_tokenizer(text): #Splits words on white spaces (leaves contractions intact) and splits out trailing punctuation
     tokens = tokenizer.tokenize(text)
@@ -384,11 +384,11 @@ def process_text(text):
     decontract = [expandContractions(item, c_re=c_re) for item in lower]
     tagged = nltk.pos_tag(decontract)
     lemma = lemma_wordnet(tagged)
-    no_num = [re.sub('[0-9]+', '', each) for each in lemma]
-    no_punc = [w for w in no_num if w not in punc]
+    #no_num = [re.sub('[0-9]+', '', each) for each in lemma]
+    no_punc = [w for w in lemma if w not in punc]
     no_stop = [w for w in no_punc if w not in stop_words]
     return no_stop
-################################################################################
+################################################################################################################################################################
 ####   THE ABOVE Process_Text secion Re-used with Permission from:
 ####  R O B   S A L G A D O    robert.salgado@gmail.com Thank YOU!
 ################################################################################
@@ -1712,7 +1712,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
 version_number = '0.0.39'
-print("""Imported Auto_NLP version: %s.. Call using:
+print("""\nImported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',
                 modeltype='Classification',top_num_features=200, verbose=0,

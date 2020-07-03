@@ -16,7 +16,7 @@ def add_features( df, add_types=[], idcolumn=''):
         make_index=False
     # Make an entityset and add the entity
     es = ft.EntitySet(id = projectid)
-    es.entity_from_dataframe(entity_id = dataid, dataframe = df, 
+    es.entity_from_dataframe(entity_id = dataid, dataframe = df,
                              make_index = make_index, index = indexid)
 
     # Run deep feature synthesis with given input primitives or automatically deep 2
@@ -26,8 +26,8 @@ def add_features( df, add_types=[], idcolumn=''):
                              trans_primitives = add_types)
     else:
         ### Perform Deep Feature Synthesis Automatically for Depth 2
-        df_mod, feature_defs = ft.dfs(entityset=es, target_entity = dataid, 
-                              max_depth = 3, 
+        df_mod, feature_defs = ft.dfs(entityset=es, target_entity = dataid,
+                              max_depth = 3,
                               verbose = 0)
     if make_index:
         df_mod = df_mod.reset_index(drop=True)
@@ -35,7 +35,7 @@ def add_features( df, add_types=[], idcolumn=''):
 
 def feature_engineering(df, ft_requests, idcol):
     """
-    The Feature Engineering module needs FeatureTools installed to work. 
+    The Feature Engineering module needs FeatureTools installed to work.
     It takes a given data set, df and adds features based on the requet types in
     ft_requests which can be 'add','subtract','multiply','divide'. If you have
     an id_column in the data set, you can provide it as idcol (a string variable).
@@ -52,7 +52,7 @@ def feature_engineering(df, ft_requests, idcol):
             if ft_one in ft_dict.keys():
                 ft_list.append(ft_dict[ft_one])
             else:
-                print('    Cannot perform %s-type feature engineering...' %ft_one)    
+                print('    Cannot perform %s-type feature engineering...' %ft_one)
         cols = [x for x in df.columns.tolist() if x not in [idcol]]
         for each_ft, count in zip(ft_list, range(len(ft_list))):
             if count == 0:
@@ -71,7 +71,7 @@ def feature_engineering(df, ft_requests, idcol):
 def start_end_date_time_processing(smalldf, startTime, endTime, splitter_date_string="/",splitter_hour_string=":"):
     """
     If you have start date time stamp and end date time stamp, this module will create additional features for such fields.
-    You must provide a start date time stamp field and if you have an end date time stamp field, you must use it. 
+    You must provide a start date time stamp field and if you have an end date time stamp field, you must use it.
     Otherwise, you are better off using the create_date_time_features module which is also in this library.
     You must provide the following:
     smalldf: Dataframe containing your date time fields
@@ -165,11 +165,11 @@ def split_one_field_into_many(df, field, splitter, filler, new_names_list):
     ### First print the maximum number of things in that field
     max_things = df[field].map(lambda x: len(x.split(splitter))).max()
     print('    Maximum number of columns created using variable %s = %d' %(field,max_things))
-    ### This creates a new field that counts the number of things that are in that field. 
+    ### This creates a new field that counts the number of things that are in that field.
     num_products_viewed = 'count_things_in_'+field
     df[num_products_viewed] = df[field].map(lambda x: len(x.split(";"))).values
     ### Clean up the field such that it has the right number of split chars otherwise add to it
-    df[field] = df[field].map(lambda x: x+split_char*(max_things-len(x.split(";"))) if len(x.split(";")) < max_things else x)
+    df[field] = df[field].map(lambda x: x+splitter*(max_things-len(x.split(";"))) if len(x.split(";")) < max_things else x)
     ###### Now you create new fields by split the one large field ########
     if new_names_list == '':
         new_names_list = [field+'_'+str(i) for i in range(1,max_things+1)]

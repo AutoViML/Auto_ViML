@@ -637,6 +637,9 @@ def select_top_features_from_SVD(X, tsvd, is_train=True, top_n=100):
     ####   then you select the top 25 terms in 1-gram and 2-gram that make sense.
     print('Reducing dimensions from %d term-matrix to %d dimensions using TruncatedSVD...' %(X.shape[1],top_n))
     if is_train:
+        if X.shape[1] < top_n:
+            ### Sometimes there are not even 100 columns after using TFIDF, so better to cut it short.
+            top_n = int(X.shape[1] - 1)
         tsvd = TruncatedSVD(n_components=top_n,
                    n_iter=10,
                    random_state=3)
@@ -1708,7 +1711,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.38'
+version_number = '0.0.39'
 print("""Imported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',

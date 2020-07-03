@@ -1,3 +1,5 @@
+import pandas as pd
+import numpy as np
 ######### NEW And FAST WAY to ADD Feature Engg COLUMNS IN A DATA SET #######
 ###   Modify Dataframe by adding Features using Feature Tools ####
 def add_features( df, add_types=[], idcolumn=''):
@@ -36,11 +38,14 @@ def add_features( df, add_types=[], idcolumn=''):
 def feature_engineering(df, ft_requests, idcol):
     """
     The Feature Engineering module needs FeatureTools installed to work.
+    So please do "pip install featuretools" before trying out this module.
     It takes a given data set, df and adds features based on the requet types in
     ft_requests which can be 'add','subtract','multiply','divide'. If you have
     an id_column in the data set, you can provide it as idcol (a string variable).
     It will return your modified dataset with 'idcol' as the index. Make sure
     you reset the index if you want to return it to its former state.
+    Also do not send in your entire dataframe! Just send a small dataframe with a few variables.
+    Once you see how it adds to performance of model, you can add more variables to dataframe.
     """
     df = copy.deepcopy(df)
     ft_dict = dict(zip(['add','multiply','subtract','divide'],

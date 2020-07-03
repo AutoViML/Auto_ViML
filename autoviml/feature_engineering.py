@@ -169,7 +169,8 @@ def split_one_field_into_many(df, field, splitter, filler, new_names_list):
     df = df.copy()
     ### First print the maximum number of things in that field
     max_things = df[field].map(lambda x: len(x.split(splitter))).max()
-    print('    Maximum number of columns created using variable %s = %d' %(field,max_things))
+    print('    Max. columns created by splitting %s field is %d but you have given %d variable names only. Selecting first %d' %(
+                        field,max_things,len(new_names_list),len(new_names_list)))
     ### This creates a new field that counts the number of things that are in that field.
     num_products_viewed = 'count_things_in_'+field
     df[num_products_viewed] = df[field].map(lambda x: len(x.split(";"))).values

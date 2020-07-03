@@ -4636,5 +4636,6 @@ print("""Imported Auto_ViML version: %s. Call using:
                             verbose=1)
             """ %version_number)
 print("To remove previous versions, perform 'pip uninstall autoviml'")
+print('NEW! Now Auto_ViML comes with a feature_engineering module using featuretools library!')
 print('To get the latest version, perform "pip install autoviml --no-cache-dir --ignore-installed"')
 ###########################################################################################

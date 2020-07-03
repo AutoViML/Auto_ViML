@@ -29,7 +29,7 @@ def add_features( df, add_types=[], idcolumn=''):
     else:
         ### Perform Deep Feature Synthesis Automatically for Depth 2
         df_mod, feature_defs = ft.dfs(entityset=es, target_entity = dataid,
-                              max_depth = 3,
+                              max_depth = 2,
                               verbose = 0)
     if make_index:
         df_mod = df_mod.reset_index(drop=True)
@@ -48,6 +48,9 @@ def feature_engineering(df, ft_requests, idcol):
     Once you see how it adds to performance of model, you can add more variables to dataframe.
     """
     df = copy.deepcopy(df)
+    if df.shape[1] < 2:
+        print('More than one column in dataframe required to perform feature engineering. Returning')
+        return df
     ft_dict = dict(zip(['add','multiply','subtract','divide'],
                   ['add_numeric', 'multiply_numeric',
             'subtract_numeric', 'divide_numeric']))
@@ -169,7 +172,11 @@ def split_one_field_into_many(df, field, splitter, filler, new_names_list):
     df = df.copy()
     ### First print the maximum number of things in that field
     max_things = df[field].map(lambda x: len(x.split(splitter))).max()
-    print('    Max. columns created by splitting %s field is %d but you have given %d variable names only. Selecting first %d' %(
+    if len(new_names_list) == 0:
+        print('    Max. columns created by splitting %s field is %d.' %(
+                            field,max_things))
+    else:
+        print('    Max. columns created by splitting %s field is %d but you have given %d variable names only. Selecting first %d' %(
                         field,max_things,len(new_names_list),len(new_names_list)))
     ### This creates a new field that counts the number of things that are in that field.
     num_products_viewed = 'count_things_in_'+field

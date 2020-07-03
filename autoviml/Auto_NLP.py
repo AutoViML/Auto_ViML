@@ -795,7 +795,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     X_train,X_test,y_train,y_test = train_test_split(data[col],
                                     data[target],test_size=0.2,random_state=seed)
     max_features_high = int(250000000/X_train.shape[0])
-    print('    However max_features limit = %d will limit numerous features from being generated' %max_features_high)
+    print('    However max_features limit = %d will limit too many features from being generated' %max_features_high)
     best_vec = None
     all_vecs = {}
     all_models = {}
@@ -866,7 +866,6 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
                                              vect_lemma, seed, modeltype)
     except:
         print('Error: Using CountVectorizer')
-
     print('\n# Using TFIDF vectorizer with binary=True, ngram = (1,3) and max_features=%d' %max_features_high)
     ##### This is based on artificially setting 5GB as being max memory limit for the term-matrix
     tvec = TfidfVectorizer( max_features=max_features_high, max_df=best_max_df, token_pattern=r'\w{1,}',
@@ -876,8 +875,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
                                       y_test, target, metric,
                                         tvec, seed, modeltype)
     max_features_limit = int(tvec.fit_transform(data_dtm).shape[1])
-
-
+    ##### This is based on using a Latin-1 vectorizer in case Spanish words are in text
     print('\n# Using TFIDF vectorizer with latin-1 encoding, binary=False, ngram (1,3) and limited max_features')
     tvec2 = TfidfVectorizer( max_features=max_features, max_df=best_max_df,
                                 token_pattern=r'\w{1,}', sublinear_tf=True,
@@ -888,13 +886,15 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     all_vecs[tvec2], all_models[tvec2] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
                                         tvec2, seed, modeltype)
-
-    #print('\n# Using TFIDF vectorizer with Snowball Stemming, ngram (1,3) and very high max_features')
+    #Finally Using a basic count vectorizer with all defaults while limited max features
     print('\n# Finally comparing them against a Basic Count Vectorizer with all defaults, max_features = %d and  lowercase=True' %max_features_high)
     cvect = CountVectorizer(min_df=2, lowercase=True, max_features=max_features_high, binary=False)
-    all_vecs[cvect], all_models[cvect] = tokenize_test_by_metric(model, X_train, X_test, y_train,
+    try:
+        all_vecs[cvect], all_models[cvect] = tokenize_test_by_metric(model, X_train, X_test, y_train,
                                       y_test, target, metric,
                                       cvect, seed, modeltype)
+    except:
+        print('Error: Using CountVectorizer')
     ######## Once you have built 4 different transformers it is time to compare them
     if modeltype.endswith('Classification'):
         if metric in ['log_loss','logloss']:
@@ -1086,7 +1086,10 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     print('    Cleaning text in %s before doing transformation...' %nlp_column)
     import time
     start_time1 = time.time()
-    print('Cleaning text in Train data. This will take a long time for large >100K data sets...' )
+    if train.shape[0] >= 100000:
+        print('Cleaning text in Train data. Please be patient since this is a large dataset with >100K rows...' )
+    else:
+        print('Cleaning text in Train data')
     train[nlp_column] = train[nlp_column].apply(expand_text).apply(remove_punctuations)
     print('    Time Taken for Expanding text in Train data = %0.0f seconds' %(time.time()-start_time1) )
     start_time2 = time.time()
@@ -1101,7 +1104,10 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         print('    Cleaning text in %s before doing transformation...' %nlp_column)
         import time
         start_time1 = time.time()
-        print('Cleaning text in Test data. This will take a long time for large >100K data sets...' )
+        if test.shape[0] >= 100000:
+            print('Cleaning text in Test data. Please be patient since this is a large dataset with >100K rows...' )
+        else:
+            print('Cleaning text in Test data')
         test[nlp_column] = test[nlp_column].apply(expand_text).apply(remove_punctuations)
         print('    Time Taken for Expanding text in Test data = %0.0f seconds' %(time.time()-start_time1) )
         start_time2 = time.time()

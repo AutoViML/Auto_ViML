@@ -12,12 +12,12 @@
 
 Automatically Build Variant Interpretable ML models fast!
 Auto_ViML is pronounced "auto vimal". Read this [medium article to learn how to use Auto_ViML](https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46).<br>
-NEW FEATURES in this version are:<br>
+<p>NEW FEATURES in this version are:<br>
 1. SMOTE -> now we use SMOTE for imbalanced data. Just set Imbalanced_Flag = True in input below <br>
 2. Auto_NLP: It automatically detects Text variables and does NLP processing on those columns <br>
 3. Date Time Variables: It automatically detects  date time variables and adds extra features <br>
 4. Feature Engineering: Now you can perform feature engineering with the available featuretools library. <br>
-To upgrade to the BEST, STABLEST and MOST FEATURED version (anything over > 0.1.600), do one of the following: <br>
+<p>To upgrade to the BEST, STABLEST and MOST FEATURED version (anything over > 0.1.600), do one of the following: <br>
 <code>Use $ pip install autoviml --upgrade </code><br>
 or
 <code>pip install git+https://github.com/AutoViML/Auto_ViML.git </code><br>
@@ -35,12 +35,20 @@ or
 
 Auto_ViML was designed for building High Performance Interpretable Models with the least variables.
 The "V" in Auto_ViML stands for Variant because it tries Multiple Models and Multiple Features to find the best performing model for any dataset. The "i" in Auto_ViML stands for "Interpretable" since it selects the fewest features to build a simpler, more interpretable model. This is key. Some of the differentiators of Auto_ViML from other open source AutoML libraries is as follows:
-Auto_ViML is the package that:
-1. Requires no data prep - you can send in your entire dataframe without a single change. It loves dirty data!
-2. Requires no classification of variables: All other packages want you to tell them which variables are numeric, categorical, NLP text, date variables etc. autoVimal detects all of these automatically as any AutoML package should!
-3. Does feature reduction automatically! All other packages use all the variables you send them which means they are either bloated or highly complex models. Autovimal is the only package that produces the best model with the fewest variables. That means it is very easy to interpret!
-4. Produces charts and graphs automatically. Just set verbose to 1 or 2
-5. Handles both text, date and numeric and categorical data all in the same model. In other packages they cannot Handle NLP. Some Cannot handle date variables. But AutoViML is the only package that uses all of them!
+Auto_ViML is every Data Scientist's model assistant that:
+1. Helps you with data cleaning: you can send in your entire dataframe as is and Auto_ViML will suggest changes to help with missing values, formatting variables, adding variables, etc. It loves dirty data. The dirtier the better!
+2. Assists you with variable classification: Auto_ViML classifies variables automatically. This is very helpful when you have hundreds if not thousands of variables since it can readily identify which of those are numeric vs categorical vs NLP text vs date-time variables and so on.
+3. Performs feature reduction automatically. When you have small data sets and you know your domain well, it is easy to perhaps do EDA and identify which variables are important. But when you have a very large data set with hundreds if not thousands of variables, selecting the best features from your model can mean the difference between a bloated and highly complex model or a simple model with the fewest and most information-rich features. Auto_ViML uses XGBoost repeatedly to perform feature selection. You must try it on your large data sets and compare!
+4. Produces model performance results as graphs automatically. Just set verbose = 1 (or) 2
+5. Handles text, date-time, structs (lists, dictionaries), numeric, boolean, factor and categorical variables all in one model using one straight process.
+6. Allows you to use featuretools library to do Feature Engineering. See example below.
+Let's say you have a few numeric features in your data called "preds".
+You can 'add','subtract','multiply' or 'divide' these features among themselves using this module. You can optionally send an ID column in the data so that the index ordering is preserved.
+<code>
+print(df[preds].shape)
+dfmod = feature_engineering(df[preds],['add'],'ID')
+print(dfmod.shape)
+</code>
 
 Auto_ViML is built using Scikit-Learn, Numpy, Pandas and Matplotlib. It should run
 on any Python 2 or Python 3 Anaconda installations. You won't have to import any special

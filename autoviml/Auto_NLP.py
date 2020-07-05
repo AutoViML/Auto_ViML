@@ -14,68 +14,50 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 get_ipython().magic('matplotlib inline')
 sns.set(style="white", color_codes=True)
-import pdb
 import time
-import pprint
 import matplotlib
 matplotlib.style.use('ggplot')
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import RandomizedSearchCV
-from sklearn.calibration import CalibratedClassifierCV
 
 from sklearn import model_selection
 import warnings
 warnings.filterwarnings("ignore")
 from sklearn import metrics
-from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.model_selection import StratifiedKFold
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, BaggingRegressor
-from sklearn.metrics import roc_auc_score, classification_report, confusion_matrix
-from sklearn.metrics import f1_score, precision_score, recall_score,accuracy_score,make_scorer
-from sklearn.model_selection import train_test_split, StratifiedShuffleSplit, KFold, StratifiedKFold
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from sklearn.preprocessing import LabelEncoder
 
 ### For NLP problems
-from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer, TfidfVectorizer
-from textblob import TextBlob, Word
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from textblob import TextBlob
 from sklearn.feature_extraction.text import TfidfVectorizer
 import regex as re
 import string
 
 #### For Classification problems
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.linear_model import LogisticRegression
 from sklearn import metrics
 
 #### For Regression problems
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 
 
-from scipy.stats import multivariate_normal
 from sklearn.metrics import roc_auc_score
-from sklearn.metrics import f1_score, precision_score, recall_score,accuracy_score,make_scorer
-from sklearn.model_selection import train_test_split, StratifiedShuffleSplit, KFold, StratifiedKFold
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn import model_selection, metrics   #Additional sklearn functions
 from sklearn.model_selection import GridSearchCV   #Performing grid search
-from sklearn.model_selection import cross_val_predict, cross_val_score
-from sklearn.model_selection import KFold, StratifiedKFold, cross_val_score
-from sklearn.metrics import auc, roc_auc_score, roc_curve, precision_recall_curve
-from sklearn.svm import SVC
+from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.metrics import roc_auc_score
 
 import copy
-import pdb
 from itertools import cycle
-from collections import defaultdict, Counter
-import operator
-from scipy import interp
+from collections import Counter
 import nltk
-from nltk.corpus import stopwords
 nltk.download("popular")
 ############################################################################
 # define a function that accepts a vectorizer and calculates its accuracy
@@ -125,25 +107,15 @@ def tokenize_test_by_metric(model, X_train, X_cv, y_train, y_cv,
 ###########     N  L  P    F  U  N C  T  I  O   N  S       #####################
 ################################################################################
 '''Features'''
-from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.decomposition import TruncatedSVD
-from sklearn.preprocessing import label_binarize
 
 '''Classifiers'''
-from sklearn.dummy import DummyClassifier
-from sklearn.linear_model import SGDClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.multiclass import OneVsRestClassifier
 
 '''Metrics/Evaluation'''
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_curve, auc, confusion_matrix
-from scipy import interp
+from sklearn.metrics import f1_score, precision_score, recall_score
 from itertools import cycle
 
 '''Plotting'''
@@ -162,15 +134,15 @@ pd.options.display.float_format = '{:,.2f}'.format
 ####  R O B   S A L G A D O    robert.salgado@gmail.com     Thank YOU!
 # https://github.com/robsalgado/personal_data_science_projects/tree/master/mulitclass_text_class
 ################################################################################
-import itertools, string, operator, re, unicodedata, nltk
-from operator import itemgetter
+import nltk
+import re
+import string
+import unicodedata
 from nltk.corpus import wordnet
 from nltk.stem import WordNetLemmatizer
-from nltk.tokenize import TweetTokenizer, RegexpTokenizer
+from nltk.tokenize import TweetTokenizer
 from bs4 import BeautifulSoup
 import numpy as np
-from itertools import combinations
-from gensim.models import Phrases
 from collections import Counter
 import regex as re
 
@@ -310,7 +282,6 @@ def return_stop_words():
     add_words = ["s", "m",'you', 'not',  'get', 'no', 'via', 'one', 'still', 'us', 'u','hey','hi','oh','jeez',
                 'the', 'a', 'in', 'to', 'of', 'i', 'and', 'is', 'for', 'on', 'it', 'got','aww','awww',
                 'not', 'my', 'that', 'by', 'with', 'are', 'at', 'this', 'from', 'be', 'have', 'was']
-    from sklearn.feature_extraction import text
     #stopWords = text.ENGLISH_STOP_WORDS.union(add_words)
     stop_words = set(set(stopwords.words('english')).union(add_words))
     excl =['will',"i'll",'shall',"you'll",'may',"don't","hadn't","hasn't","haven't",
@@ -437,7 +408,6 @@ def remove_punctuations(text):
     return re.sub(r'[.|,\'|,|)|(|\|/|+|-|{|}|]', r' ', remove_puncs)
 
 ################################################################################
-import collections
 def print_top_feature_grams(X, vectorizer, top_n = 200):
     """
     This prints the top features by each n-gram using the vectorizer that is selected as best!
@@ -486,7 +456,6 @@ def remove_unicode_strings(lst):
     except:
         return lst
 ###########################################################################################
-import pdb
 def print_top_features(train,nlp_column, best_nlp_vect, target, top_nums=200):
     """
     #### This can be done only for C L A S S I F I C A T I O N   Data Sets ####################
@@ -551,8 +520,7 @@ def plot_confusion_matrix(y_test,y_pred, model_name='Model'):
     pd.options.display.float_format = '{:,.2f}'.format
 
     #Get the confusion matrix and put it into a df
-    from sklearn.metrics import accuracy_score, precision_score, recall_score
-    from sklearn.metrics import f1_score, roc_curve, auc, confusion_matrix
+    from sklearn.metrics import confusion_matrix, f1_score
 
     cm = confusion_matrix(y_test, y_pred)
 
@@ -593,8 +561,8 @@ def plot_classification_matrix(y_test, y_pred, model_name='Model'):
     pd.options.display.float_format = '{:,.2f}'.format
 
     #Get the confusion matrix and put it into a df
-    from sklearn.metrics import accuracy_score, precision_score, recall_score
-    from sklearn.metrics import f1_score, roc_curve, auc, confusion_matrix,classification_report
+    from sklearn.metrics import precision_score
+    from sklearn.metrics import classification_report
     from sklearn.metrics import precision_score
 
     cm = classification_report(y_test, y_pred,output_dict=True)
@@ -750,9 +718,8 @@ def tokenize_and_stem(text):
     stems = [stemmer.stem(t) for t in filtered_tokens]
     return stems
 ################################################################################
-from sklearn.feature_extraction import text
 from nltk.stem.snowball import SnowballStemmer
-from nltk.tokenize import TweetTokenizer, RegexpTokenizer
+from nltk.tokenize import TweetTokenizer
 ################################################################################
 def select_best_nlp_vectorizer(model, data, col, target, metric,
                     seed, modeltype,min_df):
@@ -978,12 +945,10 @@ def class_info(classes):
     for cls in counts.keys():
         print("%6s: % 7d  =  % 5.1f%%" % (cls, counts[cls], counts[cls]/total*100))
 #########################################################################################
-from xgboost.sklearn import XGBClassifier
 from xgboost.sklearn import XGBRegressor
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
-import xgboost as xgb
 from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer, TfidfVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 import time
 import scipy as sp
 from sklearn.model_selection import StratifiedKFold, KFold
@@ -1321,8 +1286,7 @@ def plot_confusion_matrix(y_test,y_pred, model_name='Model'):
     pd.options.display.float_format = '{:,.2f}'.format
 
     #Get the confusion matrix and put it into a df
-    from sklearn.metrics import accuracy_score, precision_score, recall_score
-    from sklearn.metrics import f1_score, roc_curve, auc, confusion_matrix
+    from sklearn.metrics import confusion_matrix, f1_score
 
     cm = confusion_matrix(y_test, y_pred)
 
@@ -1363,8 +1327,8 @@ def plot_classification_matrix(y_test, y_pred, model_name='Model'):
     pd.options.display.float_format = '{:,.2f}'.format
 
     #Get the confusion matrix and put it into a df
-    from sklearn.metrics import accuracy_score, precision_score, recall_score
-    from sklearn.metrics import f1_score, roc_curve, auc, confusion_matrix,classification_report
+    from sklearn.metrics import precision_score
+    from sklearn.metrics import classification_report
     from sklearn.metrics import precision_score
 
     cm = classification_report(y_test, y_pred,output_dict=True)
@@ -1390,19 +1354,13 @@ def plot_classification_matrix(y_test, y_pred, model_name='Model'):
     plt.show();
 #################################################################################
 import time
-from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.model_selection import StratifiedKFold
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, BaggingRegressor
-from sklearn.metrics import roc_auc_score, classification_report, confusion_matrix
-from sklearn.metrics import f1_score, precision_score, recall_score,accuracy_score,make_scorer
-from sklearn.model_selection import train_test_split, StratifiedShuffleSplit, KFold, StratifiedKFold
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from sklearn.preprocessing import LabelEncoder
 #### For Classification problems
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.linear_model import LogisticRegression
-from sklearn import metrics
 def NLP_select_best_model_fit_predict(X, y, test, modeltype, score_type):
     """
     ###############################################################################################
@@ -1676,7 +1634,7 @@ def plot_nlp_column(df_col, label_title, ax,color='r'):
 #############################################################################
 import matplotlib.pyplot as plt
 import seaborn as sns
-from itertools import cycle, combinations
+from itertools import cycle
 def draw_dist_plots_summary_cols(df_train, target, summary_cols):
     colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgkbyr')
     target_names = np.unique(df_train[target])

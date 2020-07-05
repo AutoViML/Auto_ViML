@@ -17,11 +17,11 @@ setuptools.setup(
     install_requires=[
         "ipython",
         "jupyter",
-        "xgboost==0.90",
+        "xgboost==1.1",
         "pandas",
         "matplotlib",
         "seaborn",
-        "scikit-learn>=0.22",
+        "scikit-learn>=0.23.1",
         "catboost",
         "textblob",
         "nltk",
@@ -29,7 +29,7 @@ setuptools.setup(
         "vaderSentiment",
         "imbalanced-learn",
     	"beautifulsoup4",
-    	"gensim"
+    	"featuretools"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

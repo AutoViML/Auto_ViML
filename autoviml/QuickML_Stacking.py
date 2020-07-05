@@ -78,10 +78,11 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
             scv = KFold(n_splits=FOLDS, random_state=seed, shuffle=True)
             if Boosting_Flag:
                 ######    Bagging models if Bagging is chosen ####
-                model4 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
-                                            n_estimators=NUMS,random_state=seed)
+                #model4 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
+                #                            n_estimators=NUMS,random_state=seed)
+                model4 = LinearSVR()
                 results = cross_val_predict(model4,X_train,y_train, cv=scv,n_jobs=-1)
-                estimators.append(('Bagging1',model4))
+                estimators.append(('Linear_SVR',model4))
                 estimator_length.append(1)
             elif Boosting_Flag is None:
                 ####   Tree models if Linear chosen #####
@@ -147,10 +148,11 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
             scv = KFold(n_splits=FOLDS, random_state=seed, shuffle=True)
             if Boosting_Flag:
                 ######    Bagging models if Bagging is chosen ####
-                model4 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
-                                            n_estimators=NUMS,random_state=seed)
+                #model4 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
+                #                            n_estimators=NUMS,random_state=seed)
+                model4 = LinearSVR()
                 results = model4.fit(X_train,y_train).predict(X_test)
-                estimators.append(('Bagging1',model4))
+                estimators.append(('Linear_SVR',model4))
                 estimator_length.append(1)
             elif Boosting_Flag is None:
                 ####   Tree models if Linear chosen #####

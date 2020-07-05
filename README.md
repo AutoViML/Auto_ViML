@@ -12,13 +12,15 @@
 
 Automatically Build Variant Interpretable ML models fast!
 Auto_ViML is pronounced "auto vimal". Read this [medium article to learn how to use Auto_ViML](https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46).<br>
-MAJOR UPGRADE with:<br>
+NEW FEATURES in this version are:<br>
 1. SMOTE -> now we use SMOTE for imbalanced data. Just set Imbalanced_Flag = True in input below <br>
 2. Auto_NLP: It automatically detects Text variables and does NLP processing on those columns <br>
 3. Date Time Variables: It automatically detects  date time variables and adds extra features <br>
-
-This is the BEST, STABLE and MAJOR UPGRADED version anything over > 0.1.600 <br>
-Use $ pip install autoviml --upgrade <br>
+4. Feature Engineering: Now you can perform feature engineering with the available featuretools library. <br>
+To upgrade to the BEST, STABLEST and MOST FEATURED version (anything over > 0.1.600), do one of the following: <br>
+<code>Use $ pip install autoviml --upgrade </code><br>
+or
+<code>pip install git+https://github.com/AutoViML/Auto_ViML.git </code><br>
 ## Table of Contents
 
 - [Background](#background)
@@ -59,6 +61,8 @@ To install from PyPi:
 conda create -n <your_env_name> python=3.7 anaconda
 conda activate <your_env_name> # ON WINDOWS: `source activate <your_env_name>`
 pip install autoviml
+or
+pip install git+https://github.com/AutoViML/Auto_ViML.git
 ```
 
 To install from source:
@@ -108,18 +112,21 @@ If no submission file was given, but as long as you give it a test file name, it
 Auto_ViML works on any Multi-Class, Multi-Label Data Set. So you can have many target labels.
 You don't have to tell Auto_ViML whether it is a Regression or Classification problem.
 
-### Additional Notes
-
-**Suggestions for a Scoring Metric:**
-If you have Binary Class and Multi-Class in a Single Label, Choose Accuracy. It will do very well. If you want something better, try roc_auc even for Multi-Class which works.
-You can try F1 or Weighted F1 if you want something complex or for Multi-Class.
-
-Note that For Imbalanced Classes (<=5% classes), it automatically adds Class Weights.
-
-Also note that it handles Multi-Label automatically so you can send Train data with multiple Labels (Targets) and it will automatically predict for each Label.
-
-Finally this is Meant to Be a Fast Algorithm, so use it for just quick POCs.
-This is Not Meant for Production Problems. It produces great models but it is not Perfect!
+## Tips for using Auto_ViML:
+1. For Classification problems and imbalanced classes, choose "balanced_accuracy". It works better.
+2. For Imbalanced Classes (<=5% samples in rare class), choose "Imbalanced_Flag"=True.
+3. For Multi-Label dataset, input target variable as a list of variable names
+4. Your first attempt with Auto_ViML must use Boosting_Flag=None to get Linear models. Then try Boosting_Flag=False to get a Random Forest model. Then try Boosting_Flag=True to get an XGBoost model.
+5. Finally try Boosting_Flag="CatBoost" to get a complex but high performing model.
+6. Binning_Flag=True improves a CatBoost model since it adds to the list of categorical vars in data
+7. KMeans_featurizer=True works well in NLP and CatBoost models since it creates cluster variables
+8. Add_Poly=3 improves certain models where there is date-time or categorical and numeric variables
+9. feature_reduction=True is the default and works best. But when you have <10 features in data, set it to False
+10. Do not use Stacking_Flag=True with Linear models since your results may not look great.
+11. Use Stacking_Flag=True only for complex models and as a last step with Boosting_Flag=True or CatBoost
+12. Always set hyper_param ="RS" as input since it runs faster than GridSearchCV and gives better results!
+13. KMeans_Featurizer=True does not work well for small data sets. Use it for data sets > 10,000 rows.
+14. Finally Auto_ViML is meant to be a baseline or challenger solution to your data set. So use it for making quick models that you can compare against or in Hackathons. It is not meant for production!
 
 ## API
 

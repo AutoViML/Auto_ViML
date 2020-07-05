@@ -120,13 +120,21 @@ def Transform_KM_Features(training_data, training_labels, test_data, km_max=0):
     target = training_labels.name
     train_index =  training_data.index
     test_index =  test_data.index
-    if km_max == 0:
-        km_max = int(np.log10(training_data.shape[0])+0.49)
     if km_max <= 2:
         k_max = 2
     else:
         k_max = copy.deepcopy(km_max)
-    kmf =  KMeansFeaturizer(k=k_max, target_scale=0, random_state=seed)
+    ### Calculate the target scale here => the higher the number the better for target accuracy
+    try:
+        if training_labels.dtype in [np.float64,np.float32,np.float16]:
+            target_range = float(abs(training_labels.max() - training_labels.min()))
+        elif training_labels.dtype in [object,bool]:
+            target_range = int(len(Counter(training_labels)) + 3)
+        else:
+            target_range = int(abs(training_labels.max() - training_labels.min()))
+    except:
+        target_range = 5.0
+    kmf =  KMeansFeaturizer(k=k_max, target_scale=target_range, random_state=seed)
     kmf_hint = kmf.fit(training_data, training_labels)
     ### Just return it with the cluster column => no need to return the data frame ###
     training_cluster_features = kmf_hint.transform(training_data)

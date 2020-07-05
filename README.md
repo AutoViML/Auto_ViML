@@ -27,7 +27,7 @@ or
 <li><a href="#background">Background</a></li>
 <li><a href="#install">Install</a></li>
 <li><a href="#usage">Usage</a></li>
-<li><a href="#Tips for using Auto_ViML">Tips for using Auto_ViML</a></li>
+<li><a href="#tips-for-using-auto_viml">Tips for using Auto_ViML</a></li>
 <li><a href="#api">API</a></li>
 <li><a href="#maintainers">Maintainers</a></li>
 <li><a href="#contributing">Contributing</a></li>

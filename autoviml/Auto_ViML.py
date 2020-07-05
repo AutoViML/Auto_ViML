@@ -696,21 +696,35 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     else:
         validation_metric = copy.deepcopy(scoring_parameter)
     ##########  D A T A    P R E P R O C E S S I N G     H E R E ##########################
-    print('#############     D A T A    P R E P A R A T I O N     #############')
+    print('#############     D A T A    P R E P A R A T I O N   AND C L E A N I N G     #############')
+    if not isinstance(orig_test,str):
+        missing_cols = set(train.columns)-set(test.columns).union(set(target))
+        if  len(missing_cols) >= 1:
+            ### If there are columns in Train that are not in Test, it is a major problem. Resolve it now.
+            if len(missing_cols) == 1:
+                print('There is one %s column in Train that is not in Test. Fixing that now through Iterative Imputer...' %missing_cols)
+            else:
+                print('There are %d missing columns: %s in Train that are not in Test. Fixing that now through Iterative Imputer...' %(len(missing_cols),missing_cols))
+            missing_cols = list(missing_cols)
+    ################ Now start filling missing values for each column but when it comes to missing_cols, use Iterative Imputer
     if start_train.isnull().sum().sum() > 0:
         print('Filling missing values with "missing" placeholder and adding a column for missing_flags')
     else:
         print('No Missing Values in train data set')
+    ### This is where you fill missing values with either "missing" or a unique value not in that column such as -1
     copy_preds = copy.deepcopy(preds)
     missing_flag_cols = []
     if len(copy_preds) > 0:
         dict_train = {}
         for f in copy_preds:
-            if f in nlp_columns:
-                #### YOu have to skip this for NLP columns ##############
-                continue
             missing_flag = False
-            if start_train[f].dtype == object:
+            if f in nlp_columns:
+                #### YOu have to do nothing for NLP columns. Leave them as is for Auto_NLP later ##############
+                continue
+            elif f in missing_cols:
+                #### YOu have to do nothing for missing column yet. Leave them as is for Iterative Imputer later ##############
+                continue
+            elif start_train[f].dtype == object:
                 ####  This is the easiest way to label encode object variables in both train and test
                 #### This takes care of some categories that are present in train and not in test
                 ###     and vice versa
@@ -781,6 +795,24 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     num_bool_vars.append(new_missing_col)
                     preds.append(new_missing_col)
                     missing_flag_cols.append(new_missing_col)
+        ###########################################################################################
+        ### This is where you fill the missing column initially with nan and then with imputed values
+        if len(missing_cols) >= 1:
+            try:
+                ### Check if they have the latest version of Sklearn 0.23.1 or later, if not, this will blow up.
+                from sklearn.experimental import enable_iterative_imputer
+                from sklearn.impute import IterativeImputer
+                if not isinstance(orig_test, str):
+                    for eachcol in missing_cols:
+                        start_test[eachcol] = np.nan
+                imp = IterativeImputer(max_iter=10, random_state=0)
+                imp.fit(start_train[preds])
+                if not isinstance(orig_test, str):
+                    print('    Total rows in Test with missing values before Iterative Imputation =', start_test[preds].isnull().sum().sum())
+                    start_test[preds] = imp.transform(start_test[preds])
+                    print('    Total rows in Test with missing values after Iterative Imputation =', start_test[preds].isnull().sum().sum())
+            except:
+                print('    Error. Sklearn Iterative Imputer is not installed on this machine. Continuing...')
         ###########################################################################################
         if orig_train.isnull().sum().sum() > 0:
             ### If there are missing values in remaining features print it here ####
@@ -4102,10 +4134,10 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
             #### For Regression, we have to use the existing target data to create new target data
             #### That's why we use the existing y_df to come up with smote_df
             SMOTE_X, SMOTE_Y = smote.fit_resample(X_df.join(y_df), smote_df)
-            print('SMOTE performed using KMeans cluster labels and predictor variables')
+            print('    SMOTE performed using KMeans cluster labels and predictor variables')
             SMOTE_Y = SMOTE_X[df_target]
             train_ovr = SMOTE_X[train_preds].join(SMOTE_Y)
-            print('Shape of new Train = %s' %(train_ovr.shape,))
+            print('    Shape of new Train = %s' %(train_ovr.shape,))
     except:
         print('    SMOTE is erroring. Continuing without SMOTE...')
         return model, X_df, y_df

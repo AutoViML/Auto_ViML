@@ -27,14 +27,14 @@ or
 - [Background](#background)
 - [Install](#install)
 - [Usage](#usage)
-- [Tips for using Auto_ViML] (#Tips for using Auto_ViML)
+<li><a href="#Tips for using Auto_ViML">Tips for using Auto_ViML</a></li>
 - [API](#api)
 - [Maintainers](#maintainers)
 - [Contributing](#contributing)
 - [License](#license)
 
 ## Background
-Read this [medium article to learn how to use Auto_ViML](https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46).<br>
+Read this [Medium article to learn how to use Auto_ViML](https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46).<br>
 <p>Auto_ViML was designed for building High Performance Interpretable Models with the fewest variables.
 The "V" in Auto_ViML stands for Variable because it tries multiple models with multiple features to find you the best performing model for your dataset. The "i" in Auto_ViML stands for "interpretable" since Auto_ViML selects the least number of features necessary to build a simpler, more interpretable model. In most cases, Auto_ViML builds models with 20-99% fewer features than a similar performing model with all included features (this is based on my trials. Your experience may vary).<br>
 <p>

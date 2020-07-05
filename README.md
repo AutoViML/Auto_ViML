@@ -21,6 +21,7 @@ Auto_ViML is pronounced "auto vimal". Read this [medium article to learn how to 
 <code>Use $ pip install autoviml --upgrade </code><br>
 or
 <code>pip install git+https://github.com/AutoViML/Auto_ViML.git </code><br>
+
 ## Table of Contents
 
 - [Background](#background)

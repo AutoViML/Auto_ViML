@@ -1002,13 +1002,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if not isinstance(date_df_train, str):
                     date_col_adds = date_df_train.columns.tolist()
                     print('    Adding %d columns from date time column %s' %(len(date_col_adds),date_col))
-                    train = train.join(date_df_train)
+                    train = train.drop(date_col,axis=1,inplace=True).join(date_df_train)
                 else:
                     date_col_adds = []
                 if not isinstance(orig_test, str):
                     date_df_test = create_time_series_features(orig_test, date_col)
                     if not isinstance(date_df_test, str):
-                        test = test.join(date_df_test)
+                        test = test.drop(date_col,axis=1,inplace=True).join(date_df_test)
             red_preds = [x for x in list(train) if x not in [each_target]]
             train_sel = train_sel + date_col_adds
         #########     SELECT IMPORTANT FEATURES HERE   #############################
@@ -4009,6 +4009,9 @@ def create_ts_features(df, tscol):
         dt_adds.append(tscol+'_month')
         df[tscol+'_year'] = df[tscol].dt.year.astype(int)
         dt_adds.append(tscol+'_year')
+        today = date.today()
+        df[tscol+'_age_in_years'] = today.year - df[tscol].dt.year.astype(int)
+        dt_adds.append(tscol+'_age_in_years')
         df[tscol+'_dayofyear'] = df[tscol].dt.dayofyear.astype(int)
         dt_adds.append(tscol+'_dayofyear')
         df[tscol+'_dayofmonth'] = df[tscol].dt.day.astype(int)
@@ -4024,7 +4027,15 @@ def create_ts_features(df, tscol):
         print('    Error in creating date time derived features. Continuing...')
     df = df[dt_adds].fillna(0).astype(int)
     return df
-
+################################################################
+from dateutil.relativedelta import relativedelta
+from datetime import date
+##### This is a little utility that computes age from year ####
+def compute_age(year_string):
+    today = date.today()
+    age = relativedelta(today, year_string)
+    return age.years
+#################################################################
 def create_time_series_features(dtf, ts_column):
     """
     This creates between 8 and 10 date time features for each date variable. The number of features
@@ -4033,6 +4044,9 @@ def create_time_series_features(dtf, ts_column):
     It returns the entire dataframe with added variables as output.
     """
     dtf = copy.deepcopy(dtf)
+    #### If for some reason ts_column is just a number, make sure it is a string so it does not blow up and concatenated
+    if not isinstance(ts_column,str):
+        ts_column = str(ts_column)
     try:
         ### In some extreme cases, date time vars are not processed yet and hence we must fill missing values here!
         if dtf[ts_column].isnull().sum() > 0:
@@ -4041,15 +4055,16 @@ def create_time_series_features(dtf, ts_column):
             dtf[new_missing_col] = 0
             dtf.loc[dtf[ts_column].isnull(),new_missing_col]=1
             dtf[ts_column] = dtf[ts_column].fillna(method='ffill')
-        if dtf[ts_column].dtype == float:
+        if dtf[ts_column].dtype in [np.float64,np.float32,np.float16]:
             dtf[ts_column] = dtf[ts_column].astype(int)
         ### if we have already found that it was a date time var, then leave it as it is. Thats good enough!
-        items = dtf[ts_column].apply(str).apply(len).values
+        date_items = dtf[ts_column].apply(str).apply(len).values
         #### In some extreme cases,
-        if all(items[0] == item for item in items):
-            if items[0] == 4:
+        if all(date_items[0] == item for item in date_items):
+            if date_items[0] == 4:
                 ### If it is just a year variable alone, you should leave it as just a year!
-                dtf[ts_column] = pd.to_datetime(dtf[ts_column],format='%Y')
+                dtf[ts_column+'_age'] = dtf[ts_column].map(lambda x: pd.to_datetime(x,format='%Y')).apply(compute_age).values
+                return dtf
             else:
                 ### if it is not a year alone, then convert it into a date time variable
                 dtf[ts_column] = pd.to_datetime(dtf[ts_column], infer_datetime_format=True)
@@ -4659,7 +4674,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.655'
+version_number = '0.1.656'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

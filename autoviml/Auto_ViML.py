@@ -993,23 +993,38 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####
         ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
         train_sel = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
-        #########   A D D   D A T E  T I M E    F E A T U R E S ####################
+        #########   A D D   D A T E  T I M E    F E A T U R E S     H E R E ####################
         if len(date_cols) > 0:
             #### Do this only if date time columns exist in your data set!
             for date_col in date_cols:
                 print('Processing %s column for date time features....' %date_col)
                 date_df_train = create_time_series_features(orig_train, date_col)
-                if not isinstance(date_df_train, str):
-                    date_col_adds = date_df_train.columns.tolist()
-                    print('    Adding %d columns from date time column %s' %(len(date_col_adds),date_col))
-                    train = train.join(date_df_train)
-                else:
-                    date_col_adds = []
+                date_col_adds_train = left_subtract(date_df_train.columns.tolist(),date_col)
                 if not isinstance(orig_test, str):
                     date_df_test = create_time_series_features(orig_test, date_col)
-                    if not isinstance(date_df_test, str):
-                        test = test.join(date_df_test)
+                    date_col_adds_test = left_subtract(date_df_test.columns.tolist(),date_col)
+                if len(left_subtract(date_col_adds_train,date_col_adds_test)) != 0 or len(left_subtract(date_col_adds_test,date_col_adds_train)) :
+                    ### if the number of cols created in train data is not same as test data, then
+                    ###  it is a problem. It can happen due to bad data. Just select the common ones
+                    ###  in that case. THat way, it would not blow up later.
+                    print('Error: Due to differences in Train and Test %s, getting different columns created. Continuing...' %date_col)
+                    date_col_adds = list(set(date_col_adds_train).intersection(set(date_col_adds_test)))
+                else:
+                    ### if both create_time_series_features return the same variables, then good
+                    date_col_adds = copy.deepcopy(date_col_adds_train)
+                    if date_col_adds != []:
+                        train = train.join(date_df_train)
+                        ### Now time to remove the date time column from all further processing ##
+                        train.drop(date_col,axis=1,inplace=True)
+                        if not isinstance(orig_test, str):
+                            if date_col_adds != []:
+                                test = test.join(date_df_test)
+                                ### Now time to remove the date time column from all further processing ##
+                                test.drop(date_col,axis=1,inplace=True)
+            #########     CREATING TIME FEATURES IS COMPLETED   #############################
             red_preds = [x for x in list(train) if x not in [each_target]]
+            ### we add new date time variables to the list of numeric float variables to see if they have any
+            ### high correlations to each other. In that case, they can be reduced by the feature reduction scheme.
             train_sel = train_sel + date_col_adds
         #########     SELECT IMPORTANT FEATURES HERE   #############################
         if feature_reduction:
@@ -2694,9 +2709,7 @@ def plot_SHAP_values(m,X,modeltype,Boosting_Flag=False,matplotlib_flag=False,ver
 ################################################################################
 ################      Find top features using XGB     ###################
 ################################################################################
-from xgboost.sklearn import XGBClassifier
-from xgboost.sklearn import XGBRegressor
-
+from xgboost import XGBClassifier, XGBRegressor
 def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbose=0):
     """
     This is a fast utility that uses XGB to find top features. You
@@ -4026,6 +4039,7 @@ def create_ts_features(df, tscol):
     except:
         print('    Error in creating date time derived features. Continuing...')
     df = df[dt_adds].fillna(0).astype(int)
+    print('    Adding %d columns from date time column %s' %(len(dt_adds),tscol))
     return df
 ################################################################
 from dateutil.relativedelta import relativedelta
@@ -4063,8 +4077,9 @@ def create_time_series_features(dtf, ts_column):
         if all(date_items[0] == item for item in date_items):
             if date_items[0] == 4:
                 ### If it is just a year variable alone, you should leave it as just a year!
-                dtf[ts_column+'_age'] = dtf[ts_column].map(lambda x: pd.to_datetime(x,format='%Y')).apply(compute_age).values
-                return dtf
+                dtf[ts_column+'_age_in_years'] = dtf[ts_column].map(lambda x: pd.to_datetime(x,format='%Y')).apply(compute_age).values
+                print('    Adding one column from date time column %s' %ts_column)
+                return dtf[[ts_column,ts_column+'_age_in_years']]
             else:
                 ### if it is not a year alone, then convert it into a date time variable
                 dtf[ts_column] = pd.to_datetime(dtf[ts_column], infer_datetime_format=True)
@@ -4132,7 +4147,14 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
         #### Get the cluster labels for the data  - transform y_df into labels. Then send it to SMOTE.
         num_clusters = int(np.round(max(2,np.log10(y_df.shape[0]))))
         #### Make the number of clusters as the same as log10 of number of rows in Train
-        train_clusters_SMOTE, _ = Transform_KM_Features(X_df, y_df, X_df, num_clusters)
+        from sklearn.cluster import KMeans
+        # No target variable, just do plain k-means
+        km_model = KMeans(n_clusters=num_clusters+1,
+                              n_init=20,
+                              random_state=99)
+        train_clusters_SMOTE = km_model.fit_predict(y_df.values.reshape(-1,1))
+        print('Number of Clusters and samples in each Cluster for target data:\n    %s' %Counter(train_clusters_SMOTE))
+        #train_clusters_SMOTE, _ = Transform_KM_Features(X_df, y_df, X_df, num_clusters)
         y_index = y_df.index
         smote_df = pd.DataFrame(index=y_index)
         smote_df[df_target] = train_clusters_SMOTE
@@ -4151,8 +4173,9 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
             SMOTE_X, SMOTE_Y = smote.fit_resample(X_df.join(y_df), smote_df)
             print('    SMOTE performed using KMeans cluster labels and predictor variables')
             SMOTE_Y = SMOTE_X[df_target]
+            print('    Samples in old Train before SMOTE = %d' %X_df.shape[0])
             train_ovr = SMOTE_X[train_preds].join(SMOTE_Y)
-            print('    Shape of new Train = %s' %(train_ovr.shape,))
+            print('    Samples in new Train after SMOTE = %d' %train_ovr.shape[0])
     except:
         print('    SMOTE is erroring. Continuing without SMOTE...')
         return model, X_df, y_df

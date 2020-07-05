@@ -945,7 +945,7 @@ def class_info(classes):
     for cls in counts.keys():
         print("%6s: % 7d  =  % 5.1f%%" % (cls, counts[cls], counts[cls]/total*100))
 #########################################################################################
-from xgboost.sklearn import XGBRegressor
+from xgboost import XGBRegressor, XGBClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer

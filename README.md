@@ -23,15 +23,16 @@ or
 <code>pip install git+https://github.com/AutoViML/Auto_ViML.git </code><br>
 
 ## Table of Contents
-
-- [Background](#background)
-- [Install](#install)
-- [Usage](#usage)
+<ul>
+<li><a href="#background">Background</a></li>
+<li><a href="#install">Install</a></li>
+<li><a href="#usage">Usage</a></li>
 <li><a href="#Tips for using Auto_ViML">Tips for using Auto_ViML</a></li>
-- [API](#api)
-- [Maintainers](#maintainers)
-- [Contributing](#contributing)
-- [License](#license)
+<li><a href="#api">API</a></li>
+<li><a href="#maintainers">Maintainers</a></li>
+<li><a href="#contributing">Contributing</a></li>
+<li><a href="#license">License</a></li>
+</ul>
 
 ## Background
 Read this [Medium article to learn how to use Auto_ViML](https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46).<br>
@@ -39,12 +40,12 @@ Read this [Medium article to learn how to use Auto_ViML](https://towardsdatascie
 The "V" in Auto_ViML stands for Variable because it tries multiple models with multiple features to find you the best performing model for your dataset. The "i" in Auto_ViML stands for "interpretable" since Auto_ViML selects the least number of features necessary to build a simpler, more interpretable model. In most cases, Auto_ViML builds models with 20-99% fewer features than a similar performing model with all included features (this is based on my trials. Your experience may vary).<br>
 <p>
 Auto_ViML is every Data Scientist's model assistant that:<ol>
-<li>. Helps you with data cleaning: you can send in your entire dataframe as is and Auto_ViML will suggest changes to help with missing values, formatting variables, adding variables, etc. It loves dirty data. The dirtier the better!<br>
-<li>. Assists you with variable classification: Auto_ViML classifies variables automatically. This is very helpful when you have hundreds if not thousands of variables since it can readily identify which of those are numeric vs categorical vs NLP text vs date-time variables and so on.<br>
-<li>. Performs feature reduction automatically. When you have small data sets and you know your domain well, it is easy to perhaps do EDA and identify which variables are important. But when you have a very large data set with hundreds if not thousands of variables, selecting the best features from your model can mean the difference between a bloated and highly complex model or a simple model with the fewest and most information-rich features. Auto_ViML uses XGBoost repeatedly to perform feature selection. You must try it on your large data sets and compare!<br>
-<li>. Produces model performance results as graphs automatically. Just set verbose = 1 (or) 2 <br>
-<li>. Handles text, date-time, structs (lists, dictionaries), numeric, boolean, factor and categorical variables all in one model using one straight process.<br>
-<li>. Allows you to use the <a href='https://www.featuretools.com/'>featuretools</a> library to do Feature Engineering.<br> See example below.<br>
+<li><b>Helps you with data cleaning</b>: you can send in your entire dataframe as is and Auto_ViML will suggest changes to help with missing values, formatting variables, adding variables, etc. It loves dirty data. The dirtier the better!<br>
+<li><b>Assists you with variable classification</b>: Auto_ViML classifies variables automatically. This is very helpful when you have hundreds if not thousands of variables since it can readily identify which of those are numeric vs categorical vs NLP text vs date-time variables and so on.<br>
+<li><b>Performs feature reduction automatically</b>. When you have small data sets and you know your domain well, it is easy to perhaps do EDA and identify which variables are important. But when you have a very large data set with hundreds if not thousands of variables, selecting the best features from your model can mean the difference between a bloated and highly complex model or a simple model with the fewest and most information-rich features. Auto_ViML uses XGBoost repeatedly to perform feature selection. You must try it on your large data sets and compare!<br>
+<li><b>Produces model performance results as graphs automatically</b>. Just set verbose = 1 (or) 2 <br>
+<li><b>Handles text, date-time, structs (lists, dictionaries), numeric, boolean, factor and categorical</b> variables all in one model using one straight process.<br>
+<li><b>Allows you to use the <a href='https://www.featuretools.com/'>featuretools</a> library to do Feature Engineering.<br></b>See example below.<br>
 Let's say you have a few numeric features in your data called "preds".
 You can 'add','subtract','multiply' or 'divide' these features among themselves using this module. You can optionally send an ID column in the data so that the index ordering is preserved.<br>
 <pre><code>
@@ -54,9 +55,9 @@ dfmod = feature_engineering(df[preds],['add'],'ID')<br>
 print(dfmod.shape)<br>
 </code></pre>
 </ol>
-Auto_ViML is built using Scikit-Learn, Numpy, Pandas and Matplotlib. It should run
-on any Python 2 or Python 3 Anaconda installations. You won't have to import any special
-Libraries other than "Imbalanced-Learn", "CatBoost", and "featuretools" library. We use "SHAP" library for interpretability. <br>But if you don't have these Auto_ViML will install those for you automatically.
+Auto_ViML is built using scikit-learn, Nnumpy, pandas and matplotlib. It should run
+on most Python 3 Anaconda installations. You won't have to import any special
+libraries other than "XGBoost", "Imbalanced-Learn", "CatBoost", and "featuretools" library. We use "SHAP" library for interpretability. <br>But if you don't have these libraries, Auto_ViML will install those for you automatically.
 
 ## Install
 

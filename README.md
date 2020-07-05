@@ -47,9 +47,10 @@ Auto_ViML is every Data Scientist's model assistant that:<ol>
 Let's say you have a few numeric features in your data called "preds".
 You can 'add','subtract','multiply' or 'divide' these features among themselves using this module. You can optionally send an ID column in the data so that the index ordering is preserved.<br>
 <pre><code>
-print(df[preds].shape)
-dfmod = feature_engineering(df[preds],['add'],'ID')
-print(dfmod.shape)
+from autoviml.feature_engineering import feature_engineering<br>
+print(df[preds].shape)<br>
+dfmod = feature_engineering(df[preds],['add'],'ID')<br>
+print(dfmod.shape)<br>
 </code></pre>
 </ol>
 Auto_ViML is built using Scikit-Learn, Numpy, Pandas and Matplotlib. It should run

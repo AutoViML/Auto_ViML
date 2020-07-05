@@ -123,10 +123,10 @@ Auto_ViML works on any Multi-Class, Multi-Label Data Set. So you can have many t
 You don't have to tell Auto_ViML whether it is a Regression or Classification problem.
 
 ## Tips for using Auto_ViML:
-1. For Classification problems and imbalanced classes, choose "balanced_accuracy". It works better.
-2. For Imbalanced Classes (<=5% samples in rare class), choose "Imbalanced_Flag"=True. You can also set this flag to True for Regression problems where there might be imbalanced data in target variable.
-3. For Multi-Label dataset, input target variable as a list of variable names
-4. Your first attempt with Auto_ViML must use Boosting_Flag=None to get Linear models. Then try Boosting_Flag=False to get a Random Forest model. Then try Boosting_Flag=True to get an XGBoost model.
+1. For Classification problems and imbalanced classes, choose scoring_parameter="balanced_accuracy". It works better.
+2. For Imbalanced Classes (<5% samples in rare class), choose "Imbalanced_Flag"=True. You can also set this flag to True for Regression problems where the target variable might have skewed distributions.
+3. For Multi-Label dataset, the target input target variable can be sent in as a list of variables.
+4. It is recommended that you first set Boosting_Flag=None to get a Linear model. Once you understand that, then you can try to set Boosting_Flag=False to get a Random Forest model. Finally, try Boosting_Flag=True to get an XGBoost model. This is the order that we recommend in order to use Auto_ViML.
 5. Finally try Boosting_Flag="CatBoost" to get a complex but high performing model.
 6. Binning_Flag=True improves a CatBoost model since it adds to the list of categorical vars in data
 7. KMeans_featurizer=True works well in NLP and CatBoost models since it creates cluster variables
@@ -148,7 +148,7 @@ You don't have to tell Auto_ViML whether it is a Regression or Classification pr
 - `target`: name of the target variable in the data set.
 - `sep`: if you have a spearator in the file such as "," or "\t" mention it here. Default is ",".
 - `scoring_parameter`: if you want your own scoring parameter such as "f1" give it here. If not, it will assume the appropriate scoring param for the problem and it will build the model.
-- `hyper_param`: Tuning options are GridSearch ('GS') and RandomizedSearch ('RS'). Default is 'GS'.
+- `hyper_param`: Tuning options are GridSearch ('GS') and RandomizedSearch ('RS'). Default is 'RS'.
 - `feature_reduction`: Default = 'True' but it can be set to False if you don't want automatic feature_reduction since in Image data sets like digits and MNIST, you get better results when you don't reduce features automatically. You can always try both and see.
 - `KMeans_Featurizer`
   - `True`: Adds a cluster label to features based on KMeans. Use for Linear.
@@ -158,12 +158,13 @@ You don't have to tell Auto_ViML whether it is a Regression or Classification pr
   - `False` This will build a Random Forest or Extra Trees model (also known as Bagging)
   - `True` This will build an XGBoost model
   - `CatBoost` This will build a CatBoost model (provided you have CatBoost installed)
-- `Add_Poly`: Default is 0. It has 2 additional settings:
+- `Add_Poly`: Default is 0 which means do-nothing. But it has three interesting settings:
   - `1` Add interaction variables only such as x1*x2, x2*x3,...x9\*10 etc.
   - `2` Add Interactions and Squared variables such as x1**2, x2**2, etc.
+  - `3` Adds both Interactions and Squared variables such as x1*x2, x1**2,x2*x3, x2**2, etc.
 - `Stacking_Flag`: Default is False. If set to True, it will add an additional feature which is derived from predictions of another model. This is used in some cases but may result in overfitting. So be careful turning this flag "on".
 - `Binning_Flag`: Default is False. It set to True, it will convert the top numeric variables into binned variables through a technique known as "Entropy" binning. This is very helpful for certain datasets (especially hard to build models).
-- `Imbalanced_Flag`: Default is False. If set to True, it will downsample the "Majority Class" in an imbalanced dataset and make the "Rare" class at least 5% of the data set. This the ideal threshold in my mind to make a model learn. Do it for Highly Imbalanced data.
+- `Imbalanced_Flag`: Default is False. If set to True, it will use <a href='https://imbalanced-learn.org/stable/'>SMOTE from Imbalanced-Learn</a> to oversample the "Rare Class" in an imbalanced dataset and make the classes balanced (50-50 for example in a binary classification). This also works for Regression problems where you have highly skewed distributions in the target variable. Auto_ViML creates additional samples using SMOTE for Highly Imbalanced data.
 - `verbose`: This has 3 possible states:
   - `0` limited output. Great for running this silently and getting fast results.
   - `1` more charts. Great for knowing how results were and making changes to flags in input.

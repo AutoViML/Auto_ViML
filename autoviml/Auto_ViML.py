@@ -1002,13 +1002,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if not isinstance(date_df_train, str):
                     date_col_adds = date_df_train.columns.tolist()
                     print('    Adding %d columns from date time column %s' %(len(date_col_adds),date_col))
-                    train = train.drop(date_col,axis=1,inplace=True).join(date_df_train)
+                    train = train.join(date_df_train)
                 else:
                     date_col_adds = []
                 if not isinstance(orig_test, str):
                     date_df_test = create_time_series_features(orig_test, date_col)
                     if not isinstance(date_df_test, str):
-                        test = test.drop(date_col,axis=1,inplace=True).join(date_df_test)
+                        test = test.join(date_df_test)
             red_preds = [x for x in list(train) if x not in [each_target]]
             train_sel = train_sel + date_col_adds
         #########     SELECT IMPORTANT FEATURES HERE   #############################

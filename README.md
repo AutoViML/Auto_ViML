@@ -114,7 +114,7 @@ You don't have to tell Auto_ViML whether it is a Regression or Classification pr
 
 ## Tips for using Auto_ViML:
 1. For Classification problems and imbalanced classes, choose "balanced_accuracy". It works better.
-2. For Imbalanced Classes (<=5% samples in rare class), choose "Imbalanced_Flag"=True.
+2. For Imbalanced Classes (<=5% samples in rare class), choose "Imbalanced_Flag"=True. You can also set this flag to True for Regression problems where there might be imbalanced data in target variable.
 3. For Multi-Label dataset, input target variable as a list of variable names
 4. Your first attempt with Auto_ViML must use Boosting_Flag=None to get Linear models. Then try Boosting_Flag=False to get a Random Forest model. Then try Boosting_Flag=True to get an XGBoost model.
 5. Finally try Boosting_Flag="CatBoost" to get a complex but high performing model.

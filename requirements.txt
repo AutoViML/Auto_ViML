@@ -10,7 +10,7 @@ shap
 textblob
 vaderSentiment
 nltk
-imbalanced-learn>=0.6.0
+imbalanced-learn>=0.7
 regex
 beautifulsoup4
 featuretools

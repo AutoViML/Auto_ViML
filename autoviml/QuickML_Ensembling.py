@@ -23,10 +23,11 @@ from sklearn.linear_model import Lasso, LassoCV, Ridge, RidgeCV, LassoLarsCV
 from sklearn.model_selection import cross_val_predict
 from sklearn.ensemble import ExtraTreesRegressor, ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV, LinearRegression
-from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit,ShuffleSplit
+from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit,KFold,ShuffleSplit
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.multiclass import OneVsRestClassifier
+from sklearn.neighbors import KNeighborsRegressor
 import time
 import pdb
 import time
@@ -56,7 +57,8 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
     if modeltype == 'Regression':
         if scoring == '':
             scoring = 'neg_mean_squared_error'
-        scv = ShuffleSplit(n_splits=FOLDS,random_state=seed)
+        #scv = ShuffleSplit(n_splits=FOLDS,random_state=seed)
+        scv = KFold(n_splits=FOLDS, shuffle=False, random_state=seed)
         if Boosting_Flag is None:
             ## Create an ensemble model ####
             model5 = AdaBoostRegressor(base_estimator=DecisionTreeRegressor(
@@ -70,27 +72,22 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             model5 = LassoLarsCV(cv=scv)
             model_tuples.append(('LassoLarsCV',model5))
         if Boosting_Flag is None:
-            model6 = DecisionTreeRegressor(max_depth=5,min_samples_leaf=2)
-            model_tuples.append(('Decision_Tree',model6))
+            model6 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
+                                            n_estimators=NUMS,random_state=seed)
+            model_tuples.append(('Bagging_Regressor',model6))
         elif not Boosting_Flag:
             model6 = LinearSVR()
             model_tuples.append(('Linear_SVR',model6))
         else:
             model6 = DecisionTreeRegressor(max_depth=5,min_samples_leaf=2)
             model_tuples.append(('Decision_Tree',model6))
-        model7 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
-                                        n_estimators=NUMS,random_state=seed)
-        model_tuples.append(('Bagging_Regressor',model7))
+        model7 = KNeighborsRegressor(n_neighbors=8)
+        model_tuples.append(('KNN_Regressor',model7))
         if Boosting_Flag is None:
             #### If the Boosting_Flag is True, it means Boosting model is present.
             ###   So choose a different kind of classifier here
-            model8 = RandomForestRegressor(bootstrap = False,
-                                       max_depth = 10,
-                                       max_features = 'auto',
-                                       min_samples_leaf = 2,
-                                       n_estimators = 200,
-                                       random_state=99)
-            model_tuples.append(('RF_Regressor',model8))
+            model8 = DecisionTreeRegressor(max_depth=5,min_samples_leaf=2)
+            model_tuples.append(('Decision_Tree',model8))
         elif not Boosting_Flag:
             #### If the Boosting_Flag is True, it means Boosting model is present.
             ###   So choose a different kind of classifier here
@@ -110,7 +107,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
         if scoring == '':
             scoring = 'accuracy'
         num_classes = len(np.unique(y_test))
-        scv = StratifiedKFold(n_splits=FOLDS,random_state=seed)
+        scv = StratifiedKFold(n_splits=FOLDS, shuffle=True, random_state=seed)
         if Boosting_Flag is None:
             ## Create an ensemble model ####
             model5 = AdaBoostClassifier(base_estimator=DecisionTreeClassifier(
@@ -204,7 +201,7 @@ def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, m
                     from sklearn.linear_model import LinearRegression
                     v = LinearRegression()
                 v.fit(X_train, y_train)
-                y_pred = v.predict(X_test)                    
+                y_pred = v.predict(X_test)
         if iteration == 0:
             stacks = copy.deepcopy(y_pred)
             iteration += 1

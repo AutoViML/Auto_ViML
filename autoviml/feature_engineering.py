@@ -2,7 +2,15 @@ import pandas as pd
 import numpy as np
 ######### NEW And FAST WAY to ADD Feature Engg COLUMNS IN A DATA SET #######
 ###   Modify Dataframe by adding Features using Feature Tools ####
-def add_features( df, add_types=[], idcolumn=''):
+def add_computational_primitive_features( df, add_types=[], idcolumn=''):
+    """
+    ###   Modify Dataframe by adding computational primitive Features using Feature Tools ####
+    ###   What are computational primitives? they are to add, subtract, multiply and divide features
+    ### Inputs:
+    ###   df: Just sent in the data frame df that you want features added to
+    ###   add_types: list of computational types: 'add', 'subtract', 'multiply' and 'divide'. Choose any or all.
+    ###   idcolumn: this is to create an index for the dataframe since FT runs on index variable. You can leave it empty string.
+    """
     try:
         import featuretools as ft
     except:
@@ -29,7 +37,7 @@ def add_features( df, add_types=[], idcolumn=''):
     else:
         ### Perform Deep Feature Synthesis Automatically for Depth 2
         df_mod, feature_defs = ft.dfs(entityset=es, target_entity = dataid,
-                              max_depth = 2,
+                              max_depth = 2, n_jobs=-1,
                               verbose = 0)
     if make_index:
         df_mod = df_mod.reset_index(drop=True)
@@ -64,19 +72,19 @@ def feature_engineering(df, ft_requests, idcol):
         cols = [x for x in df.columns.tolist() if x not in [idcol]]
         for each_ft, count in zip(ft_list, range(len(ft_list))):
             if count == 0:
-                df_mod = add_features(df,[each_ft], idcol)
+                df_mod = add_computational_primitive_features(df,[each_ft], idcol)
                 print(df_mod.shape)
             else:
-                df_temp = add_features(df,[each_ft], idcol)
+                df_temp = add_computational_primitive_features(df,[each_ft], idcol)
                 df_temp.drop(cols,axis=1,inplace=True)
                 df_mod = pd.concat([df_mod,df_temp],axis=1,ignore_index=False)
                 print(df_mod.shape)
     else:
-        df_mod = add_features(df,[], idcol)
+        df_mod = add_computational_primitive_features(df,[], idcol)
     return df_mod
 
 
-def start_end_date_time_processing(smalldf, startTime, endTime, splitter_date_string="/",splitter_hour_string=":"):
+def add_date_time_features(smalldf, startTime, endTime, splitter_date_string="/",splitter_hour_string=":"):
     """
     If you have start date time stamp and end date time stamp, this module will create additional features for such fields.
     You must provide a start date time stamp field and if you have an end date time stamp field, you must use it.
@@ -198,3 +206,39 @@ def split_one_field_into_many(df, field, splitter, filler, new_names_list):
         return df
     return df, new_names_list
 #################################################################################
+def add_aggregate_primitive_features(dft, agg_types, id_column, ignore_variables=[]):
+    """
+    ###   Modify Dataframe by adding computational primitive Features using Feature Tools ####
+    ###   What are aggregate primitives? they are to "mean""median","mode","min","max", etc. features
+    ### Inputs:
+    ###   df: Just sent in the data frame df that you want features added to
+    ###   agg_types: list of computational types: 'mean','median','count', 'max', 'min', 'sum', etc.
+    ###         One caveat: these agg_types must be found in the agg_func of numpy or pandas groupby statement.
+    ###         for example: numpy has 'median','prod','sum','std','var', etc. - they will work!
+    ###   idcolumn: this is to create an index for the dataframe since FT runs on index variable. You can leave it empty string.
+    ###   ignore_variables: list of variables to ignore among numeric variables in data since they may be ID variables.
+    """
+    import copy
+    ### Make sure the list of functions they send in are acceptable functions. If not, the aggregate will blow up!
+    func_set = {'count','sum','mean','mad','median','min','max','mode','abs','prod','std','var','sem','skew','kurt','quantile','cumsum','cumprod','cummax','cummin'}
+    agg_types = list(set(agg_types).intersection(func_set))
+    ### If the ignore_variables list is empty, make sure you add the id_column to it so it can be dropped from aggregation.
+    if len(ignore_variables) == 0:
+        ignore_variables = [id_column]
+    ### Select only integer and float variables to do this aggregation on. Be very careful if there are too many vars.
+    ### This will take time to run in that case.
+    dft_index = copy.deepcopy(dft[id_column])
+    dft_cont = copy.deepcopy(dft.select_dtypes('number').drop(ignore_variables,axis=1))
+    dft_cont[id_column] = dft_index
+    try:
+        dft_full = dft_cont.groupby(id_column).agg(agg_types)
+    except:
+        ### if for some reason, the groupby blows up, then just return the dataframe as is - no changes!
+        return dft
+    cols = [x+'_'+y+'_by_'+id_column for (x,y) in dft_full.columns]
+    dft_full.columns = cols
+    ###  Not every column has useful values. If it is full of just the same value, remove it
+    _, list_unique_col_ids = np.unique(dft_full, axis = 1, return_index=True)
+    dft_full = dft_full.iloc[:, list_unique_col_ids]
+    return dft_full
+################################################################################################################################

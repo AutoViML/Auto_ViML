@@ -57,9 +57,10 @@ def find_rare_class(classes, verbose=0):
     counts = OrderedDict(Counter(classes))
     total = sum(counts.values())
     if verbose >= 1:
-        print(' Class  -> Counts -> Percent')
-        for cls in counts.keys():
-            print("%6s: % 7d  ->  % 5.1f%%" % (cls, counts[cls], counts[cls]/total*100))
+        print('       Class  -> Counts -> Percent')
+        sorted_keys = sorted(counts.keys())
+        for cls in sorted_keys:
+            print("%12s: % 7d  ->  % 5.1f%%" % (cls, counts[cls], counts[cls]/total*100))
     if type(pd.Series(counts).idxmin())==str:
         return pd.Series(counts).idxmin()
     else:
@@ -161,7 +162,31 @@ def analyze_problem_type(train, targ,verbose=0):
     else :
         model_class = 'Regression'
     return model_class
-#######
+###################################################################################
+def fill_missing_values_object_or_number(start_train, start_test, fill_num, col,str_flag=True):
+    """
+    ####  This is the easiest way to fill missing values using an object in both train and test
+    #### This takes care of some categories that are present in train and not in test
+    ###     and vice versa
+    """
+    start_train = copy.deepcopy(start_train)
+    start_test = copy.deepcopy(start_test)
+    missing_flag = False
+    new_missing_col = ''
+    if start_train[col].isnull().sum() > 0:
+        missing_flag = True
+        new_missing_col = col + '_Missing_Flag'
+        start_train[new_missing_col] = 0
+        start_train.loc[start_train[col].isnull(),new_missing_col]=1
+        start_train[col] = start_train[col].fillna(fill_num)
+    if type(start_test) != str:
+        if missing_flag:
+            start_test[new_missing_col] = 0
+        if start_test[col].isnull().sum() > 0:
+            start_test.loc[start_test[col].isnull(),new_missing_col]=1
+            start_test[col] = start_test[col].fillna(fill_num)
+    return start_train, start_test, missing_flag, new_missing_col
+#####################################################################################
 def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=True):
     """
     ####  This is the easiest way to label encode object variables in both train and test
@@ -374,8 +399,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     solver = 'liblinear'  ### This is the next fastest solver after liblinear. Useful for Multi-class problems!
     penalties = ['l2','l1'] ### This is to determine the penalties for LogisticRegression
     n_steps = 6 ### number of estimator steps between 100 and max_estims
-    max_depth = 10 ##### This limits the max_depth used in decision trees and other classifiers
-    max_features = 10 #### maximum number of features in a random forest model or extra trees model
+    max_depth = 20 ##### This limits the max_depth used in decision trees and other classifiers
+    max_features = 20 #### maximum number of features in a random forest model or extra trees model
     warm_start = True ### This is to set the warm_start flag for the ExtraTrees models
     bootstrap = True #### Set this flag to control whether to bootstrap variables or not.
     n_repeats = 1 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
@@ -719,8 +744,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         for f in copy_preds:
             missing_flag = False
             if f in nlp_columns:
-                #### YOu have to do nothing for NLP columns. Leave them as is for Auto_NLP later ##############
-                continue
+                #### YOu have to do missing values for NLP columns. Otherwise leave them as is for Auto_NLP later ##############
+                fill_num = 'missing'
+                start_train, start_test,missing_flag,new_missing_col = fill_missing_values_object_or_number(
+                                                start_train, start_test,fill_num,f,True)
+                if missing_flag:
+                    cat_vars.append(new_missing_col)
+                    num_bool_vars.append(new_missing_col)
+                    preds.append(new_missing_col)
+                    missing_flag_cols.append(new_missing_col)
             elif f in missing_cols:
                 #### YOu have to do nothing for missing column yet. Leave them as is for Iterative Imputer later ##############
                 continue
@@ -736,19 +768,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     missing_flag_cols.append(new_missing_col)
             elif start_train[f].dtype in [np.int64, np.int32, np.int16, np.int8]:
                 ### if there are integer variables, don't scale them. Leave them as is.
-                fill_num = start_train[f].min() - 1
-                if start_train[f].isnull().sum() > 0:
-                    missing_flag = True
-                    new_missing_col = f + '_Missing_Flag'
-                    start_train[new_missing_col] = 0
-                    start_train.loc[start_train[f].isnull(),new_missing_col]=1
-                    start_train[f] = start_train[f].fillna(fill_num).astype(int)
+                fill_num = int(start_train[f].min() - 1)
+                start_train, start_test,missing_flag,new_missing_col = fill_missing_values_object_or_number(
+                                                start_train, start_test,fill_num,f,True)
+                start_train[f] = start_train[f].astype(int)
                 if type(orig_test) != str:
-                    if missing_flag:
-                        start_test[new_missing_col] = 0
-                    if start_test[f].isnull().sum() > 0:
-                        start_test.loc[start_test[f].isnull(),new_missing_col]=1
-                        start_test[f] = start_test[f].fillna(fill_num).astype(int)
+                    start_test[f] = start_test[f].astype(int)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
@@ -1015,12 +1040,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     if date_col_adds != []:
                         train = train.join(date_df_train)
                         ### Now time to remove the date time column from all further processing ##
-                        train.drop(date_col,axis=1,inplace=True)
+                        #train.drop(date_col,axis=1,inplace=True)
                         if not isinstance(orig_test, str):
                             if date_col_adds != []:
                                 test = test.join(date_df_test)
                                 ### Now time to remove the date time column from all further processing ##
-                                test.drop(date_col,axis=1,inplace=True)
+                                #test.drop(date_col,axis=1,inplace=True)
             #########     CREATING TIME FEATURES IS COMPLETED   #############################
             red_preds = [x for x in list(train) if x not in [each_target]]
             ### we add new date time variables to the list of numeric float variables to see if they have any
@@ -4153,7 +4178,8 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
                               n_init=20,
                               random_state=99)
         train_clusters_SMOTE = km_model.fit_predict(y_df.values.reshape(-1,1))
-        print('Number of Clusters and samples in each Cluster for target data:\n    %s' %Counter(train_clusters_SMOTE))
+        print('    SMOTE performed using KMeans clusters below using Target data only:')
+        find_rare_class(train_clusters_SMOTE, verbose=1)
         #train_clusters_SMOTE, _ = Transform_KM_Features(X_df, y_df, X_df, num_clusters)
         y_index = y_df.index
         smote_df = pd.DataFrame(index=y_index)
@@ -4171,7 +4197,6 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
             #### For Regression, we have to use the existing target data to create new target data
             #### That's why we use the existing y_df to come up with smote_df
             SMOTE_X, SMOTE_Y = smote.fit_resample(X_df.join(y_df), smote_df)
-            print('    SMOTE performed using KMeans cluster labels and predictor variables')
             SMOTE_Y = SMOTE_X[df_target]
             print('    Samples in old Train before SMOTE = %d' %X_df.shape[0])
             train_ovr = SMOTE_X[train_preds].join(SMOTE_Y)
@@ -4697,7 +4722,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.657'
+version_number = '0.1.658'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

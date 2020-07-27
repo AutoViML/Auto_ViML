@@ -19,7 +19,7 @@ import matplotlib
 matplotlib.style.use('ggplot')
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import RandomizedSearchCV
-
+import pdb
 from sklearn import model_selection
 import warnings
 warnings.filterwarnings("ignore")
@@ -279,11 +279,19 @@ def left_subtract(l1,l2):
 ################################################################################
 def return_stop_words():
     from nltk.corpus import stopwords
+    STOP_WORDS = ['it', "this", "that", "to", 'its', 'am', 'is', 'are', 'was', 'were', 'a',
+                'an', 'the', 'and', 'or', 'of', 'at', 'by', 'for', 'with', 'about', 'between',
+                 'into','above', 'below', 'from', 'up', 'down', 'in', 'out', 'on', 'over',
+                  'under', 'again', 'further', 'then', 'once', 'all', 'any', 'both', 'each',
+                   'few', 'more', 'most', 'other', 'some', 'such', 'only', 'own', 'same', 'so',
+                    'than', 'too', 'very', 's', 't', 'can', 'just', 'd', 'll', 'm', 'o', 're',
+                    've', 'y', 'ain', 'ma']
     add_words = ["s", "m",'you', 'not',  'get', 'no', 'via', 'one', 'still', 'us', 'u','hey','hi','oh','jeez',
                 'the', 'a', 'in', 'to', 'of', 'i', 'and', 'is', 'for', 'on', 'it', 'got','aww','awww',
-                'not', 'my', 'that', 'by', 'with', 'are', 'at', 'this', 'from', 'be', 'have', 'was']
+                'not', 'my', 'that', 'by', 'with', 'are', 'at', 'this', 'from', 'be', 'have', 'was',
+                '', ' ', 'say', 's', 'u', 'ap', 'afp', '...', 'n', '\\']
     #stopWords = text.ENGLISH_STOP_WORDS.union(add_words)
-    stop_words = set(set(stopwords.words('english')).union(add_words))
+    stop_words = list(set(STOP_WORDS+add_words))
     excl =['will',"i'll",'shall',"you'll",'may',"don't","hadn't","hasn't","haven't",
            "don't","isn't",'if',"mightn't","mustn'","mightn't",'mightn',"needn't",
            'needn',"needn't",'no','not','shan',"shan't",'shouldn',"shouldn't","wasn't",
@@ -292,15 +300,9 @@ def return_stop_words():
     stopWords = left_subtract(stop_words,excl)
     return sorted(stopWords)
 ##################################################################################
-add_stop = ['', ' ', 'say', 's', 'u', 'ap', 'afp', '...', 'n', '\\']
-
-stop_words = set(return_stop_words()).union(add_stop)
-
 tokenizer = TweetTokenizer()
 pattern = r"(?u)\b\w\w+\b"
-
 lemmatizer = WordNetLemmatizer()
-
 punc = list(set(string.punctuation))+['/;','//']
 
 def casual_tokenizer(text): #Splits words on white spaces (leaves contractions intact) and splits out trailing punctuation
@@ -334,79 +336,372 @@ def expandContractions(text, c_re=c_re):
     def replace(match):
         return c_dict[match.group(0)]
     return c_re.sub(replace, text)
+#
+# remove entire URL
+def remove_URL(text):
+    url = re.compile(r'https?://\S+|www\.\S+')
+    return url.sub(r'',text)
 
+# Remove just HTML markup language
 def remove_html(text):
-    soup = BeautifulSoup(text, "html5lib")
-    tags_del = soup.get_text()
-    uni = unicodedata.normalize("NFKD", tags_del)
-    bracket_del = re.sub(r'\[.*?\]', '  ', uni)
-    apostrphe = re.sub('’', "'", bracket_del)
-    string = apostrphe.replace('\r','  ')
-    string = string.replace('\n','  ')
-    extra_space = re.sub(' +',' ', string)
-    return extra_space
+    html=re.compile(r'<.*?>')
+    return html.sub(r'',text)
 
-def process_text(text):
-    soup = BeautifulSoup(text, "lxml")
-    tags_del = soup.get_text()
-    no_html = re.sub('<[^>]*>', '', tags_del)
-    tokenized = casual_tokenizer(no_html)
-    lower = [item.lower() for item in tokenized]
-    decontract = [expandContractions(item, c_re=c_re) for item in lower]
-    tagged = nltk.pos_tag(decontract)
-    lemma = lemma_wordnet(tagged)
-    #no_num = [re.sub('[0-9]+', '', each) for each in lemma]
-    no_punc = [w for w in lemma if w not in punc]
-    no_stop = [w for w in no_punc if w not in stop_words]
-    return no_stop
-################################################################################################################################################################
-####   THE ABOVE Process_Text secion Re-used with Permission from:
-####  R O B   S A L G A D O    robert.salgado@gmail.com Thank YOU!
-################################################################################
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 
-import nltk
-import re
-def simpletokenizer(text):
-    # create a space between special characters
-    text=re.sub("(\\W)"," \\1 ",text)
+# Convert Emojis to Text
+import emoji
+def convert_emojis(text):
+    return emoji.demojize(text)
 
-    # split based on whitespace
-    return re.split("\\s+",text)
+import string
+def remove_punct(text):
+    table=str.maketrans('','',string.punctuation)
+    return text.translate(table)
 
-from nltk.stem import PorterStemmer
-
-# Get the Porter stemmer
-porter_stemmer=PorterStemmer()
-import regex as re
-def simplepreprocessor(text):
-
-    text = [x.lower() for x in text ]
-    text = [re.sub("\\W"," ",x) for x in text]
-    text = [re.sub("\\s+(in|the|all|for|and|on)\\s+"," _connector_ ",x) for x in text]
-    return text
-################################################################################
-import regex as re
-################################################################################
-
-stop_words = return_stop_words()
-
-def expand_text(text):
-    expanded = [expandContractions(item, c_re=c_re) for item in text]
-    return ''.join(map(str, expanded))
-
-def remove_stop_list(text):
+# Clean even further removing non-printable text
+# Thanks to https://www.kaggle.com/rftexas/text-only-kfold-bert
+import string
+def remove_stopwords(tweet):
+    """Removes STOP_WORDS characters"""
     stop_words = return_stop_words()
-    return [x for x in text if x not in stop_words ]
+    tweet = tweet.lower()
+    tweet = ' '.join([x for x in tweet.split(" ") if x not in stop_words])
+    tweet = ''.join([x for x in tweet if x in string.printable])
+    return tweet
+
+# Expand Abbreviations
+# Thanks to https://www.kaggle.com/rftexas/text-only-kfold-bert
+abbreviations = {
+    "$" : " dollar ",
+    "€" : " euro ",
+    "4ao" : "for adults only",
+    "a.m" : "before midday",
+    "a3" : "anytime anywhere anyplace",
+    "aamof" : "as a matter of fact",
+    "acct" : "account",
+    "adih" : "another day in hell",
+    "afaic" : "as far as i am concerned",
+    "afaict" : "as far as i can tell",
+    "afaik" : "as far as i know",
+    "afair" : "as far as i remember",
+    "afk" : "away from keyboard",
+    "app" : "application",
+    "approx" : "approximately",
+    "apps" : "applications",
+    "asap" : "as soon as possible",
+    "asl" : "age, sex, location",
+    "atk" : "at the keyboard",
+    "ave." : "avenue",
+    "aymm" : "are you my mother",
+    "ayor" : "at your own risk",
+    "b&b" : "bed and breakfast",
+    "b+b" : "bed and breakfast",
+    "b.c" : "before christ",
+    "b2b" : "business to business",
+    "b2c" : "business to customer",
+    "b4" : "before",
+    "b4n" : "bye for now",
+    "b@u" : "back at you",
+    "bae" : "before anyone else",
+    "bak" : "back at keyboard",
+    "bbbg" : "bye bye be good",
+    "bbc" : "british broadcasting corporation",
+    "bbias" : "be back in a second",
+    "bbl" : "be back later",
+    "bbs" : "be back soon",
+    "be4" : "before",
+    "bfn" : "bye for now",
+    "blvd" : "boulevard",
+    "bout" : "about",
+    "brb" : "be right back",
+    "bros" : "brothers",
+    "brt" : "be right there",
+    "bsaaw" : "big smile and a wink",
+    "btw" : "by the way",
+    "bwl" : "bursting with laughter",
+    "c/o" : "care of",
+    "cet" : "central european time",
+    "cf" : "compare",
+    "cia" : "central intelligence agency",
+    "csl" : "can not stop laughing",
+    "cu" : "see you",
+    "cul8r" : "see you later",
+    "cv" : "curriculum vitae",
+    "cwot" : "complete waste of time",
+    "cya" : "see you",
+    "cyt" : "see you tomorrow",
+    "dae" : "does anyone else",
+    "dbmib" : "do not bother me i am busy",
+    "diy" : "do it yourself",
+    "dm" : "direct message",
+    "dwh" : "during work hours",
+    "e123" : "easy as one two three",
+    "eet" : "eastern european time",
+    "eg" : "example",
+    "embm" : "early morning business meeting",
+    "encl" : "enclosed",
+    "encl." : "enclosed",
+    "etc" : "and so on",
+    "faq" : "frequently asked questions",
+    "fawc" : "for anyone who cares",
+    "fb" : "facebook",
+    "fc" : "fingers crossed",
+    "fig" : "figure",
+    "fimh" : "forever in my heart",
+    "ft." : "feet",
+    "ft" : "featuring",
+    "ftl" : "for the loss",
+    "ftw" : "for the win",
+    "fwiw" : "for what it is worth",
+    "fyi" : "for your information",
+    "g9" : "genius",
+    "gahoy" : "get a hold of yourself",
+    "gal" : "get a life",
+    "gcse" : "general certificate of secondary education",
+    "gfn" : "gone for now",
+    "gg" : "good game",
+    "gl" : "good luck",
+    "glhf" : "good luck have fun",
+    "gmt" : "greenwich mean time",
+    "gmta" : "great minds think alike",
+    "gn" : "good night",
+    "g.o.a.t" : "greatest of all time",
+    "goat" : "greatest of all time",
+    "goi" : "get over it",
+    "gps" : "global positioning system",
+    "gr8" : "great",
+    "gratz" : "congratulations",
+    "gyal" : "girl",
+    "h&c" : "hot and cold",
+    "hp" : "horsepower",
+    "hr" : "hour",
+    "hrh" : "his royal highness",
+    "ht" : "height",
+    "ibrb" : "i will be right back",
+    "ic" : "i see",
+    "icq" : "i seek you",
+    "icymi" : "in case you missed it",
+    "idc" : "i do not care",
+    "idgadf" : "i do not give a damn fuck",
+    "idgaf" : "i do not give a fuck",
+    "idk" : "i do not know",
+    "ie" : "that is",
+    "i.e" : "that is",
+    "ifyp" : "i feel your pain",
+    "IG" : "instagram",
+    "iirc" : "if i remember correctly",
+    "ilu" : "i love you",
+    "ily" : "i love you",
+    "imho" : "in my humble opinion",
+    "imo" : "in my opinion",
+    "imu" : "i miss you",
+    "iow" : "in other words",
+    "irl" : "in real life",
+    "j4f" : "just for fun",
+    "jic" : "just in case",
+    "jk" : "just kidding",
+    "jsyk" : "just so you know",
+    "l8r" : "later",
+    "lb" : "pound",
+    "lbs" : "pounds",
+    "ldr" : "long distance relationship",
+    "lmao" : "laugh my ass off",
+    "lmfao" : "laugh my fucking ass off",
+    "lol" : "laughing out loud",
+    "ltd" : "limited",
+    "ltns" : "long time no see",
+    "m8" : "mate",
+    "mf" : "motherfucker",
+    "mfs" : "motherfuckers",
+    "mfw" : "my face when",
+    "mofo" : "motherfucker",
+    "mph" : "miles per hour",
+    "mr" : "mister",
+    "mrw" : "my reaction when",
+    "ms" : "miss",
+    "mte" : "my thoughts exactly",
+    "nagi" : "not a good idea",
+    "nbc" : "national broadcasting company",
+    "nbd" : "not big deal",
+    "nfs" : "not for sale",
+    "ngl" : "not going to lie",
+    "nhs" : "national health service",
+    "nrn" : "no reply necessary",
+    "nsfl" : "not safe for life",
+    "nsfw" : "not safe for work",
+    "nth" : "nice to have",
+    "nvr" : "never",
+    "nyc" : "new york city",
+    "oc" : "original content",
+    "og" : "original",
+    "ohp" : "overhead projector",
+    "oic" : "oh i see",
+    "omdb" : "over my dead body",
+    "omg" : "oh my god",
+    "omw" : "on my way",
+    "p.a" : "per annum",
+    "p.m" : "after midday",
+    "pm" : "prime minister",
+    "poc" : "people of color",
+    "pov" : "point of view",
+    "pp" : "pages",
+    "ppl" : "people",
+    "prw" : "parents are watching",
+    "ps" : "postscript",
+    "pt" : "point",
+    "ptb" : "please text back",
+    "pto" : "please turn over",
+    "qpsa" : "what happens", #"que pasa",
+    "ratchet" : "rude",
+    "rbtl" : "read between the lines",
+    "rlrt" : "real life retweet",
+    "rofl" : "rolling on the floor laughing",
+    "roflol" : "rolling on the floor laughing out loud",
+    "rotflmao" : "rolling on the floor laughing my ass off",
+    "rt" : "retweet",
+    "ruok" : "are you ok",
+    "sfw" : "safe for work",
+    "sk8" : "skate",
+    "smh" : "shake my head",
+    "sq" : "square",
+    "srsly" : "seriously",
+    "ssdd" : "same stuff different day",
+    "tbh" : "to be honest",
+    "tbs" : "tablespooful",
+    "tbsp" : "tablespooful",
+    "tfw" : "that feeling when",
+    "thks" : "thank you",
+    "tho" : "though",
+    "thx" : "thank you",
+    "tia" : "thanks in advance",
+    "til" : "today i learned",
+    "tl;dr" : "too long i did not read",
+    "tldr" : "too long i did not read",
+    "tmb" : "tweet me back",
+    "tntl" : "trying not to laugh",
+    "ttyl" : "talk to you later",
+    "u" : "you",
+    "u2" : "you too",
+    "u4e" : "yours for ever",
+    "utc" : "coordinated universal time",
+    "w/" : "with",
+    "w/o" : "without",
+    "w8" : "wait",
+    "wassup" : "what is up",
+    "wb" : "welcome back",
+    "wtf" : "what the fuck",
+    "wtg" : "way to go",
+    "wtpa" : "where the party at",
+    "wuf" : "where are you from",
+    "wuzup" : "what is up",
+    "wywh" : "wish you were here",
+    "yd" : "yard",
+    "ygtr" : "you got that right",
+    "ynk" : "you never know",
+    "zzz" : "sleeping bored and tired"
+}
+
+# Thanks to https://www.kaggle.com/rftexas/text-only-kfold-bert
+from nltk.tokenize import word_tokenize
+def convert_abbrev(word):
+    return abbreviations[word] if word in abbreviations.keys() else word
+
+# Thanks to https://www.kaggle.com/rftexas/text-only-kfold-bert
+def convert_abbrev_in_text(sentence):
+    text = " ".join(sentence.split())
+    tokens = text.split(" ")
+    tokens = [convert_abbrev(word) for word in tokens]
+    text = ' '.join(tokens)
+    return text
 
 def join_words(text):
     return " ".join(text)
 
 def remove_punctuations(text):
-    remove_puncs = re.sub(r'[?|!|~|@|$|%|^|&|#]', r'', text).lower()
-    return re.sub(r'[.|,\'|,|)|(|\|/|+|-|{|}|]', r' ', remove_puncs)
+    try:
+        remove_puncs = re.sub(r'[?|!|~|@|$|%|^|&|#]', r'', text)
+    except:
+        return "error"
+    return re.sub(r'[.|,\'|,|)|(|\|/|+|-|{|}|:|]', r' ', remove_puncs)
 
+def process_text(text):
+    text = text.split(" ")
+    decontract = join_words([expandContractions(item, c_re=c_re) for item in text])
+    soup = BeautifulSoup(decontract, "lxml")
+    tags_del = soup.get_text()
+    no_html = re.sub('<[^>]*>', '', tags_del)
+    tokenized = casual_tokenizer(no_html)
+    tagged = nltk.pos_tag(tokenized)
+    lemma = lemma_wordnet(tagged)
+    no_num = [re.sub('[0-9]+', '', each) for each in lemma]
+    no_punc = join_words([remove_punctuations(w) for w in no_num ])
+    no_stop = remove_stopwords(no_punc)
+    return no_stop
+
+def clean_text(df_x):
+    start_time2 = time.time()
+    df_x = df_x.apply(convert_emojis).apply(lambda x: x.lower()).apply(convert_abbrev_in_text)
+    print('    Time Taken for Expanding emojis and abbreviations in data = %0.0f seconds' %(time.time()-start_time2) )
+    start_time3 = time.time()
+    df_x = df_x.apply(process_text)
+    print('        Time Taken for Processing text in data = %0.0f seconds' %(time.time()-start_time3) )
+    return df_x
+##########################################################################################################
+from nltk.stem import PorterStemmer
+def stemming(text):
+    stemmer = PorterStemmer()
+    return " ".join([stemmer.stem(i) for i in re.sub("[^a-zA-Z]", " ", text).split()])
+
+# Remove Emojis
+# Reference : https://gist.github.com/slowkow/7a7f61f495e3dbb7e3d767f97bd7304b
+import re
+def remove_emoji(text):
+    emoji_pattern = re.compile("["
+                           u"\U0001F600-\U0001F64F"  # emoticons
+                           u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+                           u"\U0001F680-\U0001F6FF"  # transport & map symbols
+                           u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+                           u"\U00002702-\U000027B0"
+                           u"\U000024C2-\U0001F251"
+                           "]+", flags=re.UNICODE)
+    return emoji_pattern.sub(r'', text)
+
+# Remove punctuation marks
+import string
+def remove_punct(text):
+    table=str.maketrans('','',string.punctuation)
+    return text.translate(table)
+###############################################################################
+####    CLEAN   TWEETS   IS   MEANT FOR SHORT  SENTENCES SUCH AS TWEETS
+###############################################################################
+def clean_steps(x):
+    """
+    Input must be one text string only. Don't send arrays or dataframes.
+    Clean steps cleans one tweet at a time using following steps:
+    1. removes URL
+    2. Removes a very small list of stop words - about 65
+    3. Removes Emojis
+    """
+    x = x.split(" ")
+    x = [word.lower() for word in x]
+    x = join_words([expandContractions(item, c_re=c_re) for item in x])
+    x = remove_html(x)
+    x = remove_URL(x)
+    x = remove_stopwords(x)
+    x = convert_emojis(x)
+    x = remove_punct(x)
+    x = convert_abbrev_in_text(x)
+    x = stemming(x)
+    x = remove_stopwords(x)
+    return x
+
+def clean_tweets(df_x):
+    """
+    Clean Tweets cleans an entire dataframe or array full of tweets. So input must be a df or array of texts.
+    """
+    df_x = df_x.apply(clean_steps)
+    return df_x
 ################################################################################
 def print_top_feature_grams(X, vectorizer, top_n = 200):
     """
@@ -502,8 +797,7 @@ def print_top_features(train,nlp_column, best_nlp_vect, target, top_nums=200):
         all_sorted += top_num_feats
     all_sorted_set = sorted(set(all_sorted), key=all_sorted.index)
     return all_sorted_set
-
-##################################################################
+####################################################################################
 def plot_confusion_matrix(y_test,y_pred, model_name='Model'):
     """
     This plots a beautiful confusion matrix based on input: ground truths and predictions
@@ -642,8 +936,8 @@ def fit_and_predict(model, X_train, y_train, X_cv, modeltype='Classification', i
             return y_preds
 ################################################################################
 import copy
-def tranform_combine_top_feats_with_SVD(each_df, nlp_column, big_nlp_vect, new_vect,
-                                            top_feats,is_train='',trained_svd=''):
+def transform_combine_top_feats_with_SVD(each_df, nlp_column, big_nlp_vect, new_vect,
+                                            top_feats,is_train=True,trained_svd=''):
     """
     This is a new method to combine the top 300 features from Vectorizers and the top 100 dimensions from Truncated SVD.
     The idea is to have a small number of features that are the best in each class (label) to produce a very fast accurate model.
@@ -656,7 +950,7 @@ def tranform_combine_top_feats_with_SVD(each_df, nlp_column, big_nlp_vect, new_v
     start_time = time.time()
     if is_train:
         each_df_dtm = big_nlp_vect.fit_transform(each_df[nlp_column])
-        print('Time Taken for Transforming Train data = %0.0f seconds' %(time.time()-start_time) )
+        print('Time Taken for Transforming Train %s data = %0.0f seconds' %(each_df_dtm.shape,time.time()-start_time) )
     else:
         each_df_dtm = big_nlp_vect.transform(each_df[nlp_column])
         print('Time Taken for Transforming Test data = %0.0f seconds' %(time.time()-start_time) )
@@ -693,7 +987,7 @@ def tranform_combine_top_feats_with_SVD(each_df, nlp_column, big_nlp_vect, new_v
     ### Since the top features from each class is not helping improve model, it is best dropped!
     #each_df_best = each_df_dtm2.join(each_df_dtm1)
     each_df_best = copy.deepcopy(each_df_dtm1)
-    print('Combined Data Frame size = %s' %(each_df_best.shape,))
+    print('TruncatedSVD Data Frame size = %s' %(each_df_best.shape,))
     return each_df_best, big_nlp_vect, small_nlp_vect, trained_svd
 ###########################################################################
 def print_sparse_stats(X_dtm):
@@ -752,7 +1046,7 @@ def select_best_nlp_vectorizer(model, data, col, target, metric,
     start_time = time.time()
     if modeltype is None or modeltype == '':
         print('Since modeltype is None, Using TFIDF vectorizer with min_df and max_features')
-        tvec = TfidfVectorizer(ngram_range=(1,3), stop_words=stopWords, max_features=max_features, min_df=min_df,max_df=max_df)
+        tvec = TfidfVectorizer(ngram_range=(1,3), stop_words=None, max_features=max_features, min_df=min_df,max_df=max_df)
         data_dtm =  data[col]
         data_dtm = tvec.fit_transform(data_dtm)
         print('Features: ', data_dtm.shape[1])
@@ -954,11 +1248,15 @@ import scipy as sp
 from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.pipeline import make_pipeline
+from sklearn.compose import make_column_transformer
 import time
+from sklearn.feature_selection import SelectKBest, chi2
+from sklearn.feature_selection import f_regression
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 #########################################################################################
 def Auto_NLP(nlp_column, train, test, target, score_type='',
                             modeltype='Classification',
-                            top_num_features=200, verbose=0,
+                            top_num_features=10000, verbose=0,
                             build_model=True):
     """
     ##################################################################################
@@ -984,19 +1282,15 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     if not isinstance(test, str):
         print('    Shape of Test Data: %d rows' %test.shape[0])
     ########   Set the number of top NLP features that will be generated #########
-    if top_num_features == 50:
-      if modeltype == 'Regression':
-        top_num_features = 100
-      else:
-        num_classes = len(np.unique(train[target].values))
-        top_num_features = num_classes*top_num_features
+    top_num_features_limit = 300
     ###### Set Scoring parameter score_type here ###############
     if score_type == '':
         if modeltype == 'Regression':
             score_type = 'neg_mean_squared_error'
         else:
             score_type = 'accuracy'
-    elif score_type in ['f1','precision','average_precision','recall','average_recall','roc_auc']:
+    elif score_type in ['f1','precision','average_precision','recall','average_recall','roc_auc',
+                        'balanced-accuracy','balanced_accuracy']:
         if modeltype == 'Regression':
             score_type = 'neg_mean_squared_error'
         else:
@@ -1005,12 +1299,15 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         if modeltype == 'Regression':
             score_type = 'neg_mean_squared_error'
         else:
-            score_type = 'accuracy'
+            score_type = 'balanced_accuracy_score'
     elif score_type in ['neg_log_loss', 'logloss','log_loss']:
         if modeltype == 'Regression':
             score_type = 'neg_mean_squared_error'
+    else:
+        if modeltype == 'Regression':
+            score_type = 'neg_mean_squared_error'
         else:
-            score_type = 'neg_log_loss'
+            score_type = 'accuracy'
     ###### Set Defaults for cross-validation size data  here ###############
     if train.shape[0] <= 1000:
         test_size = 0.1
@@ -1039,10 +1336,10 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     elif type(nlp_column) == list:
         nlp_column = nlp_column[0]
     else:
-        print('NLP column must be either a string or a list with one column name in data frame')
+        print('Error: your NLP column name must be either a string or list with the column name in data frame')
         return
     ########################  S U M M A R Y  C O L U M N S  C R E A T I O N ######################
-    #### Now let's do a combined transformation of NLP column
+    #### Since NLP Summary Columns do more harm than good, I am not adding them to features of train
     train, nlp_summary_cols = create_summary_of_nlp_cols(train, nlp_column, target, is_train=True, verbose=verbose)
     nlp_result_columns += nlp_summary_cols
     print('    Added %d summary columns for counts of words and characters in each row' %len(nlp_summary_cols))
@@ -1051,196 +1348,279 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         #####   Hence set the verbose to 0 in this case !!!
         test, nlp_summary_cols = create_summary_of_nlp_cols(test, nlp_column, target, is_train=False, verbose=0)
     ########################  C L E AN    C O L U M N S   F I R S T ######################
+    #if train[nlp_column].apply(len).mean() <= 1500:
+    if train.shape[0] <= 10000:
+        tweets_flag = False
+    else:
+        tweets_flag = True
     print('    Cleaning text in %s before doing transformation...' %nlp_column)
-    import time
-    start_time1 = time.time()
     if train.shape[0] >= 100000:
         print('Cleaning text in Train data. Please be patient since this is a large dataset with >100K rows...' )
     else:
         print('Cleaning text in Train data')
-    train[nlp_column] = train[nlp_column].apply(expand_text).apply(remove_punctuations)
-    print('    Time Taken for Expanding text in Train data = %0.0f seconds' %(time.time()-start_time1) )
-    start_time2 = time.time()
-    train[nlp_column] = train[nlp_column].apply(process_text)
-    print('        Time Taken for Processing text in Train data = %0.0f seconds' %(time.time()-start_time2) )
-    start_time3 = time.time()
-    train[nlp_column] = train[nlp_column].apply(remove_stop_list).apply(join_words)
-    print('            Time Taken for Stopword removal in Train data = %0.0f seconds' %(time.time()-start_time3) )
     ###############################################################################################################
-    if not isinstance(test, str):
-        ######   THIS IS A SIMPLER VERSION OF ALL THE ABOVE STEPS AND WORKS JUST AS WELL!! ######################
-        print('    Cleaning text in %s before doing transformation...' %nlp_column)
-        import time
-        start_time1 = time.time()
-        if test.shape[0] >= 100000:
-            print('Cleaning text in Test data. Please be patient since this is a large dataset with >100K rows...' )
-        else:
-            print('Cleaning text in Test data')
-        test[nlp_column] = test[nlp_column].apply(expand_text).apply(remove_punctuations)
-        print('    Time Taken for Expanding text in Test data = %0.0f seconds' %(time.time()-start_time1) )
-        start_time2 = time.time()
-        test[nlp_column] = test[nlp_column].apply(process_text)
-        print('        Time Taken for Processing text in Test data = %0.0f seconds' %(time.time()-start_time2) )
-        start_time3 = time.time()
-        test[nlp_column] = test[nlp_column].apply(remove_stop_list).apply(join_words)
-        print('            Time Taken for Stopword removal in Test data = %0.0f seconds' %(time.time()-start_time3) )
-    print('Train and Test data Text cleaning completed. Time taken = %d seconds' %(time.time()-start_time1))
-    ###############################################################################################################
-    if modeltype.endswith('Classification'):
-        #print('Class distribution in Train:')
-        #class_info(train[target])
-        if len(Counter(train[target])) > 2:
-            model = MultinomialNB()
-        else:
-            model = GaussianNB()
-        best_nlp_vect, model, train_dtm, max_features_limit = select_best_nlp_vectorizer(model, train, nlp_column, target,
-                    score_type, seed, modeltype,min_df)
-    elif modeltype == 'Regression':
-        objective = 'reg:squarederror'
-        model = XGBRegressor( n_estimators=300,subsample=subsample,objective=objective,learning_rate=0.1,
-                                gamma = 2, max_depth = 8,
-                                colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
-                                 seed=1,n_jobs=-1,random_state=seed)
-        ####   This is where you start to Iterate on Finding Important Features ################
-        best_nlp_vect, model, train_dtm, max_features_limit = select_best_nlp_vectorizer(model, train, nlp_column, target,
-                            score_type, seed, modeltype,min_df)
+    #### If you are not going to use select_best_nlp_vectorizer, then you must use pipelines with a basic TFIDF vectorizer
+    best_nlp_vect = TfidfVectorizer( min_df=2, sublinear_tf=True, norm='l2', analyzer='word',
+                token_pattern=r'\w{1,}', ngram_range=(1, 3), stop_words=None,
+                lowercase=True, binary = True, encoding = 'latin-1',
+                max_features = None, max_df = 0.5
+                )
+    if tweets_flag:
+        #print('    Text appears to be short sentences or tweets, using clean_tweets function...')
+        print('    Faster text processing using clean_tweets function, since number of rows exceeds 10000')
+        train[nlp_column] = clean_tweets(train[nlp_column])
+        #train[nlp_column] = clean_text(train[nlp_column])
     else:
-        #### Just complete the transform of NLP column and return the transformed data ####
-        model = None
-        best_nlp_vect, model, train_dtm, max_features_limit = select_best_nlp_vectorizer(model, train, nlp_column, target,
-                            score_type, seed, modeltype,min_df)
-    #### Now that the Best VECTORIZER has been selected, transform Train and Test and return vectorized dataframes
-    #### Convert the Feature Array from a Sparse Matrix to a Dense Array #########
-    print('Setting Max Features limit to NLP vectorizer as %d' %max_features_limit)
-    best_nlp_vect.max_features = max_features_limit
+        #print('    Text appears to be long sentences or paragraphs, using clean_text function')
+        print('    Text processing using clean_text function...')
+        train[nlp_column] = clean_text(train[nlp_column])
+    ###############################################################################################################
+    print('Train data Text cleaning completed. Time taken = %d seconds' %(time.time()-start_time))
+    #### Build a RandomizedSearchCV Parameters Dictionary here  #########
+    params = {}
+    params['tfidfvectorizer__binary'] = [True,False]
+    params['tfidfvectorizer__encoding'] = ['latin-1','utf-8']
+    params['tfidfvectorizer__max_df'] = sp.stats.uniform(scale=1)
+    ##### Just set the printing of top features to 200 always #################
     if modeltype == 'Regression':
-        top_feats = print_top_feature_grams(train[nlp_column], best_nlp_vect, top_num_features)
+        top_feats = print_top_feature_grams(train[nlp_column], best_nlp_vect, 200)
     else:
-        ### Do this only for priting top words n-grams by classes since each class may be different
+        ### Do this only for printing top words n-grams by classes since each class may be different
         start_time = time.time()
-        top_feats = print_top_features(train,nlp_column, best_nlp_vect, target, top_num_features)
+        top_feats = print_top_features(train,nlp_column, best_nlp_vect, target, 200)
         print('Time Taken = %0.0f seconds' %(time.time()-start_time) )
-    print('Time taken so far = %0.1f minutes' %((time.time()-start_time1)/60))
     #############   THIS IS WHERE WE USE BUILD_MODEL TO DECIDE ################################
+    k_best_features = min(top_num_features,1200)
     if build_model:
         print('##################    THIS IS FOR BUILD_MODEL = TRUE           #################')
-        print('Building Model and Pipeline for NLP column = %s. This will take time...' %nlp_column)
-        if isinstance(best_nlp_vect, str):
-            print('    Using Cross-Validation to build best model and pipeline using default Vectorizer for optimizing %s' %score_type)
-            cvect = CountVectorizer(min_df=2, lowercase=True)
-        else:
-            print('    Using Cross-Validation to build best model and pipeline using Best Vectorizer for optimizing %s' %score_type)
-            cvect = copy.deepcopy(best_nlp_vect)
-        ### Split into Train and CV to test the model #####################
-        X = train[nlp_column]
-        y = train[target]
-        #Train test split with stratified sampling for evaluation
-        if modeltype == 'Regression':
-            X_train, X_test, y_train, y_test = train_test_split(X,
-                                                                y,
-                                                                test_size = test_size,
-                                                                random_state=seed)
-        else:
-            X_train, X_test, y_train, y_test = train_test_split(X,
+        n_iter = 30
+    else:
+        print('##################    THIS IS FOR BUILD_MODEL = FALSE           #################')
+        n_iter = 10
+    print('Building Model and Pipeline for NLP column = %s. This will take time...' %nlp_column)
+    if isinstance(best_nlp_vect, str):
+        cvect = CountVectorizer(min_df=2, lowercase=True)
+    else:
+        cvect = copy.deepcopy(best_nlp_vect)
+    ### Split into Train and CV to test the model #####################
+    X = train[nlp_column]
+    y = train[target]
+    #Train test split with stratified sampling for evaluation
+    if modeltype == 'Regression':
+        X_train, X_test, y_train, y_test = train_test_split(X,
                                                             y,
                                                             test_size = test_size,
-                                                            shuffle = True,
-                                                            stratify = y,
                                                             random_state=seed)
-        ############  THIS IS WHERE THE MAIN LOGIC TO SPEED UP BOTH MODEL AND PIPELINE BEGINS! ########
-        print('Transforming train and cross validation data sets into Vectorized form. This will take time...')
-        start_time = time.time()
-        X_train_dtm = cvect.fit_transform(X_train)
-        X_test_dtm =  cvect.transform(X_test)
-        print('    Time taken to transform train data into vectorized data = %0.2f seconds' %(time.time()-start_time) )
-        print('    Train Vectorized data shape = %s, Cross Validation data shape = %s' %(X_train_dtm.shape, X_test.shape))
-        if modeltype == 'Regression':
-            scv = KFold(n_splits=n_splits, random_state=seed)
+    else:
+        X_train, X_test, y_train, y_test = train_test_split(X,
+                                                        y,
+                                                        test_size = test_size,
+                                                        shuffle = True,
+                                                        stratify = y,
+                                                        random_state=seed)
+    ############  THIS IS WHERE THE MAIN LOGIC TO SPEED UP BOTH MODEL AND PIPELINE BEGINS! ########
+    max_features_limit = best_nlp_vect.fit_transform(X_train).shape[1]
+    print('    Selected the maximum number of features limit = %d' %max_features_limit)
+    if modeltype == 'Regression':
+        ### currently SelectKBest does not seem to work with regression data - hence it's out
+        select =  SelectKBest(f_regression, k=k_best_features)
+        params['selectkbest__k'] = sp.stats.randint(k_best_features,max_features_limit)
+    else:
+        select =  SelectKBest(chi2, k=k_best_features)
+        params['selectkbest__k'] = sp.stats.randint(k_best_features,max_features_limit)
+    print('Performing RandomizedSearchCV across 30 params. Optimizing for %s' %score_type)
+    print('    Using train data = %s and Cross Validation data = %s' %(X_train.shape, X_test.shape))
+    if modeltype == 'Regression':
+        scv = KFold(n_splits=n_splits, random_state=seed)
+        if top_num_features < top_num_features_limit:
             from sklearn.svm import LinearSVR
-            model_name = 'Linear_SVR'
+            model_name = 'Linear SVR'
             nlp_model = LinearSVR(epsilon=0.0, tol=0.001, C=1.0,random_state=99)
-            params = {}
-            params['epsilon'] = sp.stats.uniform(scale=1)
-            params['C'] = sp.stats.uniform(scale=100)
+            params['linearsvr__epsilon'] = sp.stats.uniform(scale=1)
+            params['linearsvr__C'] = sp.stats.uniform(scale=100)
         else:
-            scv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
-            model_name = 'Multinomial Naive Bayes'
+            model_name = 'Random Forest Regressor'
+            nlp_model = RandomForestRegressor(random_state=seed)
+            #params['randomforestregressor__max_depth'] = sp.stats.randint(2,10),
+            #params['randomforestregressor__n_estimators'] = sp.stats.randint(200,500)
+    else:
+        scv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        if top_num_features < top_num_features_limit:
+            model_name = 'Multinomial NB'
             nlp_model = MultinomialNB()
-            params = {}
-            params['alpha'] = sp.stats.uniform(scale=1)
-        gs = RandomizedSearchCV(nlp_model,params, n_iter=10, cv=scv,
-                                scoring=score_type, random_state=seed)
-        try:
-            gs.fit(X_train_dtm,y_train)
-            y_pred = gs.predict(X_test_dtm)
-        except:
-            gs.fit(X_train_dtm.toarray(),y_train)
-            y_pred = gs.predict(X_test_dtm.toarray())
-        ##### Print the model results on Cross Validation data set (held out)
-        if modeltype == 'Regression':
-            print_regression_model_stats(y_test, y_pred,'%s Model: Predicted vs Actual for %s' %(model_name,target))
+            params['multinomialnb__alpha'] = sp.stats.uniform(scale=1)
         else:
-            plot_confusion_matrix(y_test, y_pred, model_name)
-            plot_classification_matrix(y_test, y_pred, model_name)
-        #### Now select the best estimator from the RandomizedSearchCV models
-        nlp_model = gs.best_estimator_
-        #### Build a pipeline with the best estimator and the best vectorizer together here!
-        from sklearn.preprocessing import FunctionTransformer
+            model_name = 'Random Forest Classifier'
+            nlp_model = RandomForestClassifier(random_state=seed)
+            #params['randomforestclassifier__max_depth'] = sp.stats.randint(2,10),
+            #params['randomforestclassifier__n_estimators'] = sp.stats.randint(200,500)
+    ################    B U I L D I N G   A   P I P E L I N E   H E R E  ######################
+    if top_num_features < top_num_features_limit:
+        print("""Since your input top_num_features < %d, selecting %s model. If you need a different model, increase it beyond limit.""" %(
+                            top_num_features_limit,model_name))
+    else:
+        print("""Since your input top_num_features >= %d, selecting %s model. If you need a different model, decrease it below limit.""" %(
+                            top_num_features_limit,model_name))
+    ### The reason we don't add a clean_text function here in pipeline is because it takes too long in online
+    ### It is better to clean the data in advance and then use the pipeline here in GS mode to find best params
+    from sklearn.preprocessing import FunctionTransformer
+    ##### Train and test the model ##########
+    try:
+        pipe = make_pipeline(
+            cvect,
+            select,
+            nlp_model)
+        gs = RandomizedSearchCV(pipe, params, n_iter=n_iter, cv=scv,
+                                scoring=score_type, random_state=seed)
+        gs.fit(X_train,y_train)
+        y_pred = gs.predict(X_test)
+    except:
+        ### If there is an error, we will just skip parameter tuning and just take a simple model
+        params = {}
         pipe = make_pipeline(
              cvect,
              FunctionTransformer(lambda x: x.todense(), accept_sparse=True),
+             select,
              nlp_model)
-        ### Train the Pipeline on the full data set !
-        print('Training Pipeline on full Train data. This will take time...')
-        #####  Now AFTER TRAINING, make predictions on the given test data set!
-        start_time = time.time()
-        pipe.fit(X,y)
-        print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
-        print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
-        if not isinstance(test, str):
-            y_pred = pipe.predict(test[nlp_column])
-            return train, test, pipe, y_pred
-        else:
-            return train, '', pipe, ''
+        gs = RandomizedSearchCV(pipe, params, n_iter=30, cv=scv,
+                                scoring=score_type, random_state=seed)
+        gs.fit(X_train,y_train)
+        y_pred = gs.predict(X_test)
+    ##### Print the model results on Cross Validation data set (held out)
+    print('Training completed. Time taken for training = %0.1f minutes' %((time.time()-start_time)/60))
+    print('Best Params of NLP pipeline are: %s' %gs.best_params_)
+    if modeltype == 'Regression':
+        print_regression_model_stats(y_test, y_pred,'%s Model: Predicted vs Actual for %s' %(model_name,target))
     else:
-        ##################    THIS IS FOR BUILD_MODEL = FALSE           #################
-        #### If build_model = False, then Auto_NLP won't build a model. It will just do a transform of NLP column
-        ##################  THIS IS WHERE YOU ADD COLUMNS, SVD, SENTIMENT ETC.       #################
-        train_best, best_nlp_vect, new_vect, trained_svd = tranform_combine_top_feats_with_SVD(
+        plot_confusion_matrix(y_test, y_pred, model_name)
+        plot_classification_matrix(y_test, y_pred, model_name)
+    #### Now select the best estimator from the RandomizedSearchCV models
+    model_string = "".join(model_name.lower().split(" "))
+    best_vect = gs.best_estimator_.named_steps['tfidfvectorizer']
+    best_sel = gs.best_estimator_.named_steps['selectkbest']
+    best_model = gs.best_estimator_.named_steps[model_string]
+    ### Train the Pipeline on the full data set here ###########################
+    print('Training Pipeline on full Train data. This will be faster since best parameters have been identified...')
+    ### The reason we add clean_tweets and clean_text to the transformer here is because once GS is done, its faster
+    if tweets_flag:
+        best_pipe = make_pipeline(
+            FunctionTransformer(lambda x: clean_tweets(x)),
+            #FunctionTransformer(lambda x: clean_text(x)),
+            best_vect,
+            best_sel,
+            best_model)
+    else:
+        best_pipe = make_pipeline(
+            FunctionTransformer(lambda x: clean_text(x)),
+            best_vect,
+            best_sel,
+            best_model)
+    best_pipe.fit(X,y)
+    print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
+    #### UP TO NOW BOTH BUILD_MODEL PATHS ARE SAME. HERE THEY DIVERTSE A BIT ######################
+    if build_model:
+        if not isinstance(test, str):
+            print('    Now AFTER TRAINING, Auto_NLP makes predictions on your given test data set...')
+            y_pred = best_pipe.predict(test[nlp_column])
+            print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
+            return train, test, best_pipe, y_pred
+        else:
+            print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
+            return train, '', best_pipe, ''
+    else:
+        #####################################################################################
+        print('##################    AFTER BEST NLP TRANSFORMER SELECTED, NOW ENRICH TEXT DATA  #####################')
+        print('    Now we will start transforming NLP_column for train and test data using best vectorizer...')
+        #####################################################################################
+        start_time1 = time.time()
+        best_nlp_vect = copy.deepcopy(best_vect)
+        if not isinstance(test, str):
+            ######   THIS IS A SIMPLER VERSION OF ALL THE ABOVE STEPS AND WORKS JUST AS WELL!! ######################
+            if test.shape[0] >= 100000:
+                print('    Cleaning text in Test data. Please be patient since this is a large dataset with >100K rows...' )
+            else:
+                print('    Cleaning text in Test data...')
+            if tweets_flag:
+                test[nlp_column] = clean_tweets(test[nlp_column])
+                #test[nlp_column] = clean_text(test[nlp_column])
+            else:
+                test[nlp_column] = clean_text(test[nlp_column])
+        #######################################################################################
+        ##################  THIS IS WHERE YOU ADD TRUNCATED SVD DIMENSIONS HERE      ##########
+        #######################################################################################
+        ### train_best contains the the TruncatedSVD dimensions of train data
+        train_best, best_nlp_vect, new_vect, trained_svd = transform_combine_top_feats_with_SVD(
                                                     train, nlp_column, best_nlp_vect, '',
                                                     top_feats, is_train=True,trained_svd='')
-        #################################################################################
-        #### train_best contains the entire data rows with the top X features of a Vectorizer
-        #### from an NLP analysis. This means that you can add these top NLP features to
-        #### your data set and start performing your classification or regression.
-        #####################################################################################
         nlp_result_columns = left_subtract(list(train_best), cols_excl_nlp_cols)
-        print('Completed selecting the best NLP transformer. Time taken = %0.1f minutes' %((time.time()-start_time)/60))
         train_best = train_best.set_index(train_index)
         train_best = train_best.fillna(0)
+        ### train_nlp contains the the TruncatedSVD dimensions along with original train data
         train_nlp = train.join(train_best,rsuffix='_NLP_token_by_Auto_NLP')
-        train_nlp['auto_nlp_source'] = 'Train'
         #################################################################################
         if type(test) != str:
             test_index = test.index
-            test_best, best_nlp_vect, _, _ = tranform_combine_top_feats_with_SVD(
-                                                        test, nlp_column, best_nlp_vect, new_vect,
-                                                        top_feats, is_train=False, trained_svd=trained_svd)
+            test_best, best_nlp_vect, _, _ = transform_combine_top_feats_with_SVD(
+                                            test, nlp_column, best_nlp_vect, new_vect,
+                                            top_feats, is_train=False, trained_svd=trained_svd)
             test_best = test_best.set_index(test_index)
             test_best = test_best.fillna(0)
             test_nlp = test.join(test_best, rsuffix='_NLP_token_by_Auto_NLP')
+        ########################################################################
+        ##### C R E A T E   C L U S T E R   L A B E L S    U S I N G   TruncatedSVD
+        ########################################################################
+        nlp_column_train = train[nlp_column].values
+        if not isinstance(test, str):
+            nlp_column_test = test[nlp_column].values
+        ##### Do a clustering of word vectors from TruncatedSVD Dimensions array. It gives great results.
+        #tfidf_term_array = create_tfidf_terms(nlp_column_train, best_nlp_vect,
+        #                        is_train=True, max_features_limit=max_features_limit)
+        tfidf_term_array = train_best.values
+        print ('Creating word clusters using term matrix of size: %d for Train data set...' %len(
+                                                    tfidf_term_array))
+        #n_clusters = int(np.sqrt(len(tfidf_term_array['terms']))/2)
+        n_clusters = int(np.sqrt(tfidf_term_array.shape[1])/2)
+        if n_clusters < 2:
+            n_clusters = 2
+        ##### Always set verbose to 0 since usually KMEANS running is too verbose!
+        km = KMeans(n_clusters=n_clusters, random_state=seed, verbose=0)
+        kme, cluster_labels = return_cluster_labels(km, tfidf_term_array, n_clusters,
+                                is_train=True)
+        if isinstance(nlp_column, str):
+            cluster_col = nlp_column + '_word_cluster_label'
+        else:
+            cluster_col = str(nlp_column) + '_word_cluster_label'
+        train_nlp[cluster_col] = cluster_labels
+        print ('    Created one new column: %s using KMeans_Clusters on NLP transformed columns...' %cluster_col)
+        if not isinstance(test, str):
+            ##### Do a clustering of word vectors from TruncatedSVD Dimensions array. It gives great results.
+            #tfidf_term_array_test = create_tfidf_terms(nlp_column_test, best_nlp_vect,
+            #                            is_train=False, max_features_limit=max_features_limit)
+            tfidf_term_array_test = test_best.values
+            _, cluster_labels_test = return_cluster_labels(kme, tfidf_term_array_test, n_clusters,
+                                        is_train=False)
+            test_nlp[cluster_col] = cluster_labels_test
+            print ('    Created word clusters using NLP transformed matrix for Test data set...')
+        print('    Time Taken for creating word cluster labels  = %0.0f seconds' %(time.time()-start_time1) )
+        ########################################################################################
+        #######  COMBINE TRAIN AND TEST INTO ONE DATA FRAME HERE BEFORE SENTIMENT ANALYSIS #####
+        ########################################################################################
+        train_nlp['auto_nlp_source'] = 'Train'
+        if type(test) != str:
             test_nlp[target] = 0
             test_nlp['auto_nlp_source'] = 'Test'
             nlp_data = train_nlp.append(test_nlp)
         else:
             nlp_data = copy.deepcopy(train_nlp)
-        #### next create parts-of-speech tagging ####
+        ########################################################################################
+        ######################## next Add SENTIMENT ANALYSIS HERE #########################
+        ########################################################################################
         if len(nlp_data) <= 10000:
-            ### VADER is accurate but very SLOOOWWW. Do not do this for Large data sets ##############
+            ### VADER is accurate but very SLOOOWWW. Do not do this for Large data sets
             nlp_data, pos_cols = add_sentiment(nlp_data, nlp_column)
             nlp_result_columns += pos_cols
         else:
-            ### TEXTBLOB is faster but somewhat less accurate. So we do this for Large data sets ##############
+            ### TEXTBLOB is faster but somewhat less accurate. So we do this for Large data sets
             print('Using TextBlob to add sentiment scores...warning: could be slow for large data sets')
             senti_cols = [nlp_column+'_text_sentiment', nlp_column+'_senti_polarity',
                                     nlp_column+'_senti_subjectivity',nlp_column+'_overall_sentiment']
@@ -1252,10 +1632,9 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             nlp_result_columns += senti_cols
             print('    Added %d columns using TextBlob Sentiment Analyzer. Time Taken = %d seconds' %(
                                         len(senti_cols), time.time()-start_time2))
-        ##### Just do a fillna of all NLP columns in case there are some NA's in them ###########
-        #nlp_data[nlp_result_columns] = nlp_data[nlp_result_columns].apply(lambda x: x.fillna(0)
-        #                        if x.dtype.kind in 'biufc' else x.fillna('missing'))
-        ######### BUILD   MODEL   HERE   IF  BUILD_MODEL  IS   TRUE  ###########################
+        ########################################################################################
+        #########      SPLIT DATA INTO BACK INTO TRAIN AND TEST HERE   #########################
+        ########################################################################################
         train_source = nlp_data[nlp_data['auto_nlp_source']=='Train'].drop('auto_nlp_source',axis=1)
         if not isinstance(test, str):
             test_source = nlp_data[nlp_data['auto_nlp_source']=='Test'].drop('auto_nlp_source',axis=1)
@@ -1265,11 +1644,39 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             test_full = ''
         else:
             test_full = test_source.drop([target,nlp_column],axis=1)
-        print('Number of new columns created using NLP = %d' %(len(nlp_result_columns)))
-        print('Time taken for Auto_NL to complete = %0.1f minutes' %((time.time()-start_time4)/60))
+        number_of_created_columns = train_full.shape[1] - 1
+        print('Number of new columns created using NLP = %d' %number_of_created_columns)
+        print('Time taken for Auto_NLP to complete = %0.1f minutes' %((time.time()-start_time4)/60))
         print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
         return train_full, test_full, best_nlp_vect, max_features_limit
 ##############################################################################################
+from sklearn.cluster import KMeans
+####  These functions are for creating word cluster labels using each NLP column if it exists
+def cluster_using_k_means(km, tfidf_matrix, num_cluster, is_train=True):
+    print ("    Running k-means on NLP token matrix to create " + str(num_cluster) + " word clusters.")
+    if is_train:
+        clusters = km.fit_predict(tfidf_matrix)
+    else:
+        clusters = km.predict(tfidf_matrix)
+    return km, clusters
+
+def create_tfidf_terms(list_X, tfidf_vectorizer,is_train=True, max_features_limit=5000):
+    tfidf_vectorizer.max_features = max_features_limit
+    if is_train:
+        tfidf_matrix = tfidf_vectorizer.fit_transform(list_X)
+    else:
+        tfidf_matrix = tfidf_vectorizer.transform(list_X)
+    return {
+        'tfidf_matrix' : tfidf_matrix ,
+        'terms' : tfidf_vectorizer.get_feature_names()
+    }
+
+def return_cluster_labels(km, tfid_terms, num_cluster, is_train):
+    #X_terms = tfid_terms['tfidf_matrix']
+    X_terms = copy.deepcopy(tfid_terms)
+    km, cluster = cluster_using_k_means(km, X_terms, num_cluster, is_train)
+    return km, cluster
+###################################################################################
 def plot_confusion_matrix(y_test,y_pred, model_name='Model'):
     """
     This plots a beautiful confusion matrix based on input: ground truths and predictions
@@ -1379,7 +1786,7 @@ def NLP_select_best_model_fit_predict(X, y, test, modeltype, score_type):
     test_size = 0.1
     seed = 99
     start_time = time.time()
-    print('##################    THIS IS FOR BUILD_MODEL = TRUE           #################')
+    print('##################    BUILDING NLP TRANSFORMATION PIPELINE           #################')
     print('Building Model and Pipeline for NLP column = %s. This will take time...' %nlp_column)
     ### Split into Train and CV to test the model #####################
     #Train test split with stratified sampling for evaluation
@@ -1444,7 +1851,7 @@ def NLP_select_best_model_fit_predict(X, y, test, modeltype, score_type):
     print('Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time)/60))
     print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
     return y_pred, nlp_model
-#####################################################################
+#################################################################################################
 from sklearn.metrics import mean_squared_error,mean_absolute_error
 def print_regression_model_stats(actuals, predicted, title='Model'):
     """
@@ -1579,6 +1986,7 @@ def create_summary_of_nlp_cols(data, col, target, is_train=False, verbose=0):
     in order for the column to be relevant to the target.
     This can also be a Business question. It may help us in building a better predictive model.
     """
+    data = copy.deepcopy(data)
     cols = []
     stop_words = return_stop_words()
     # word_count
@@ -1669,7 +2077,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.39'
+version_number = '0.0.40'
 print("""\nImported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',

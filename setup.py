@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="autoviml",
-    version="0.1.658",
+    version="0.1.659",
     author="Ram Seshadri",
     # author_email="author@example.com",
     description="Automatically Build Variant Interpretable ML models fast - now with CatBoost!",
@@ -29,7 +29,8 @@ setuptools.setup(
         "vaderSentiment",
         "imbalanced-learn>=0.7",
     	"beautifulsoup4",
-    	"featuretools"
+    	"featuretools",
+        "emoji"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

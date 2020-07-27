@@ -14,3 +14,4 @@ imbalanced-learn>=0.7
 regex
 beautifulsoup4
 featuretools
+emoji

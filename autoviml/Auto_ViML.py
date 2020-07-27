@@ -396,7 +396,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #### 'lbfgs' is the fastest one but doesnt provide accurate results. Newton-CG is slower but accurate!
     #### SAGA is extremely slow. Even slower than Newton-CG. Liblinear is the fastest and as accurate as Newton-CG!
     solvers = ['liblinear'] ### Other solvers for Logistic Regression model: ['newton-cg','lbfgs','saga','liblinear']
-    solver = 'liblinear'  ### This is the next fastest solver after liblinear. Useful for Multi-class problems!
+    solver = 'liblinear'  ### lbfgs is the next fastest solver after liblinear. Useful for Multi-class problems!
     penalties = ['l2','l1'] ### This is to determine the penalties for LogisticRegression
     n_steps = 6 ### number of estimator steps between 100 and max_estims
     max_depth = 20 ##### This limits the max_depth used in decision trees and other classifiers
@@ -975,41 +975,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################  A U T O   N L P  P R O C E S S I N G   B E G I N S    H E R E !!! ####
         if len(nlp_columns) > 0:
             for nlp_column in nlp_columns:
-                nlp_column_train = train[nlp_column].values
-                if not isinstance(orig_test, str):
-                    nlp_column_test = test[nlp_column].values
                 train1, test1, best_nlp_transformer,max_features_limit = Auto_NLP(nlp_column,
                                                 train, test, each_target, refit_metric,
                                                 modeltype, top_nlp_features, verbose,
                                                 build_model=False)
-                ########################################################################
-                if KMeans_Featurizer:
-                    start_time1 = time.time()
-                    ##### Do a clustering of word vectors from each NLP_column. This gives great results!
-                    tfidf_term_array = create_tfidf_terms(nlp_column_train, best_nlp_transformer,
-                                            is_train=True, max_features_limit=max_features_limit)
-                    print ('Creating word clusters using term matrix of size: %d for Train data set...' %len(tfidf_term_array['terms']))
-                    n_clusters = int(np.sqrt(len(tfidf_term_array['terms']))/2)
-                    if n_clusters < 2:
-                        n_clusters = 2
-                    ##### Always set verbose to 0 since we KMEANS running is too verbose!
-                    km = KMeans(n_clusters=n_clusters, random_state=seed, verbose=0)
-                    kme, cluster_labels = return_cluster_labels(km, tfidf_term_array, n_clusters,
-                                            is_train=True)
-                    if isinstance(nlp_column, str):
-                        cluster_col = nlp_column + '_word_cluster_label'
-                    else:
-                        cluster_col = str(nlp_column) + '_word_cluster_label'
-                    train1[cluster_col] = cluster_labels
-                    print ('Created one new column: %s using selected NLP technique...' %cluster_col)
-                    if not isinstance(orig_test, str):
-                        tfidf_term_array_test = create_tfidf_terms(nlp_column_test, best_nlp_transformer,
-                                                    is_train=False, max_features_limit=max_features_limit)
-                        _, cluster_labels_test = return_cluster_labels(kme, tfidf_term_array_test, n_clusters,
-                                                    is_train=False)
-                        test1[cluster_col] = cluster_labels_test
-                        print ('Created word clusters using same sized term matrix for Test data set...')
-                    print('    Time Taken for creating word cluster labels  = %0.0f seconds' %(time.time()-start_time1) )
                 ####### Make sure you include the above new columns created in the predictor variables!
                 red_preds = [x for x in list(train1) if x not in [each_target]]
                 train = train1[red_preds+[each_target]]
@@ -1142,8 +1111,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ### Now we add another Feature tied to KMeans clustering using Predictor and Target variables ###
         if KMeans_Featurizer and len(saved_num_vars) > 0:
             ### DO KMeans Featurizer only if there are numeric features in the data set!
-            print('    Adding one Feature named "KMeans_Clusters" based on KMeans_Featurizer_Flag=True...')
-            km_label = 'KMeans_Clusters'
+            km_label = each_target+'_KMeans_Clusters'
+            print('    Adding one Feature named %s based on KMeans_Featurizer_Flag=True...' %km_label)
             #### Make the number of clusters as the same as log10 of number of rows in Train
             num_clusters = int(np.round(max(2,np.log10(train.shape[0]))))
             #### Make the number of clusters as the same as log10 of number of rows in Train
@@ -1427,7 +1396,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
                             max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=max_estims,
                             n_jobs=-1, nthread=None, objective=objective,
-                            random_state=1, reg_alpha=0.5, reg_lambda=0.5, scale_pos_weight=1,
+                            random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                             seed=1)
                         xgbm.set_params(**param)
                 elif Boosting_Flag is None:
@@ -1547,7 +1516,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                     colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
                             max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=max_estims,
                             n_jobs=-1, nthread=None, objective=objective,
-                            random_state=1, reg_alpha=0.5, reg_lambda=0.5, scale_pos_weight=1,
+                            random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                             num_class= len(classes),
                             seed=1)
                         xgbm.set_params(**param)
@@ -1859,7 +1828,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         # THis works well for large data sets and is non-parametric
                         method=  'isotonic'
                     model = CalibratedClassifierCV(model, method=method, cv="prefit")
-                    model.fit(X_train, y_train)
+                    X_ful = X_train.append(X_cv)
+                    y_ful = y_train.append(y_cv)
+                    model.fit(X_ful, y_ful)
                     print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
                     calibrator_flag = True
                 except:
@@ -2139,8 +2110,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         #######################   KMEANS   SECOND   TIME     ############################
         if KMeans_Featurizer and len(saved_num_vars) > 0:
             #### Perform KMeans Featurizer only if there are numeric variables in data set! #########
-            print('Adding one feature named "KMeans_Clusters" using KMeans_Featurizer...')
-            km_label = 'KMeans_Clusters'
+            print('Adding one feature named %s using KMeans_Featurizer...' %km_label)
             #### Make the number of clusters as the same as log10 of number of rows in Train
             train_cluster, test_cluster = Transform_KM_Features(train[important_features], train[
                                     each_target], test[important_features], num_clusters)
@@ -2824,7 +2794,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                 colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
                 max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=100,
                 n_jobs=-1, nthread=None, objective='binary:logistic',
-                random_state=1, reg_alpha=0.5, reg_lambda=0.5, scale_pos_weight=1,
+                random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                 seed=1)
             eval_metric = 'logloss'
         else:
@@ -2832,7 +2802,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
                         colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
                 max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=100,
                 n_jobs=-1, nthread=None, objective='multi:softmax',
-                random_state=1, reg_alpha=0.5, reg_lambda=0.5, scale_pos_weight=1,
+                random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                 seed=1)
             eval_metric = 'mlogloss'
     ####   This is where you start to Iterate on Finding Important Features ################
@@ -3573,7 +3543,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         #### This part selects the top 10% of interaction variables created using linear modeling.
         ###   It is very important to leave the next line as is since > symbol is better than >=
         lim = abs(df['Coefficient Values']).quantile(0.9)
-        df90 = df[df['Coefficient Values']>lim].sort_values('Coefficient Values',ascending=False)
+        df90 = df[abs(df['Coefficient Values'])>lim].sort_values('Coefficient Values',ascending=False)
         if df['Coefficient Values'].sum()==0.0 or df90['Coefficient Values'].sum()==0.0:
             ### There is no coefficient that is greater than 0 here. So reject all variables!
             sel_x_vars = []
@@ -3805,32 +3775,6 @@ def Draw_ROC_MC_ML(model, X_test, y_true, target, model_name, verbose=0):
             plt.legend(labels,loc="lower right")
             plt.show();
 
-###################################################################################
-from sklearn.cluster import KMeans
-####  These functions are for creating word cluster labels using each NLP column if it exists
-def cluster_using_k_means(km, tfidf_matrix, num_cluster, is_train=True):
-    print ("    Running k-means on NLP token matrix to create " + str(num_cluster) + " word clusters.")
-    if is_train:
-        clusters = km.fit_predict(tfidf_matrix)
-    else:
-        clusters = km.predict(tfidf_matrix)
-    return km, clusters
-
-def create_tfidf_terms(list_X, tfidf_vectorizer,is_train=True, max_features_limit=5000):
-    tfidf_vectorizer.max_features = max_features_limit
-    if is_train:
-        tfidf_matrix = tfidf_vectorizer.fit_transform(list_X)
-    else:
-        tfidf_matrix = tfidf_vectorizer.transform(list_X)
-    return {
-        'tfidf_matrix' : tfidf_matrix ,
-        'terms' : tfidf_vectorizer.get_feature_names()
-    }
-
-def return_cluster_labels(km, tfid_terms, num_cluster, is_train):
-    X_terms = tfid_terms['tfidf_matrix']
-    km, cluster = cluster_using_k_means(km, X_terms, num_cluster, is_train)
-    return km, cluster
 ###################################################################################
 # Removes duplicates from a list to return unique values - USED ONLYONCE
 def find_remove_duplicates(values):
@@ -4722,7 +4666,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.658'
+version_number = '0.1.659'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -936,7 +936,29 @@ def fit_and_predict(model, X_train, y_train, X_cv, modeltype='Classification', i
             return y_preds
 ################################################################################
 import copy
-def transform_combine_top_feats_with_SVD(each_df, nlp_column, big_nlp_vect, new_vect,
+def reduce_dimensions_with_Truncated_SVD(each_df, each_df_dtm, is_train=True,trained_svd=''):
+    """
+    This is a new method to combine the top X features from Vectorizers and the top 100 dimensions from Truncated SVD.
+    The idea is to have a small number of features that are the best in each class (label) to produce a very fast accurate model.
+    This model outperforms many models that have 10X more features. Hence it can be used to build highly interpretable models.
+    """
+    import copy
+    orig_each_df = copy.deepcopy(each_df)
+    orig_each_df_index = orig_each_df.index
+    ### Now you have to use transformed data to create a Trained SVD that will reduce dimensions to 100-dimensions
+    ### You have to make sure that you send in a trained SVD and set training to False since this is each_df
+    if is_train:
+        each_df_dtm1, trained_svd = select_top_features_from_SVD(each_df_dtm, '', True)
+        ls = ['svd_dim_'+str(x) for x in range(each_df_dtm1.shape[1])]
+        each_df_dtm1 = pd.DataFrame(each_df_dtm1,columns=ls, index=orig_each_df_index)
+    else:
+        each_df_dtm1, _ = select_top_features_from_SVD(each_df_dtm, trained_svd, False)
+        ls = ['svd_dim_'+str(x) for x in range(each_df_dtm1.shape[1])]
+        each_df_dtm1 = pd.DataFrame(each_df_dtm1,columns=ls, index=orig_each_df_index)
+    print('TruncatedSVD Data Frame size = %s' %(each_df_dtm1.shape,))
+    return each_df_dtm1, trained_svd
+###########################################################################
+def transform_combine_top_feats_with_SVD(each_df_dtm, nlp_column, big_nlp_vect, new_vect,
                                             top_feats,is_train=True,trained_svd=''):
     """
     This is a new method to combine the top 300 features from Vectorizers and the top 100 dimensions from Truncated SVD.
@@ -1502,25 +1524,47 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     ### Train the Pipeline on the full data set here ###########################
     print('Training Pipeline on full Train data. This will be faster since best parameters have been identified...')
     ### The reason we add clean_tweets and clean_text to the transformer here is because once GS is done, its faster
+    #### UP TO NOW BOTH BUILD_MODEL PATHS ARE SAME. HERE THEY DIVERTSE A BIT ######################
+    #### If there is no model, then we can just use this to create a Transformer pipeline going forward ###
+    #### This Transformer pipeline will transform train and test data using the selected vectorizer and selectKbest ####
     if tweets_flag:
-        best_pipe = make_pipeline(
+        transform_pipe = make_pipeline(
             FunctionTransformer(lambda x: clean_tweets(x)),
             #FunctionTransformer(lambda x: clean_text(x)),
             best_vect,
             best_sel,
-            best_model)
+            )
     else:
-        best_pipe = make_pipeline(
+        transform_pipe = make_pipeline(
             FunctionTransformer(lambda x: clean_text(x)),
             best_vect,
             best_sel,
-            best_model)
-    best_pipe.fit(X,y)
-    print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
-    #### UP TO NOW BOTH BUILD_MODEL PATHS ARE SAME. HERE THEY DIVERTSE A BIT ######################
+            )
+    #### Using the transform pipeline we will transform the train and test data sets!
+    trainm = transform_pipe.transform(train[nlp_column])
+    if not isinstance(test, str):
+        testm = transform_pipe.transform(test[nlp_column])
+    #### This best_pipe pipeline will however in addition to transforming, will also train and predict using the trained model ####
     if build_model:
+        if tweets_flag:
+            best_pipe = make_pipeline(
+                FunctionTransformer(lambda x: clean_tweets(x)),
+                #FunctionTransformer(lambda x: clean_text(x)),
+                best_vect,
+                best_sel,
+                best_model)
+        else:
+            best_pipe = make_pipeline(
+                FunctionTransformer(lambda x: clean_text(x)),
+                best_vect,
+                best_sel,
+                best_model)
+        best_pipe.fit(X,y)
+        print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
+        train = train.join(trainm, rsuffix='_NLP_token_by_Auto_NLP')
         if not isinstance(test, str):
             print('    Now AFTER TRAINING, Auto_NLP makes predictions on your given test data set...')
+            test = test.join(testm,rsuffix='_NLP_token_by_Auto_NLP')
             y_pred = best_pipe.predict(test[nlp_column])
             print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
             return train, test, best_pipe, y_pred
@@ -1534,24 +1578,12 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         #####################################################################################
         start_time1 = time.time()
         best_nlp_vect = copy.deepcopy(best_vect)
-        if not isinstance(test, str):
-            ######   THIS IS A SIMPLER VERSION OF ALL THE ABOVE STEPS AND WORKS JUST AS WELL!! ######################
-            if test.shape[0] >= 100000:
-                print('    Cleaning text in Test data. Please be patient since this is a large dataset with >100K rows...' )
-            else:
-                print('    Cleaning text in Test data...')
-            if tweets_flag:
-                test[nlp_column] = clean_tweets(test[nlp_column])
-                #test[nlp_column] = clean_text(test[nlp_column])
-            else:
-                test[nlp_column] = clean_text(test[nlp_column])
         #######################################################################################
         ##################  THIS IS WHERE YOU ADD TRUNCATED SVD DIMENSIONS HERE      ##########
         #######################################################################################
         ### train_best contains the the TruncatedSVD dimensions of train data
-        train_best, best_nlp_vect, new_vect, trained_svd = transform_combine_top_feats_with_SVD(
-                                                    train, nlp_column, best_nlp_vect, '',
-                                                    top_feats, is_train=True,trained_svd='')
+        train_best, trained_svd = reduce_dimensions_with_Truncated_SVD(train,
+                                                            trainm, is_train=True,trained_svd='')
         nlp_result_columns = left_subtract(list(train_best), cols_excl_nlp_cols)
         train_best = train_best.set_index(train_index)
         train_best = train_best.fillna(0)
@@ -1560,9 +1592,8 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         #################################################################################
         if type(test) != str:
             test_index = test.index
-            test_best, best_nlp_vect, _, _ = transform_combine_top_feats_with_SVD(
-                                            test, nlp_column, best_nlp_vect, new_vect,
-                                            top_feats, is_train=False, trained_svd=trained_svd)
+            test_best, _ = reduce_dimensions_with_Truncated_SVD(test,
+                                            testm, is_train=False, trained_svd=trained_svd)
             test_best = test_best.set_index(test_index)
             test_best = test_best.fillna(0)
             test_nlp = test.join(test_best, rsuffix='_NLP_token_by_Auto_NLP')

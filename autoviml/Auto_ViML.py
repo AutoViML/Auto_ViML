@@ -274,8 +274,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.654                                              #######
-    #####   GPU UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade.  May 15,2020         ######
+    ######                               Version 0.1.660                                              #######
+    #####   GPU UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade.  July 24,2020         ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
     #Copyright 2019 Google LLC                                                                        #######
@@ -2209,8 +2209,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                     #### Set the Verbose to 0 since we don't want too much output ##
                                 if model_name == 'XGBoost':
                                     #### Set the Verbose to 0 since we don't want too much output ##
-                                    model.fit(X, y,
-                                            eval_metric=eval_metric,verbose=0)
+                                    model.fit(X, y, verbose=0)
                                 else:
                                     model.fit(X, y, cat_features=imp_cats, plot=False)
                             else:
@@ -2224,8 +2223,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         if Boosting_Flag:
                                 if model_name == 'XGBoost':
                                     #### Set the Verbose to 0 since we don't want too much output ##
-                                    model.fit(X, y,
-                                            eval_metric=eval_metric,verbose=0)
+                                    model.fit(X, y)
                                 else:
                                     model.fit(X, y, cat_features=imp_cats, plot=False)
                         else:
@@ -2238,8 +2236,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         if Boosting_Flag:
                             if model_name == 'XGBoost':
                                 ### Since second time we don't have X_cv, we remove it
-                                    model.fit(X, y,
-                                        eval_metric=eval_metric,verbose=0)
+                                    model.fit(X, y)
                             else:
                                 model.fit(X, y, cat_features=imp_cats, plot=False)
                         else:
@@ -2254,8 +2251,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 else:
                     if Boosting_Flag:
                         if model_name == 'XGBoost':
-                            model.fit(X, y,
-                                eval_metric=eval_metric,verbose=0)
+                            model.fit(X, y)
                         else:
                             model.fit(X, y, cat_features=imp_cats, use_best_model=False, plot=False)
                     else:
@@ -4165,10 +4161,11 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
             early_stopping = 5
             try:
                 if calibrator_flag:
+                    model.base_estimator.set_params(**params)
                     model.fit(train_ovr[train_preds], train_ovr[df_target])
                 else:
                     if eval_set==[()]:
-                        model.fit(train_ovr[train_preds], train_ovr[df_target], eval_metric=eval_metric, verbose=False)
+                        model.fit(train_ovr[train_preds], train_ovr[df_target], verbose=False)
                     else:
                         model.fit(train_ovr[train_preds], train_ovr[df_target],early_stopping_rounds=early_stopping,
                             eval_metric=eval_metric,eval_set=eval_set,verbose=False)
@@ -4178,12 +4175,15 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
                 ####  This is to turn it back to cpu_predictor in case GPU errors!
                 if GPU_exists:
                     print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
-                    model.estimator.set_params(**params)
-                if calibrator_flag:
-                    model.fit(train_ovr[train_preds], train_ovr[df_target])
+                    if calibrator_flag:
+                        model.base_estimator.set_params(**params)
+                        model.fit(train_ovr[train_preds], train_ovr[df_target])
+                    else:
+                        model.estimator.set_params(**params)
+                        model.fit(train_ovr[train_preds], train_ovr[df_target])
                 else:
                     if eval_set==[()]:
-                        model.fit(train_ovr[train_preds], train_ovr[df_target], eval_metric=eval_metric,
+                        model.fit(train_ovr[train_preds], train_ovr[df_target],
                              verbose=False)
                     else:
                         model.fit(train_ovr[train_preds], train_ovr[df_target], early_stopping_rounds=early_stopping,
@@ -4666,7 +4666,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.659'
+version_number = '0.1.660'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

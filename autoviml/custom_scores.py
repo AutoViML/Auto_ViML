@@ -9,7 +9,7 @@ from sklearn.metrics import classification_report, confusion_matrix,mean_squared
 from sklearn.metrics import precision_recall_curve
 from sklearn.model_selection import cross_val_score, StratifiedKFold, KFold
 from sklearn.metrics import make_scorer
-from sklearn.metrics import accuracy_score   
+from sklearn.metrics import accuracy_score
 from sklearn.metrics import average_precision_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import log_loss
@@ -83,7 +83,7 @@ def gini_precision(truth, predictions,pos_label=1):
     return precision_score(truth, predictions,average=None)[pos_label]
 
 def gini_average_precision(truth, predictions):
-    return average_precision_score(truth, predictions.argmax(axis=1),average='weighted')
+    return precision_score(truth, predictions.argmax(axis=1),average='macro')
 
 def gini_weighted_precision(truth, predictions):
     return precision_score(truth, predictions.argmax(axis=1),average='weighted')

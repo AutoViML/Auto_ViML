@@ -44,8 +44,6 @@ from sklearn import metrics
 #### For Regression problems
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
-
-
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
@@ -53,6 +51,7 @@ from sklearn import model_selection, metrics   #Additional sklearn functions
 from sklearn.model_selection import GridSearchCV   #Performing grid search
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.metrics import roc_auc_score
+from sklearn.calibration import CalibratedClassifierCV
 
 import copy
 from itertools import cycle
@@ -352,7 +351,10 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 # Convert Emojis to Text
 import emoji
 def convert_emojis(text):
-    return emoji.demojize(text)
+    try:
+        return emoji.demojize(text)
+    except:
+        return "Errorintext"
 
 import string
 def remove_punct(text):
@@ -1293,6 +1295,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     #### You can use top_num_features (default = 200) to control how many features to add.
     ##################################################################################
     """
+    calibrator_flag = False
     import time
     seed = 99
     train = copy.deepcopy(train)
@@ -1371,10 +1374,10 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         test, nlp_summary_cols = create_summary_of_nlp_cols(test, nlp_column, target, is_train=False, verbose=0)
     ########################  C L E AN    C O L U M N S   F I R S T ######################
     #if train[nlp_column].apply(len).mean() <= 1500:
-    if train.shape[0] <= 10000:
-        tweets_flag = False
-    else:
+    if top_num_features <= top_num_features_limit:
         tweets_flag = True
+    else:
+        tweets_flag = False
     print('    Cleaning text in %s before doing transformation...' %nlp_column)
     if train.shape[0] >= 100000:
         print('Cleaning text in Train data. Please be patient since this is a large dataset with >100K rows...' )
@@ -1476,13 +1479,23 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             nlp_model = RandomForestClassifier(random_state=seed)
             #params['randomforestclassifier__max_depth'] = sp.stats.randint(2,10),
             #params['randomforestclassifier__n_estimators'] = sp.stats.randint(200,500)
+    #### Adding a CalibratedClassifier to text classification tasks  ########################
+    if modeltype != 'Regression':
+        if X_train.shape[0] <= 1000:
+            # This works well for small data sets and is similar to parametric
+            method=  'sigmoid' # 'isotonic' # #
+        else:
+            # This works well for large data sets and is non-parametric
+            method=  'isotonic'
+        calibrator_flag = True
+        print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
     ################    B U I L D I N G   A   P I P E L I N E   H E R E  ######################
     if top_num_features < top_num_features_limit:
-        print("""Since your input top_num_features < %d, selecting %s model. If you need a different model, increase it beyond limit.""" %(
-                            top_num_features_limit,model_name))
+        print("""Since top_num_features < %d, %s model selected. If you need different model, increase it >= %d.""" %(
+                            top_num_features_limit,model_name,top_num_features_limit))
     else:
-        print("""Since your input top_num_features >= %d, selecting %s model. If you need a different model, decrease it below limit.""" %(
-                            top_num_features_limit,model_name))
+        print("""Since top_num_features >= %d, selecting %s model. If you need different model, decrease it <%d.""" %(
+                            top_num_features_limit,model_name,top_num_features_limit))
     ### The reason we don't add a clean_text function here in pipeline is because it takes too long in online
     ### It is better to clean the data in advance and then use the pipeline here in GS mode to find best params
     from sklearn.preprocessing import FunctionTransformer
@@ -1495,7 +1508,6 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         gs = RandomizedSearchCV(pipe, params, n_iter=n_iter, cv=scv,
                                 scoring=score_type, random_state=seed)
         gs.fit(X_train,y_train)
-        y_pred = gs.predict(X_test)
     except:
         ### If there is an error, we will just skip parameter tuning and just take a simple model
         params = {}
@@ -1507,6 +1519,23 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         gs = RandomizedSearchCV(pipe, params, n_iter=30, cv=scv,
                                 scoring=score_type, random_state=seed)
         gs.fit(X_train,y_train)
+    ##### Now check to see if the CalibratedClassifier can work on this data set #####
+    model_string = "".join(model_name.lower().split(" "))
+    #### Now select the best estimator from the RandomizedSearchCV models
+    best_vect = gs.best_estimator_.named_steps['tfidfvectorizer']
+    best_sel = gs.best_estimator_.named_steps['selectkbest']
+    if calibrator_flag:
+        best_estimator = gs.best_estimator_.named_steps[model_string]
+        calib_pipe = make_pipeline(
+             best_vect,
+             FunctionTransformer(lambda x: x.todense(), accept_sparse=True),
+             best_sel,
+             )
+        best_model = CalibratedClassifierCV(best_estimator,cv=3, method='isotonic')
+        best_model.fit(calib_pipe.transform(X_train), y_train)
+        y_pred = best_model.predict(calib_pipe.transform(X_test))
+    else:
+        best_model = gs.best_estimator_.named_steps[model_string]
         y_pred = gs.predict(X_test)
     ##### Print the model results on Cross Validation data set (held out)
     print('Training completed. Time taken for training = %0.1f minutes' %((time.time()-start_time)/60))
@@ -1516,13 +1545,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     else:
         plot_confusion_matrix(y_test, y_pred, model_name)
         plot_classification_matrix(y_test, y_pred, model_name)
-    #### Now select the best estimator from the RandomizedSearchCV models
-    model_string = "".join(model_name.lower().split(" "))
-    best_vect = gs.best_estimator_.named_steps['tfidfvectorizer']
-    best_sel = gs.best_estimator_.named_steps['selectkbest']
-    best_model = gs.best_estimator_.named_steps[model_string]
     ### Train the Pipeline on the full data set here ###########################
-    print('Training Pipeline on full Train data. This will be faster since best parameters have been identified...')
     ### The reason we add clean_tweets and clean_text to the transformer here is because once GS is done, its faster
     #### UP TO NOW BOTH BUILD_MODEL PATHS ARE SAME. HERE THEY DIVERTSE A BIT ######################
     #### If there is no model, then we can just use this to create a Transformer pipeline going forward ###
@@ -1540,10 +1563,18 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             best_vect,
             best_sel,
             )
+    ###  This transform_pipe is used merely to transform text into the best term matrix for modeling
     #### Using the transform pipeline we will transform the train and test data sets!
+    print('  Now transforming Train data to return as output...')
     trainm = transform_pipe.transform(train[nlp_column])
+    sel_col_names = np.array(best_vect.get_feature_names())[transform_pipe.named_steps[
+                            'selectkbest'].get_support()]
+    trainm = pd.DataFrame(trainm.todense(),index=train_index,columns=sel_col_names)
     if not isinstance(test, str):
+        test_index = test.index
+        print('  Transforming Test data to return as output...')
         testm = transform_pipe.transform(test[nlp_column])
+        testm = pd.DataFrame(testm.todense(),index=test_index,columns=sel_col_names)
     #### This best_pipe pipeline will however in addition to transforming, will also train and predict using the trained model ####
     if build_model:
         if tweets_flag:
@@ -1559,16 +1590,18 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
                 best_vect,
                 best_sel,
                 best_model)
+        print('Training best Auto_NLP Pipeline on full Train data...will be faster since best params are known')
         best_pipe.fit(X,y)
-        print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
         train = train.join(trainm, rsuffix='_NLP_token_by_Auto_NLP')
         if not isinstance(test, str):
-            print('    Now AFTER TRAINING, Auto_NLP makes predictions on your given test data set...')
+            print('    Returning best Auto_NLP pipeline to transform and make predictions on test data...')
             test = test.join(testm,rsuffix='_NLP_token_by_Auto_NLP')
             y_pred = best_pipe.predict(test[nlp_column])
+            print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
             print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
             return train, test, best_pipe, y_pred
         else:
+            print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
             print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
             return train, '', best_pipe, ''
     else:
@@ -1585,18 +1618,15 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         train_best, trained_svd = reduce_dimensions_with_Truncated_SVD(train,
                                                             trainm, is_train=True,trained_svd='')
         nlp_result_columns = left_subtract(list(train_best), cols_excl_nlp_cols)
-        train_best = train_best.set_index(train_index)
         train_best = train_best.fillna(0)
         ### train_nlp contains the the TruncatedSVD dimensions along with original train data
-        train_nlp = train.join(train_best,rsuffix='_NLP_token_by_Auto_NLP')
+        train_nlp = train.join(train_best,rsuffix='_SVD_Dim_by_Auto_NLP')
         #################################################################################
         if type(test) != str:
-            test_index = test.index
             test_best, _ = reduce_dimensions_with_Truncated_SVD(test,
                                             testm, is_train=False, trained_svd=trained_svd)
-            test_best = test_best.set_index(test_index)
             test_best = test_best.fillna(0)
-            test_nlp = test.join(test_best, rsuffix='_NLP_token_by_Auto_NLP')
+            test_nlp = test.join(test_best, rsuffix='_SVD_Dim_by_Auto_NLP')
         ########################################################################
         ##### C R E A T E   C L U S T E R   L A B E L S    U S I N G   TruncatedSVD
         ########################################################################
@@ -2108,7 +2138,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.40'
+version_number = '0.0.41'
 print("""\nImported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',

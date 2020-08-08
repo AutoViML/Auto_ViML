@@ -17,8 +17,8 @@ Auto_ViML is pronounced "auto vimal".
 2. Auto_NLP: It automatically detects Text variables and does NLP processing on those columns <br>
 3. Date Time Variables: It automatically detects  date time variables and adds extra features <br>
 4. Feature Engineering: Now you can perform feature engineering with the available <a href='https://www.featuretools.com/'>featuretools</a> library. <br>
-<p>To upgrade to the BEST, STABLEST and MOST FEATURED version (anything over > 0.1.600), do one of the following: <br>
-<code>Use $ pip install autoviml --upgrade </code><br>
+<p>To upgrade to the best, most stable and full-featured version (anything over > 0.1.600), do one of the following: <br>
+<code>Use $ pip install autoviml --upgrade --ignore-installed</code><br>
 or
 <code>pip install git+https://github.com/AutoViML/Auto_ViML.git </code><br>
 

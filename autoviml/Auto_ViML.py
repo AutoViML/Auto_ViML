@@ -274,7 +274,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #########################################################################################################
     ####       Automatically Build Variant Interpretable Machine Learning Models (Auto_ViML)           ######
     ####                                Developed by Ramadurai Seshadri                                ######
-    ######                               Version 0.1.661                                              #######
+    ######                               Version 0.1.662                                              #######
     #####   GPU UPGRADE!! Now with Auto_NLP. Best Version to Download or Upgrade.  July 24,2020         ######
     ######          Auto_VIMAL with Auto_NLP combines structured data with NLP for Predictions.       #######
     #########################################################################################################
@@ -722,6 +722,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         validation_metric = copy.deepcopy(scoring_parameter)
     ##########  D A T A    P R E P R O C E S S I N G     H E R E ##########################
     print('#############     D A T A    P R E P A R A T I O N   AND C L E A N I N G     #############')
+    missing_cols = []
     if not isinstance(orig_test,str):
         missing_cols = set(train.columns)-set(test.columns).union(set(target))
         if  len(missing_cols) >= 1:
@@ -753,9 +754,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     num_bool_vars.append(new_missing_col)
                     preds.append(new_missing_col)
                     missing_flag_cols.append(new_missing_col)
-            elif f in missing_cols:
-                #### YOu have to do nothing for missing column yet. Leave them as is for Iterative Imputer later ##############
-                continue
             elif start_train[f].dtype == object:
                 ####  This is the easiest way to label encode object variables in both train and test
                 #### This takes care of some categories that are present in train and not in test
@@ -4666,7 +4664,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.661'
+version_number = '0.1.662'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

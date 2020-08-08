@@ -1682,14 +1682,14 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             nlp_result_columns += pos_cols
         else:
             ### TEXTBLOB is faster but somewhat less accurate. So we do this for Large data sets
-            print('Using TextBlob to add sentiment scores...warning: could be slow for large data sets')
+            print('Since samples in data > 10000 using TextBlob, which is faster to add sentiment scores...')
             senti_cols = [nlp_column+'_text_sentiment', nlp_column+'_senti_polarity',
                                     nlp_column+'_senti_subjectivity',nlp_column+'_overall_sentiment']
             start_time2 = time.time()
             nlp_data[senti_cols[0]] = nlp_data[nlp_column].map(detect_sentiment).fillna(0)
-            nlp_data[senti_cols[1]] = nlp_data[nlp_column].map(calculate_line_sentiment,'polarity').fillna(0)
-            nlp_data[senti_cols[2]] = nlp_data[nlp_column].map(calculate_line_sentiment,'subjectivity').fillna(0)
-            nlp_data[senti_cols[3]] = nlp_data[nlp_column].map(calculate_paragraph_sentiment).fillna(0)
+            nlp_data[senti_cols[1]] = nlp_data[nlp_column].apply(calculate_line_sentiment,'polarity').fillna(0).values
+            nlp_data[senti_cols[2]] = nlp_data[nlp_column].apply(calculate_line_sentiment,'subjectivity').fillna(0).values
+            nlp_data[senti_cols[3]] = nlp_data[nlp_column].apply(calculate_paragraph_sentiment).fillna(0).values
             nlp_result_columns += senti_cols
             print('    Added %d columns using TextBlob Sentiment Analyzer. Time Taken = %d seconds' %(
                                         len(senti_cols), time.time()-start_time2))
@@ -2138,7 +2138,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.41'
+version_number = '0.0.42'
 print("""\nImported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',

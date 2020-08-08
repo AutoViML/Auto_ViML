@@ -11,7 +11,7 @@
 [![PyPI License](https://img.shields.io/pypi/l/autoviml.svg)](https://github.com/AutoViML/Auto_ViML/blob/master/LICENSE)
 
 Automatically Build Variant Interpretable ML models fast!
-Auto_ViML is pronounced "auto vimal".
+Auto_ViML is pronounced "auto vimal" (autovimal logo created by Sanket Ghanmare)
 <p>NEW FEATURES in this version are:<br>
 1. SMOTE -> now we use SMOTE for imbalanced data. Just set Imbalanced_Flag = True in input below <br>
 2. Auto_NLP: It automatically detects Text variables and does NLP processing on those columns <br>

@@ -70,12 +70,15 @@ def print_rare_class(classes, verbose=0):
     It returns the name of the Rare class (the one with the minimum class member count).
     This can also be helpful in using it as pos_label in Binary and Multi Class problems.
     """
-    if len(classes.columns) > 1:
+    try: 
+        ### test if it is a multi-label problem by seeing if the classes has multiple columns
+        len(classes.columns) > 1
         ### This is a multi-label problem, hence you have to do value counts by each target name
         targets = classes.columns.tolist()
         for each_target in targets:
             print('%s value counts:\n%s' %(each_target,classes[each_target].value_counts()))
-    else:
+    except:
+        ##### if classes has only one column, then it is a single-label problem
         counts = OrderedDict(Counter(classes))
         total = sum(counts.values())
         if verbose >= 1:

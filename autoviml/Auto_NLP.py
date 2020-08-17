@@ -12,7 +12,10 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-get_ipython().magic('matplotlib inline')
+#get_ipython().magic('matplotlib inline')
+pd.set_option('display.max_columns',100)
+pd.set_option('display.max_rows',100)
+pd.set_option('display.max_colwidth',1000)
 sns.set(style="white", color_codes=True)
 import time
 import matplotlib
@@ -58,6 +61,32 @@ from itertools import cycle
 from collections import Counter
 import nltk
 nltk.download("popular")
+############################################################################
+from collections import OrderedDict, Counter
+def print_rare_class(classes, verbose=0):
+    ######### Print the % count of each class in a Target variable  #####
+    """
+    Works on Multi Class too. Prints class percentages count of target variable.
+    It returns the name of the Rare class (the one with the minimum class member count).
+    This can also be helpful in using it as pos_label in Binary and Multi Class problems.
+    """
+    if len(classes.columns) > 1:
+        ### This is a multi-label problem, hence you have to do value counts by each target name
+        targets = classes.columns.tolist()
+        for each_target in targets:
+            print('%s value counts:\n%s' %(each_target,classes[each_target].value_counts()))
+    else:
+        counts = OrderedDict(Counter(classes))
+        total = sum(counts.values())
+        if verbose >= 1:
+            print('       Class  -> Counts -> Percent')
+            sorted_keys = sorted(counts.keys())
+            for cls in sorted_keys:
+                print("%12s: % 7d  ->  % 5.1f%%" % (cls, counts[cls], counts[cls]/total*100))
+        if type(pd.Series(counts).idxmin())==str:
+            return pd.Series(counts).idxmin()
+        else:
+            return int(pd.Series(counts).idxmin())
 ############################################################################
 # define a function that accepts a vectorizer and calculates its accuracy
 def tokenize_test_by_metric(model, X_train, X_cv, y_train, y_cv,
@@ -765,39 +794,45 @@ def print_top_features(train,nlp_column, best_nlp_vect, target, top_nums=200):
     1. See if the results are any better since the top words have different counts for different classes
     ###########################################################################################
     """
+    target = copy.deepcopy(target)
+    targets = copy.deepcopy(target)
     #### Make sure that you do this for only small data sets ####################
     max_samples = min(10000,train.shape[0])
     buswo = train.sample(max_samples, random_state=99)
-    classes = np.unique(buswo[target])
     orig_vect = copy.deepcopy(best_nlp_vect)
     df_names = []
-    classes_copy = copy.deepcopy(classes)
-    for itera in classes_copy:
-        if not isinstance(itera, str):
-            new_df_name = 'df_'+str(itera)
-        else:
-            new_df_name = 'df_'+itera
-        #print('%s is about class=%s of shape: ' %(new_df_name,itera), end='')
-        new_df_name = buswo[(buswo[target]==itera)]
-        df_names.append(new_df_name)
-        #print(new_df_name.shape)
-    #### now we split into as many data frames as there are classes in the train data set
-    df_dtms = []
-    count_df = 0
-    count_bus_wo = pd.DataFrame()
-    all_sorted = []
-    for each_df, each_class in zip(df_names,classes):
-        print('\nFor class = %s' %each_class)
-        eachdf_index = each_df.index
-        cv = copy.deepcopy(best_nlp_vect)
-        top_num_feats = print_top_feature_grams(each_df[nlp_column], cv, top_nums)
-        #### This is an Alternative Method to get Top Num features ###########
-        #top_num_feats =set([" ".join(x.split("_")) for x in word_freq_bigrams(bus_texts,int(top_nums*1/2))[0].values]+[
-        #                    " ".join(x.split("_")) for x in bigram_freq(bus_texts,int(top_nums*1/3))[0].values])
-        print('    Top n-grams that are most frequent in this class are: %d' %len(top_num_feats))
-        #### Once you do that set it as the vocab and get a dataframe built with those vocabs
-        all_sorted += top_num_feats
-    all_sorted_set = sorted(set(all_sorted), key=all_sorted.index)
+    if not isinstance(targets,list):
+        targets = [target]
+    for target in targets:
+        print('\nFor target = %s' %target)
+        classes = np.unique(buswo[target])
+        classes_copy = copy.deepcopy(classes)
+        for itera in classes_copy:
+            if not isinstance(itera, str):
+                new_df_name = 'df_'+str(itera)
+            else:
+                new_df_name = 'df_'+itera
+            #print('%s is about class=%s of shape: ' %(new_df_name,itera), end='')
+            new_df_name = buswo[(buswo[target]==itera)]
+            df_names.append(new_df_name)
+            #print(new_df_name.shape)
+        #### now we split into as many data frames as there are classes in the train data set
+        df_dtms = []
+        count_df = 0
+        count_bus_wo = pd.DataFrame()
+        all_sorted = []
+        for each_df, each_class in zip(df_names,classes):
+            print('\n    For class = %s' %each_class)
+            eachdf_index = each_df.index
+            cv = copy.deepcopy(best_nlp_vect)
+            top_num_feats = print_top_feature_grams(each_df[nlp_column], cv, top_nums)
+            #### This is an Alternative Method to get Top Num features ###########
+            #top_num_feats =set([" ".join(x.split("_")) for x in word_freq_bigrams(bus_texts,int(top_nums*1/2))[0].values]+[
+            #                    " ".join(x.split("_")) for x in bigram_freq(bus_texts,int(top_nums*1/3))[0].values])
+            print('    Top n-grams that are most frequent in this class are: %d' %len(top_num_feats))
+            #### Once you do that set it as the vocab and get a dataframe built with those vocabs
+            all_sorted += top_num_feats
+        all_sorted_set = sorted(set(all_sorted), key=all_sorted.index)
     return all_sorted_set
 ####################################################################################
 def plot_confusion_matrix(y_test,y_pred, model_name='Model'):
@@ -1280,7 +1315,7 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 #########################################################################################
 def Auto_NLP(nlp_column, train, test, target, score_type='',
                             modeltype='Classification',
-                            top_num_features=10000, verbose=0,
+                            top_num_features=300, verbose=0,
                             build_model=True):
     """
     ##################################################################################
@@ -1374,15 +1409,14 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         test, nlp_summary_cols = create_summary_of_nlp_cols(test, nlp_column, target, is_train=False, verbose=0)
     ########################  C L E AN    C O L U M N S   F I R S T ######################
     #if train[nlp_column].apply(len).mean() <= 1500:
-    if top_num_features <= top_num_features_limit:
+    if top_num_features >= top_num_features_limit:
         tweets_flag = True
     else:
         tweets_flag = False
-    print('    Cleaning text in %s before doing transformation...' %nlp_column)
     if train.shape[0] >= 100000:
-        print('Cleaning text in Train data. Please be patient since this is a large dataset with >100K rows...' )
+        print('Cleaning text in %s column. Please be patient since this is a large dataset with >100K rows...' %nlp_column )
     else:
-        print('Cleaning text in Train data')
+        print('Cleaning text in Train data for %s column' %nlp_column)
     ###############################################################################################################
     #### If you are not going to use select_best_nlp_vectorizer, then you must use pipelines with a basic TFIDF vectorizer
     best_nlp_vect = TfidfVectorizer( min_df=2, sublinear_tf=True, norm='l2', analyzer='word',
@@ -1392,12 +1426,12 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
                 )
     if tweets_flag:
         #print('    Text appears to be short sentences or tweets, using clean_tweets function...')
-        print('    Faster text processing using clean_tweets function, since number of rows exceeds 10000')
+        print('    Faster text processing using clean_tweets function, since top_num_features exceeds %s' %top_num_features_limit)
         train[nlp_column] = clean_tweets(train[nlp_column])
         #train[nlp_column] = clean_text(train[nlp_column])
     else:
         #print('    Text appears to be long sentences or paragraphs, using clean_text function')
-        print('    Text processing using clean_text function...')
+        print('    Faster text processing using clean_text function, since top_num_features is below %s' %top_num_features_limit)
         train[nlp_column] = clean_text(train[nlp_column])
     ###############################################################################################################
     print('Train data Text cleaning completed. Time taken = %d seconds' %(time.time()-start_time))
@@ -1430,6 +1464,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     ### Split into Train and CV to test the model #####################
     X = train[nlp_column]
     y = train[target]
+    print_rare_class(y,verbose=1)
     #Train test split with stratified sampling for evaluation
     if modeltype == 'Regression':
         X_train, X_test, y_train, y_test = train_test_split(X,
@@ -1437,7 +1472,14 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
                                                             test_size = test_size,
                                                             random_state=seed)
     else:
-        X_train, X_test, y_train, y_test = train_test_split(X,
+        if isinstance(target, list):
+            X = X.sample(frac=1.0, random_state=seed)
+            X_train, X_test, y_train, y_test = train_test_split(X,
+                                                                y,
+                                                                test_size = test_size,
+                                                                random_state=seed)
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(X,
                                                         y,
                                                         test_size = test_size,
                                                         shuffle = True,
@@ -1469,26 +1511,35 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             #params['randomforestregressor__max_depth'] = sp.stats.randint(2,10),
             #params['randomforestregressor__n_estimators'] = sp.stats.randint(200,500)
     else:
-        scv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
-        if top_num_features < top_num_features_limit:
-            model_name = 'Multinomial NB'
-            nlp_model = MultinomialNB()
-            params['multinomialnb__alpha'] = sp.stats.uniform(scale=1)
-        else:
+        if isinstance(target, list):
+            scv = KFold(n_splits=n_splits, random_state=seed)
             model_name = 'Random Forest Classifier'
             nlp_model = RandomForestClassifier(random_state=seed)
-            #params['randomforestclassifier__max_depth'] = sp.stats.randint(2,10),
-            #params['randomforestclassifier__n_estimators'] = sp.stats.randint(200,500)
+        else:
+            scv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+            if top_num_features < top_num_features_limit:
+                model_name = 'Multinomial NB'
+                nlp_model = MultinomialNB()
+                params['multinomialnb__alpha'] = sp.stats.uniform(scale=1)
+            else:
+                model_name = 'Random Forest Classifier'
+                nlp_model = RandomForestClassifier(random_state=seed)
+                #params['randomforestclassifier__max_depth'] = sp.stats.randint(2,10),
+                #params['randomforestclassifier__n_estimators'] = sp.stats.randint(200,500)
     #### Adding a CalibratedClassifier to text classification tasks  ########################
     if modeltype != 'Regression':
-        if X_train.shape[0] <= 1000:
-            # This works well for small data sets and is similar to parametric
-            method=  'sigmoid' # 'isotonic' # #
+        if isinstance(target, list):
+            ### There is no need for CalibratedClassifierCV in Multi-Label problems
+            pass
         else:
-            # This works well for large data sets and is non-parametric
-            method=  'isotonic'
-        calibrator_flag = True
-        print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
+            if X_train.shape[0] <= 1000:
+                # This works well for small data sets and is similar to parametric
+                method=  'sigmoid' # 'isotonic' # #
+            else:
+                # This works well for large data sets and is non-parametric
+                method=  'isotonic'
+            calibrator_flag = True
+            print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
     ################    B U I L D I N G   A   P I P E L I N E   H E R E  ######################
     if top_num_features < top_num_features_limit:
         print("""Since top_num_features < %d, %s model selected. If you need different model, increase it >= %d.""" %(
@@ -1543,8 +1594,14 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     if modeltype == 'Regression':
         print_regression_model_stats(y_test, y_pred,'%s Model: Predicted vs Actual for %s' %(model_name,target))
     else:
-        plot_confusion_matrix(y_test, y_pred, model_name)
-        plot_classification_matrix(y_test, y_pred, model_name)
+        if isinstance(target, list):
+            from sklearn.metrics import multilabel_confusion_matrix
+            print('Multi Label Confusion Matrix for each label:\n%s' %multilabel_confusion_matrix(y_test.values,y_pred))
+            from sklearn.metrics import classification_report
+            print(classification_report(y_test.values, y_pred, target_names=target))
+        else:
+            plot_confusion_matrix(y_test, y_pred, model_name)
+            plot_classification_matrix(y_test, y_pred, model_name)
     ### Train the Pipeline on the full data set here ###########################
     ### The reason we add clean_tweets and clean_text to the transformer here is because once GS is done, its faster
     #### UP TO NOW BOTH BUILD_MODEL PATHS ARE SAME. HERE THEY DIVERTSE A BIT ######################
@@ -2138,7 +2195,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.42'
+version_number = '0.0.43'
 print("""\nImported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',

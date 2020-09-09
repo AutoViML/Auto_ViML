@@ -70,7 +70,7 @@ def print_rare_class(classes, verbose=0):
     It returns the name of the Rare class (the one with the minimum class member count).
     This can also be helpful in using it as pos_label in Binary and Multi Class problems.
     """
-    try: 
+    try:
         ### test if it is a multi-label problem by seeing if the classes has multiple columns
         len(classes.columns) > 1
         ### This is a multi-label problem, hence you have to do value counts by each target name
@@ -1444,9 +1444,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     params['tfidfvectorizer__encoding'] = ['latin-1','utf-8']
     params['tfidfvectorizer__max_df'] = sp.stats.uniform(scale=1)
     ##### Just set the printing of top features to 200 always #################
-    if modeltype == 'Regression':
-        top_feats = print_top_feature_grams(train[nlp_column], best_nlp_vect, 200)
-    else:
+    if modeltype != 'Regression':
         ### Do this only for printing top words n-grams by classes since each class may be different
         start_time = time.time()
         top_feats = print_top_features(train,nlp_column, best_nlp_vect, target, 200)
@@ -1467,7 +1465,8 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     ### Split into Train and CV to test the model #####################
     X = train[nlp_column]
     y = train[target]
-    print_rare_class(y,verbose=1)
+    if modeltype != 'Regression':
+        print_rare_class(y,verbose=1)
     #Train test split with stratified sampling for evaluation
     if modeltype == 'Regression':
         X_train, X_test, y_train, y_test = train_test_split(X,
@@ -2198,7 +2197,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.43'
+version_number = '0.0.44'
 print("""\nImported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',

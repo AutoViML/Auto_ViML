@@ -985,6 +985,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####
         ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
         train_sel = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
+        numvars = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
         #########   A D D   D A T E  T I M E    F E A T U R E S     H E R E ####################
         if len(date_cols) > 0:
             #### Do this only if date time columns exist in your data set!
@@ -995,13 +996,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if not isinstance(orig_test, str):
                     date_df_test = create_time_series_features(orig_test, date_col)
                     date_col_adds_test = left_subtract(date_df_test.columns.tolist(),date_col)
-                if len(left_subtract(date_col_adds_train,date_col_adds_test)) != 0 or len(left_subtract(date_col_adds_test,date_col_adds_train)) :
-                    ### if the number of cols created in train data is not same as test data, then
-                    ###  it is a problem. It can happen due to bad data. Just select the common ones
-                    ###  in that case. THat way, it would not blow up later.
-                    print('Error: Due to differences in Train and Test %s, getting different columns created. Continuing...' %date_col)
-                    date_col_adds = list(set(date_col_adds_train).intersection(set(date_col_adds_test)))
                 else:
+                    date_col_adds_test = []
+                if len(date_col_adds_test) == 0:
                     ### if both create_time_series_features return the same variables, then good
                     date_col_adds = copy.deepcopy(date_col_adds_train)
                     if date_col_adds != []:
@@ -1013,6 +1010,25 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 test = test.join(date_df_test)
                                 ### Now time to remove the date time column from all further processing ##
                                 #test.drop(date_col,axis=1,inplace=True)
+                else:
+                    if len(left_subtract(date_col_adds_train,date_col_adds_test)) != 0 or len(left_subtract(date_col_adds_test,date_col_adds_train)) :
+                        ### if the number of cols created in train data is not same as test data, then
+                        ###  it is a problem. It can happen due to bad data. Just select the common ones
+                        ###  in that case. THat way, it would not blow up later.
+                        print('Error: Due to differences in Train and Test %s, getting different columns created. Continuing...' %date_col)
+                        date_col_adds = list(set(date_col_adds_train).intersection(set(date_col_adds_test)))
+                    else:
+                        ### if both create_time_series_features return the same variables, then good
+                        date_col_adds = copy.deepcopy(date_col_adds_train)
+                        if date_col_adds != []:
+                            train = train.join(date_df_train)
+                            ### Now time to remove the date time column from all further processing ##
+                            #train.drop(date_col,axis=1,inplace=True)
+                            if not isinstance(orig_test, str):
+                                if date_col_adds != []:
+                                    test = test.join(date_df_test)
+                                    ### Now time to remove the date time column from all further processing ##
+                                    #test.drop(date_col,axis=1,inplace=True)
             #########     CREATING TIME FEATURES IS COMPLETED   #############################
             red_preds = [x for x in list(train) if x not in [each_target]]
             ### we add new date time variables to the list of numeric float variables to see if they have any
@@ -4112,7 +4128,7 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
         #### Make the number of clusters as the same as log10 of number of rows in Train
         from sklearn.cluster import KMeans
         # No target variable, just do plain k-means
-        km_model = KMeans(n_clusters=num_clusters+1,
+        km_model = KMeans(n_clusters=num_clusters,
                               n_init=20,
                               random_state=99)
         train_clusters_SMOTE = km_model.fit_predict(y_df.values.reshape(-1,1))

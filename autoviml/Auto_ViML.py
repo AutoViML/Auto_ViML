@@ -742,6 +742,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     if len(copy_preds) > 0:
         dict_train = {}
         for f in copy_preds:
+            if f in missing_cols:
+                continue
             missing_flag = False
             if f in nlp_columns:
                 #### YOu have to do missing values for NLP columns. Otherwise leave them as is for Auto_NLP later ##############
@@ -1056,6 +1058,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ######################################################################
         if type(orig_test) != str:
             test = test[important_features]
+            #######You must convert category variables into integers ###############
+            integer_cats = test[imp_cats].select_dtypes(include=[np.int64,np.int32,np.int16,np.int8,int]).columns.tolist()
+            non_integer_cats = left_subtract(imp_cats, integer_cats)
+            for important_cat in non_integer_cats:
+                test[important_cat] = test[important_cat].astype(int)
         ##############          F E A T U R E   E N G I N E E R I N G  S T A R T S  N O W    ##############
         ######    From here on we do some Feature Engg using Target Variable with Data Leakage ############
         ###   To avoid Model Leakage, we will now split the Data into Train and CV so that Held Out Data
@@ -2294,6 +2301,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             trainm = train.reindex(index = orig_index)
             testm = orig_train[id_cols].join(trainm[red_preds])
             X_test = testm[red_preds]
+        ############  This is where we start predictions on test data if available #############
         if modeltype == 'Regression':
             y_pred = model.predict(X_test)
             ##### This next step is very important since some models give series, others give arrays. Very painful!
@@ -4690,7 +4698,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.664'
+version_number = '0.1.665'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

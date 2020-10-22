@@ -1690,6 +1690,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
         ##### This is where you start training the model ###
+        pdb.set_trace()
         if Imbalanced_Flag:
             ####### Imbalanced with Classification #################
             try:
@@ -1752,7 +1753,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ################################################################################################################################
         ### The model blows up when you use average-precision in Multi-Classes -> needs checking!
         if not Imbalanced_Flag:
-            pdb.set_trace()
             ########### This is for both regular Regression and regular Classification Model Training. It is not a Mistake #############
             ########### In case Imbalanced training fails, this method is also tried. That's why we test the Flag here!!  #############
             try:
@@ -4699,7 +4699,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.666'
+version_number = '0.1.667'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

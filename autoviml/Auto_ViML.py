@@ -39,7 +39,6 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import RepeatedKFold, RepeatedStratifiedKFold
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from sklearn.calibration import CalibratedClassifierCV
 
 from autoviml.QuickML_Stacking import QuickML_Stacking
 from autoviml.Transform_KM_Features import Transform_KM_Features
@@ -1848,6 +1847,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     else:
                         # THis works well for large data sets and is non-parametric
                         method=  'isotonic'
+                    from sklearn.calibration import CalibratedClassifierCV
                     model = CalibratedClassifierCV(model, method=method, cv="prefit")
                     X_ful = X_train.append(X_cv)
                     y_ful = y_train.append(y_cv)
@@ -4466,7 +4466,7 @@ def draw_confusion_maxtrix(y_test,y_pred, model_name='Model',ax=''):
     ax.set_ylabel('True label', fontsize = 13)
     ax.set_xlabel('Predicted label', fontsize = 13)
 ######################################################################################
-from sklearn.metrics import plot_precision_recall_curve, plot_roc_curve
+#from sklearn.metrics import plot_precision_recall_curve, plot_roc_curve
 from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -4698,7 +4698,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.665'
+version_number = '0.1.666'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

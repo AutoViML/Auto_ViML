@@ -162,6 +162,27 @@ def analyze_problem_type(train, targ,verbose=0):
         model_class = 'Regression'
     return model_class
 ###################################################################################
+from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, TimeSeriesSplit
+from sklearn.model_selection import ShuffleSplit
+def split_train_into_two(train_data, target, randomstate, modeltype):
+    preds = [x for x in list(train_data) if x not in [target]]
+    if modeltype == 'Classification':
+        X = train_data[preds]
+        y = train_data[target]
+        if train_data.shape[0] <= 1000:
+            sss = StratifiedShuffleSplit(n_splits=2, test_size=0.30, random_state=randomstate)
+        else:
+            sss = StratifiedShuffleSplit(n_splits=2, test_size=0.20, random_state=randomstate)
+        trainindex, testindex = sss.split(X, y)
+        traindf = train_data.iloc[trainindex[0]]
+        testdf = train_data.iloc[trainindex[1]]
+    else:
+        indices = np.random.permutation(train_data.shape[0])
+        train_rows = int(0.8*train_data.shape[0])
+        training_idx, test_idx = indices[:train_rows], indices[train_rows:]
+        traindf, testdf = train_data.iloc[training_idx], train_data.iloc[test_idx]
+    return traindf, testdf
+#######################################################################################
 def fill_missing_values_object_or_number(start_train, start_test, fill_num, col,str_flag=True):
     """
     ####  This is the easiest way to fill missing values using an object in both train and test
@@ -1075,30 +1096,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ### If we use the whole of Train for entropy binning then there will be data leakage and our
         ### cross validation test scores will not be so accurate. So don't change the next 5 lines here!
         ################     I  M  P  O  R  T  A  N  T  ##################################################
-        if modeltype ==  'Regression':
-            skf = KFold(n_splits=n_splits, random_state=seed)
-        else:
-            skf = StratifiedKFold(n_splits=n_splits, random_state=seed, shuffle=True)
-        cv_train_index, cv_index = next(skf.split(X, y))
-        ################     TRAIN CV TEST SPLIT HERE  ##################################################
-        try:
-            #### Sometimes this works but other times, it gives an error!
-            X_train, X_cv = X.loc[cv_train_index], X.loc[cv_index]
-            y_train, y_cv = y.loc[cv_train_index], y.loc[cv_index]
-            ### The reason we don't use train_test_split is because we want only a partial train entropy binned
-            part_train = train.loc[cv_train_index]
-            part_cv = train.loc[cv_index]
-        except:
-            #### This works when the above method gives an error!
-            X_train, X_cv = X.iloc[cv_train_index], X.iloc[cv_index]
-            y_train, y_cv = y.iloc[cv_train_index], y.iloc[cv_index]
-            ### The reason we don't use train_test_split is because we want only a partial train entropy binned
-            part_train = train.iloc[cv_train_index]
-            part_cv = train.iloc[cv_index]
-            ### Once you change the index by number, you have to change the saved values as well to match it!
-            cv_train_index = part_train.index
-            cv_index = part_cv.index
-        print('Train CV Split completed with', "TRAIN rows:", cv_train_index.shape[0], "CV rows:", cv_index.shape[0])
+        part_train, part_cv = split_train_into_two(train, each_target, randomstate=99, modeltype=modeltype)
+        X_train, X_cv = part_train[important_features], part_cv[important_features]
+        y_train, y_cv = part_train[each_target], part_cv[each_target]
+        print('Train CV Split completed with', "TRAIN rows:", part_train.shape[0], "CV rows:", part_cv.shape[0])
         ################   IMPORTANT ENTROPY  BINNING FIRST TIME   #####################################
         ############   Add Entropy Binning of Continuous Variables Here ##############################
         num_vars = train[important_features].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
@@ -1154,6 +1155,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             print('    KMeans_Featurizer set to False or there are no numeric vars in data')
             km_label = ''
         #######################   STACKING   FIRST   TIME     ############################
+        cv_train_index = part_train.index
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:
             try:
@@ -1690,7 +1692,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
         ################################################################################################################################
         ##### This is where you start training the model ###
-        pdb.set_trace()
         if Imbalanced_Flag:
             ####### Imbalanced with Classification #################
             try:
@@ -4467,7 +4468,7 @@ def draw_confusion_maxtrix(y_test,y_pred, model_name='Model',ax=''):
     ax.set_ylabel('True label', fontsize = 13)
     ax.set_xlabel('Predicted label', fontsize = 13)
 ######################################################################################
-#from sklearn.metrics import plot_precision_recall_curve, plot_roc_curve
+from sklearn.metrics import plot_precision_recall_curve, plot_roc_curve
 from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
 import seaborn as sns

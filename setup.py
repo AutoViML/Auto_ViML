@@ -29,7 +29,6 @@ setuptools.setup(
         "vaderSentiment",
         "imbalanced-learn>=0.7",
     	"beautifulsoup4",
-    	"featuretools",
         "emoji"
     ],
     classifiers=[

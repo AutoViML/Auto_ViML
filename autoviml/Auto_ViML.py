@@ -418,7 +418,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     solver = 'liblinear'  ### lbfgs is the next fastest solver after liblinear. Useful for Multi-class problems!
     penalties = ['l2','l1'] ### This is to determine the penalties for LogisticRegression
     n_steps = 6 ### number of estimator steps between 100 and max_estims
-    max_depth = 20 ##### This limits the max_depth used in decision trees and other classifiers
+    max_depth = 8 ##### This limits the max_depth used in decision trees and other classifiers
     max_features = 20 #### maximum number of features in a random forest model or extra trees model
     warm_start = True ### This is to set the warm_start flag for the ExtraTrees models
     bootstrap = True #### Set this flag to control whether to bootstrap variables or not.
@@ -1252,7 +1252,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 r_params = {
                         "Forests": {
                                'n_estimators': sp.stats.randint(100,max_estims),
-                                "max_depth": sp.stats.randint(1, 10),
+                                "max_depth": sp.stats.randint(3, max_depth),
                                 "min_samples_leaf": sp.stats.randint(2, 20),
                                 #"criterion" : ['mse','mae'],
                                 },
@@ -1265,7 +1265,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 'learning_rate': sp.stats.uniform(scale=1),
                                 'gamma': sp.stats.randint(0, 32),
                                'n_estimators': sp.stats.randint(100,max_estims),
-                                "max_depth": sp.stats.randint(2, 10),
+                                "max_depth": sp.stats.randint(3, max_depth),
                                     },
                         "CatBoost": {
                                 'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
@@ -1336,7 +1336,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         'learning_rate': sp.stats.uniform(scale=1),
                         'gamma': sp.stats.randint(0, 32),
                        'n_estimators': sp.stats.randint(100,max_estims),
-                        "max_depth": sp.stats.randint(1, 10),
+                        "max_depth": sp.stats.randint(3, max_depth),
                       }
                 c_params["CatBoost"] = {
                                     'learning_rate': sp.stats.uniform(scale=1),
@@ -1357,7 +1357,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 c_params["Forests"] = {
                     ##### I have selected these to avoid Overfitting which is a problem for small data sets
                                    'n_estimators': sp.stats.randint(100,max_estims),
-                                    "max_depth": sp.stats.randint(1, 10),
+                                    "max_depth": sp.stats.randint(3, max_depth),
                                     "min_samples_leaf": sp.stats.randint(2, 20),
                                     #"criterion":['gini','entropy'],
                                     #'max_features': ['log', "sqrt"] ,
@@ -1521,7 +1521,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 'learning_rate': sp.stats.uniform(scale=1),
                                 'gamma': sp.stats.randint(0, 32),
                                'n_estimators': sp.stats.randint(100, max_estims),
-                                'max_depth': sp.stats.randint(1, 10)
+                                'max_depth': sp.stats.randint(3, max_depth)
                               }
                         c_params['CatBoost'] = {
                                 'learning_rate': sp.stats.uniform(scale=1),
@@ -1580,7 +1580,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         c_params["Forests"] = {
                         #####   I have set these to avoid OverFitting which is a problem for small data sets ###
                                    'n_estimators': sp.stats.randint(100,max_estims),
-                                    "max_depth": sp.stats.randint(1, 10),
+                                    "max_depth": sp.stats.randint(3, max_depth),
                                     "min_samples_leaf": sp.stats.randint(2, 20),
                                     #"criterion":['gini','entropy'],
                                     #'class_weight':[None,'balanced']

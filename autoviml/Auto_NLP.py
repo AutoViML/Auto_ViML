@@ -1525,7 +1525,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
                 params['multinomialnb__alpha'] = sp.stats.uniform(scale=1)
             else:
                 model_name = 'Random Forest Classifier'
-                nlp_model = RandomForestClassifier(random_state=seed)
+                nlp_model = RandomForestClassifier(random_state=seed,n_estimators=200,n_jobs=-1)
                 #params['randomforestclassifier__max_depth'] = sp.stats.randint(2,10),
                 #params['randomforestclassifier__n_estimators'] = sp.stats.randint(200,500)
     #### Adding a CalibratedClassifier to text classification tasks  ########################
@@ -1670,6 +1670,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         #####################################################################################
         start_time1 = time.time()
         best_nlp_vect = copy.deepcopy(best_vect)
+        trainm = best_nlp_vect.transform(trainm)
         #######################################################################################
         ##################  THIS IS WHERE YOU ADD TRUNCATED SVD DIMENSIONS HERE      ##########
         #######################################################################################
@@ -2197,7 +2198,7 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.show();
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.44'
+version_number = '0.0.45'
 print("""\nImported Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',

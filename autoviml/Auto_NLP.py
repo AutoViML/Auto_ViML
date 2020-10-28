@@ -1670,7 +1670,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         #####################################################################################
         start_time1 = time.time()
         best_nlp_vect = copy.deepcopy(best_vect)
-        trainm = best_nlp_vect.transform(trainm)
+        trainm = best_nlp_vect.transform(train[nlp_column])
         #######################################################################################
         ##################  THIS IS WHERE YOU ADD TRUNCATED SVD DIMENSIONS HERE      ##########
         #######################################################################################
@@ -1683,6 +1683,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         train_nlp = train.join(train_best,rsuffix='_SVD_Dim_by_Auto_NLP')
         #################################################################################
         if type(test) != str:
+            testm = best_nlp_vect.transform(test[nlp_column])
             test_best, _ = reduce_dimensions_with_Truncated_SVD(test,
                                             testm, is_train=False, trained_svd=trained_svd)
             test_best = test_best.fillna(0)
@@ -2145,7 +2146,7 @@ def create_summary_of_nlp_cols(data, col, target, is_train=False, verbose=0):
     cols.append(col+'_mention_count')
     if verbose >= 1:
         if is_train:
-            fig, (ax1,ax2) = plt.subplots(1,2,figsize=(15,6))
+            fig, (ax1,ax2) = plt.subplots(1,2,figsize=(15,4))
             plot_nlp_column(data[col+'_unique_word_count'],"Word Count", ax1, 'r')
             plot_nlp_column(data[col+'_char_count'],"Character Count", ax2, 'b')
     if verbose >= 2:
@@ -2183,7 +2184,7 @@ def draw_dist_plots_summary_cols(df_train, target, summary_cols):
                          label=label,
                      ax=eval(axs[axi]), color=color, kde_kws={'bw':1.5})
             labels.append(label)
-    plt.legend(labels=labels)
+        plt.legend(labels=labels)
     plt.show();
 #############################################################################
 def plot_histogram_probability(dist_train, dist_test, label_title):

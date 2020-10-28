@@ -428,6 +428,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     removed_features_threshold = 5 #### This triggers the Truncated_SVD if number of removed features from XGB exceeds this!
     calibrator_flag = False  ### In Multi-class data sets, a CalibratedClassifier works better than regular classifiers!
     max_class_length = 1 ### It turns out the number of classes is directly correlated to Estimated Time. Hence this!
+    perform_scaling_flag = True #### For linear models, scaling is a must but for other models, its not necessary but okay.
     print('##############  D A T A   S E T  A N A L Y S I S  #######################')
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
     if isinstance(Boosting_Flag,str):
@@ -993,17 +994,24 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             train_sel = copy.deepcopy(numvars)
         ################  A U T O   N L P  P R O C E S S I N G   B E G I N S    H E R E !!! ####
         if len(nlp_columns) > 0:
-            for nlp_column in nlp_columns:
-                train1, test1, best_nlp_transformer,max_features_limit = Auto_NLP(nlp_column,
-                                                train, test, each_target, refit_metric,
-                                                modeltype, top_nlp_features, verbose,
-                                                build_model=False)
-                ####### Make sure you include the above new columns created in the predictor variables!
-                red_preds = [x for x in list(train1) if x not in [each_target]]
-                train = train1[red_preds+[each_target]]
-                if not isinstance(orig_test, str):
-                    test = test1[red_preds]
-        ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####
+                for nlp_column in nlp_columns:
+                    try:
+                        train1, test1, best_nlp_transformer,max_features_limit = Auto_NLP(nlp_column,
+                                                    train, test, each_target, refit_metric,
+                                                    modeltype, top_nlp_features, verbose,
+                                                    build_model=False)
+                        ####### Make sure you include the above new columns created in the predictor variables!
+                        red_preds = [x for x in list(train1) if x not in [each_target]]
+                        train = train1[red_preds+[each_target]]
+                        if not isinstance(orig_test, str):
+                            test = test1[red_preds]
+                        ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####                    
+                    except:
+                        print('Auto_NLP error. Continuing without NLP processing')
+                        train.drop(nlp_column, axis=1, inplace=True)
+                        if not isinstance(orig_test, str):
+                            test.drop(nlp_column, axis=1, inplace=True)
+                        red_preds = [x for x in list(train) if x not in [each_target]]
         ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
         train_sel = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
         print('Selecting only (%d) float variables this time to remove correlated features...' %len(train_sel))
@@ -1185,12 +1193,18 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         #### part train contains the unscaled original train. It also contains binned and orig_num_vars!
         #### DO NOT DO TOUCH part_train and part_cv -> we need it to recrate train later!
         ####################### Now do Feature Scaling Here #################################
-        part_train_scaled, part_cv_scaled = perform_scaling_numeric_vars(part_train, important_features,
-                                                part_cv, model_name, SS)
-        #### part_train_scaled has both predictor and target variables. Target must be removed!
+        #part_train_scaled, part_cv_scaled = perform_scaling_numeric_vars(part_train, important_features,
+        #                                        part_cv, model_name, SS)
         important_features = find_remove_duplicates(important_features)
-        X_train =  part_train_scaled[important_features]
-        X_cv = part_cv_scaled[important_features]
+        if not perform_scaling_flag:
+            print('Skipping %s scaling since perform_scaling flag is set to False ' %scaling)
+            X_train = part_train[important_features]
+            X_cv = part_cv[important_features]
+        else:
+            print('Performing %s scaling of train and validation data' %scaling)
+            X_train = SS.fit_transform(part_train[important_features])
+            X_cv = SS.transform(part_cv[important_features])
+        #### if important_features by mistake has duplicates they must be removed!
         #### Remember that the next 2 lines are crucial: if X and y are dataframes, then predict_proba
         ###     will return  dataframes or series. Otherwise it will return Numpy array's.
         ##      Be consistent when using dataframes with XGB. That's the best way to keep feature names!
@@ -1851,8 +1865,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         method=  'isotonic'
                     from sklearn.calibration import CalibratedClassifierCV
                     model = CalibratedClassifierCV(model, method=method, cv="prefit")
-                    X_ful = X_train.append(X_cv)
-                    y_ful = y_train.append(y_cv)
+                    if not perform_scaling_flag:
+                        X_ful = X_train.append(X_cv)
+                        y_ful = y_train.append(y_cv)
+                    else:
+                        X_ful = np.r_[X_train, X_cv]
+                        y_ful = np.r_[y_train, y_cv]
                     model.fit(X_ful, y_ful)
                     print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
                     calibrator_flag = True
@@ -2196,14 +2214,21 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             print('    Number of Categorical and Integer variables used in CatBoost training = %d' %len(imp_cats))
         #### Perform Scaling of Train data a second time using FULL TRAIN data set this time !
         #### important_features keeps track of all variables that we need to ensure they are scaled!
-        train, test = perform_scaling_numeric_vars(train, important_features, test,
-                                    model_name, SS)
+        if not perform_scaling_flag:
+            print('No %s scaling performed since scaling flag is set to false' %scaling)
+            X = train[important_features]
+            if not isinstance(orig_test, str):
+                X_test = test[important_features]
+        else:
+            print('Performing %s scaling of train and test data...' %scaling)
+            X = SS.fit_transform(train[important_features])
+            if not isinstance(orig_test, str):
+                X_test = SS.transform(test[important_features])
         ################   T R A I N I N G   M O D E L  A  S E C O N D   T I M E  ###################
         ### The next 2 lines are crucial: if X and y are dataframes, then next 2 should be df's
         ###   They should not be df.values since they will become numpy arrays and XGB will error.
         trainm = train[important_features+[each_target]]
         red_preds = copy.deepcopy(important_features)
-        X = trainm[red_preds]
         y = trainm[each_target]
         eval_set = [()]
         ##### ############      TRAINING MODEL SECOND TIME WITH FULL_TRAIN AND PREDICTING ON TEST ############
@@ -2283,7 +2308,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print('Training model second time is Erroring: Check if Input is correct...')
                 return
         print('Actual Training time taken in seconds = %0.0f' %(time.time()-model_start_time))
-        ##   TRAINING OF MODELS COMPLETED. NOW START PREDICTIONS ON TEST DATA   ################
+        print('TRAINING OF MODELS COMPLETED. NOW START PREDICTIONS ON TEST DATA...')
         #### new_cols is to keep track of new prediction columns we are creating #####
         new_cols = []
         if not isinstance(orig_test, str):
@@ -2292,17 +2317,16 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ###   They should not be df.values since they will become numpy arrays and XGB will error.
             try:
                 #### We need the id columns to carry over into the predictions ####
-                testm = orig_test[id_cols].join(test[red_preds])
+                testm = orig_test[id_cols].join(pd.DataFrame(X_test, index=orig_test.index, columns=red_preds))
             except:
                 ### if for some reason id columns are not available, then do without it
-                testm = test[red_preds]
-            X_test = testm[red_preds]
+                testm = pd.DataFrame(X_test, index=orig_test.index, columns=red_preds)
         else:
-            ##### If there is no Test file, then do a final prediction on Train itself ###
+            print('Since there is no Test file, we will do a final prediction on Train itself as return it as testm dataframe')
             orig_index = orig_train.index
             trainm = train.reindex(index = orig_index)
-            testm = orig_train[id_cols].join(trainm[red_preds])
-            X_test = testm[red_preds]
+            X_test = SS.transform(testm[red_preds])
+            testm = orig_train[id_cols].join(pd.DataFrame(X_test, index=orig_train.index, columns=red_preds))
         ############  This is where we start predictions on test data if available #############
         if modeltype == 'Regression':
             y_pred = model.predict(X_test)

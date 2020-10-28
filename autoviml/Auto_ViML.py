@@ -433,7 +433,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
     if isinstance(Boosting_Flag,str):
         if Boosting_Flag.lower() == 'catboost':
-            from catboost import CatBoostClassifier, CatBoostRegressor
+            try:
+                from catboost import CatBoostClassifier, CatBoostRegressor
+                ### You don't want to do scaling on Catboost since integers can become float and it will error in training
+                perform_scaling_flag = False
+            except:
+                print('Not installed CatBoost on this machine. pip install catboost before trying Auto_ViML')
     #### Similarly for Random Forests Model, it takes too long with Grid Search, so MAKE IT RandomizedSearch!
     if not Boosting_Flag:  ### there is also a chance Boosting_Flag is None - This is to eliminate that chance!
         if orig_train.shape[0] >= 10000:
@@ -972,13 +977,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                                               corr_limit, scaling='None', fit_flag=False,
                                                                verbose=verbose)
                         ### we need to convert x_vars into text_vars in test_x_df using feature_xvar_dict
-                        test_x_vars = test_x_df.columns.tolist()
-                        test_text_vars = [feature_xvar_dict[x] for x in test_x_vars]
-                        test_x_df.columns = test_text_vars
-                        #### test_red contains reduced variables with orig and substituted poly/intxn variables
-                        test_red = test_x_df[train_sel]
-                        #### we should now combined test_red with rem_vars so that it is the same shape as train
-                        test = test_red.join(test[rem_vars])
+                        rev_feat_x_vars_dict = dict([(v,k) for (k,v) in feature_xvar_dict.items()])
+                        if len(addl_vars) > 0:
+                            addl_vars_x = [rev_feat_x_vars_dict[x] for x in addl_vars]
+                            if len(addl_vars) == 1:
+                                ### you need to do a special case for Series since otherwise it would blow up
+                                test[addl_vars[0]] = test_x_df[addl_vars_x].values
+                            else:
+                                test[addl_vars] = test_x_df[addl_vars_x]
                         #### Now we should change train_sel to subst_vars since that is the new list of vars going forward
                         numvars = copy.deepcopy(train_sel)
                 else:
@@ -1005,7 +1011,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         train = train1[red_preds+[each_target]]
                         if not isinstance(orig_test, str):
                             test = test1[red_preds]
-                        ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####                    
+                        ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####
                     except:
                         print('Auto_NLP error. Continuing without NLP processing')
                         train.drop(nlp_column, axis=1, inplace=True)
@@ -1163,7 +1169,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             print('    KMeans_Featurizer set to False or there are no numeric vars in data')
             km_label = ''
         #######################   STACKING   FIRST   TIME     ############################
-        cv_train_index = part_train.index
         ######### This is where you do Stacking of Multi Model Results into One Column ###
         if Stacking_Flag:
             try:
@@ -1177,10 +1182,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 addcol, stacks2 = QuickML_Stacking(part_train[important_features],part_train[
                                     each_target],part_cv[important_features],
                               modeltype, Boosting_Flag, scoring_parameter,verbose)
-                part_train = part_train.join(pd.DataFrame(stacks1,index=cv_train_index,
+                part_train = part_train.join(pd.DataFrame(stacks1,index=part_train.index,
                                                   columns=addcol))
                 ##### Adding multiple columns for Stacking is best! Do not do the average of predictions!
-                part_cv = part_cv.join(pd.DataFrame(stacks2,index=cv_index,
+                part_cv = part_cv.join(pd.DataFrame(stacks2,index=part_cv.index,
                                                   columns=addcol))
                 print('    Adding %d Stacking feature(s) to training data' %len(addcol))
                 ######  We make sure that we remove any new features that are highly correlated ! #####
@@ -1202,8 +1207,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             X_cv = part_cv[important_features]
         else:
             print('Performing %s scaling of train and validation data' %scaling)
-            X_train = SS.fit_transform(part_train[important_features])
-            X_cv = SS.transform(part_cv[important_features])
+            SS.fit(part_train[important_features])
+            X_train = pd.DataFrame(SS.transform(part_train[important_features]),index=part_train.index,
+                                        columns=important_features)
+            X_cv = pd.DataFrame(SS.transform(part_cv[important_features]),index=part_cv.index,
+                                        columns=important_features)
         #### if important_features by mistake has duplicates they must be removed!
         #### Remember that the next 2 lines are crucial: if X and y are dataframes, then predict_proba
         ###     will return  dataframes or series. Otherwise it will return Numpy array's.
@@ -2221,7 +2229,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 X_test = test[important_features]
         else:
             print('Performing %s scaling of train and test data...' %scaling)
-            X = SS.fit_transform(train[important_features])
+            SS.fit(train[important_features])
+            X = SS.transform(train[important_features])
             if not isinstance(orig_test, str):
                 X_test = SS.transform(test[important_features])
         ################   T R A I N I N G   M O D E L  A  S E C O N D   T I M E  ###################
@@ -4258,41 +4267,6 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
     print('Imbalanced class training completed.')
     return model, train_ovr[train_preds], train_ovr[df_target]
 ##############################################################################################
-def perform_scaling_numeric_vars(train, train_preds, test, model_name, SS):
-    """
-    ###### YOU MUST NOT SEND TARGET VARIABLE! OTHERWISE IT WILL BE SCALED AS WELL!!##########
-    This is where we do Feature Scaling of Numeric variables for certain models.
-    This is not required for CatBoost since we have Label Encoded categorical vars into Integers
-    Since they are integers if we scale them, they become Float and will not be accepted as cat vars.
-    """
-    train = copy.deepcopy(train)
-    test = copy.deepcopy(test)
-    new_num_vars = np.array(train_preds)[(train[train_preds].dtypes==float) | (train[train_preds].dtypes==np.int64) | (
-                    train[train_preds].dtypes==np.int32) | (train[train_preds].dtypes==np.int16) | (
-                    train[train_preds].dtypes==np.int8)].tolist()
-    if model_name.lower() != 'catboost':
-        for each_num_var in new_num_vars:
-            try:
-                train[each_num_var] = SS.fit_transform(train[each_num_var].values.reshape(-1,1))
-            except:
-                train.loc[train[each_num_var]==inf,each_num_var]=1
-                train.loc[train[each_num_var]==-inf,each_num_var]=0
-                train[each_num_var] = SS.fit_transform(train[each_num_var].values.reshape(-1,1))
-            ##### DO SCALING ON TEST HERE ############
-            if type(test) != str:
-                try:
-                    test[each_num_var] = SS.transform(test[each_num_var].values.reshape(-1,1))
-                except:
-                    print('Scaling is erroring when transforming Test %s column. Correcting errors in test data and continuing' %each_num_var)
-                    test.loc[test[each_num_var]==inf,each_num_var]=1
-                    test.loc[test[each_num_var]==-inf,each_num_var]=0
-                    test[each_num_var] = SS.transform(test[each_num_var].values.reshape(-1,1))
-        print('Feature scaling for total %d float and integer variables completed using %s...' %(
-                                    len(train_preds),SS))
-    else:
-        print('For CatBoost, feature scaling is not required. Continuing...')
-    return train, test
-##############################################################################################
 from sklearn.model_selection import train_test_split
 import numpy as np
 from sklearn.metrics import f1_score
@@ -4724,7 +4698,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.667'
+version_number = '0.1.668'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

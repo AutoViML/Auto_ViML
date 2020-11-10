@@ -902,7 +902,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 return
             else:
                 print('Test data has no missing values. Continuing...')
-        ###########################################################################################
     else:
         print('    Could not find any variables in your data set. Please check your dataset and try again')
         return
@@ -1041,10 +1040,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     if not isinstance(orig_test, str):
                         test.drop(nlp_column, axis=1, inplace=True)
                     red_preds = [x for x in list(train) if x not in target]
-    ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
-    train_sel = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
-    print('    Selected (%d) float variables from remove_correlated_features method ...' %len(train_sel))
-    numvars = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
     #########   A D D   D A T E  T I M E    F E A T U R E S     H E R E ####################
     if len(date_cols) > 0:
         #### Do this only if date time columns exist in your data set!
@@ -1091,17 +1086,21 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 ### Now time to remove the date time column from all further processing ##
                                 #test.drop(date_col,axis=1,inplace=True)
         #########     CREATING TIME FEATURES IS COMPLETED   #############################
-        red_preds = [x for x in list(train) if x not in target]
-        ### we add new date time variables to the list of numeric float variables to see if they have any
-        ### high correlations to each other. In that case, they can be reduced by the feature reduction scheme.
-        train_sel = train_sel + date_col_adds
-        #rem_cat_vars = left_subtract(red_preds, train_sel)
+    ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
+    red_preds = [x for x in list(train) if x not in target]
+    ### we add new date time variables to the list of numeric float variables to see if they have any
+    ### high correlations to each other. In that case, they can be reduced by the feature reduction scheme.
+    #train_sel = train_sel + date_col_adds
+    #rem_cat_vars = left_subtract(red_preds, train_sel)
+    num_vars = train.select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
     #########     SELECT IMPORTANT FEATURES HERE   #############################
     if feature_reduction:
         train_sel = remove_variables_using_fast_correlation(train,red_preds, modeltype,
                                     each_target, corr_limit, verbose)
-        #red_preds = train_sel + rem_cat_vars
-        important_features,num_vars, imp_cats = find_top_features_xgb(train,train_sel,train_sel,
+        num_vars = train[train_sel].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
+        print('    Selected (%d) float variables from remove_correlated_features method ...' %len(num_vars))
+        rem_vars = left_subtract(list(train), num_vars+target)
+        important_features,num_vars, imp_cats = find_top_features_xgb(train,train_sel,num_vars,
                                                      each_target,
                                                  modeltype,corr_limit,verbose)
     else:
@@ -1139,7 +1138,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ################     I  M  P  O  R  T  A  N  T  ##################################################
     part_train, part_cv = split_train_into_two(train, target, randomstate=99, modeltype=modeltype)
     X_train, X_cv = part_train[important_features], part_cv[important_features]
-    y_train, y_cv = part_train[target], part_cv[target]
+    if model_label == 'Single_Label':
+        y_train, y_cv = part_train[each_target], part_cv[each_target]
+    else:
+        y_train, y_cv = part_train[target], part_cv[target]
     print('Train CV Split completed with', "TRAIN rows:", part_train.shape[0], "CV rows:", part_cv.shape[0])
     ################   IMPORTANT ENTROPY  BINNING FIRST TIME   #####################################
     ############   Add Entropy Binning of Continuous Variables Here ##############################
@@ -2038,7 +2040,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             if len(classes) == 2:
                 print('    Regular Accuracy Score = %0.1f%%' %(accuracy_score(y_cv,y_pred)*100))
                 y_probas = model.predict_proba(X_cv)
-                rmsle_calculated_m = print_classification_model_stats(y_cv, y_probas, m_thresh)
+                try:
+                    y_cv.shape[1]
+                    print_classification_model_stats(y_cv.ravel(), y_probas, m_thresh)
+                except:
+                    rmsle_calculated_m = print_classification_model_stats(y_cv, y_probas, m_thresh)
             else:
                 ###### Use a nice classification matrix printing module here #########
                 print('    Balanced Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
@@ -2344,7 +2350,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ###   They should not be df.values since they will become numpy arrays and XGB will error.
     trainm = train[important_features+target]
     red_preds = copy.deepcopy(important_features)
-    y = trainm[target]
+    if model_label == 'Single_Label':
+        y = trainm[each_target]
+    else:
+        y = trainm[target]
     eval_set = [()]
     ##### ############      TRAINING MODEL SECOND TIME WITH FULL_TRAIN AND PREDICTING ON TEST ############
     model_start_time = time.time()
@@ -2540,7 +2549,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     proba_col = each_target+'_proba_'+str(each_class)
                 count = int(label_dict[each_target]['dictionary'][each_class])
                 testm[proba_col] = y_proba[:,count]
-            proba_cols.append(proba_col)
+                proba_cols.append(proba_col)
         ##### This next step is very important since some models give series, others give arrays. Very painful!
         if isinstance(y_pred,pd.Series):
             y_pred = y_pred.values.astype(int)

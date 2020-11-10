@@ -22,13 +22,16 @@ with warnings.catch_warnings():
 from numpy import inf
 ################################################################################
 import pdb
-from sklearn.svm import LinearSVR
+######## Import some multi-output models #######################################
+from sklearn.svm import LinearSVR, LinearSVC
+from sklearn.multioutput import MultiOutputRegressor, MultiOutputClassifier
+from sklearn.multioutput import RegressorChain, ClassifierChain
 from sklearn.linear_model import Lasso
 from sklearn.model_selection import StratifiedShuffleSplit
 import matplotlib.pylab as plt
 #get_ipython().magic(u'matplotlib inline')
 from matplotlib.pylab import rcParams
-rcParams['figure.figsize'] = 10, 6
+rcParams['figure.figsize'] = (10, 6)
 from sklearn.metrics import classification_report, confusion_matrix
 from functools import reduce
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -165,7 +168,7 @@ def analyze_problem_type(train, targ,verbose=0):
 from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, TimeSeriesSplit
 from sklearn.model_selection import ShuffleSplit
 def split_train_into_two(train_data, target, randomstate, modeltype):
-    preds = [x for x in list(train_data) if x not in [target]]
+    preds = [x for x in list(train_data) if x not in target]
     if modeltype == 'Classification':
         X = train_data[preds]
         y = train_data[target]
@@ -382,6 +385,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ######################### HELP OTHERS! PLEASE CONTRIBUTE! OPEN A PULL REQUEST! ##########################
     #########################################################################################################
     """
+    np.random.seed(42)
     #####   These copies are to make sure that the originals are not destroyed ####
     CPU_count = os.cpu_count()
     test = copy.deepcopy(test)
@@ -400,7 +404,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     col_sub_sample = 0.7   ### Leave this low for the same reason above
     poly_degree = 2  ### this create 2-degree polynomial variables in Add_Poly. Increase if you want more degrees
     booster = 'gbtree'   ### this is the booster for XGBoost. The other option is "Linear".
-    n_splits = 7  ### This controls the number of splits for Cross Validation. Increasing will take longer time.
+    n_splits = 5  ### This controls the number of splits for Cross Validation. Increasing will take longer time.
     matplotlib_flag = True #(default) This is for drawing SHAP values. If this is False, initJS is used.
     early_stopping = 20 #### Early stopping rounds for XGBoost ######
     encoded = '_Label_Encoded' ### This is the tag we add to feature names in the end to indicate they are label encoded
@@ -422,7 +426,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     max_features = 20 #### maximum number of features in a random forest model or extra trees model
     warm_start = True ### This is to set the warm_start flag for the ExtraTrees models
     bootstrap = True #### Set this flag to control whether to bootstrap variables or not.
-    n_repeats = 1 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
+    n_repeats = 3 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
     Bins = 30 ### This is for plotting probabilities in a histogram. For small data sets, 30 is enough.
     top_nlp_features = 100 ### This sets a limit on the number of features added by each NLP transformer!
     removed_features_threshold = 5 #### This triggers the Truncated_SVD if number of removed features from XGB exceeds this!
@@ -565,6 +569,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     except:
         print('Cannot find the Target variable in data set. Please check input and try again')
         return
+    #####################  TARGET VARIABLE TRANSFORMATION: Single_Label or Multi_Label ###################
+    ##### Transforming each target variable column in a single label or multi-label problem is important. ####
+    #################    You can use label_binarize here but I have decided to use Label Encoding instead ####
+    ### This is for Classification Problems Only ########
+    if modeltype != 'Regression':
+        print('Shuffling the data set before training')
+        start_train = orig_train.sample(frac=1.0, random_state=seed)
+    else:
+        start_train = copy.deepcopy(orig_train)
     for each_target in target:
         #### Make sure you don't move these 2 lines: they need to be reset for every target!
         ####   HyperOpt will not do Trials beyond max_evals - so only if you reset here, it will do it again.
@@ -579,7 +592,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             eval_metric = 'rmse'
             objective = 'reg:squarederror'
             model_class = 'Regression'
-            start_train = copy.deepcopy(orig_train)
+            #### In Regression problems, max_class_length is artificially set to one.
+            #### It turns out that Estimated Time is correlated to number of classes in data set. Hence we use this!
+            max_class_length = 1
         else:
             if len(np.unique(train[each_target])) == 2:
                 model_class = 'Binary-Class'
@@ -592,12 +607,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             else:
                 print('Target label %s has less than 2 classes. Stopping' %each_target)
                 return
-            ### This is for Classification Problems Only ########
-            print('Shuffling the data set before training')
-            start_train = orig_train.sample(frac=1.0, random_state=seed)
-            scv = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=seed)
-        if modeltype != 'Regression':
-            rare_class_orig = find_rare_class(orig_train[each_target].values,verbose=1)
+            if model_label == 'Single_Label':
+                rare_class_orig = find_rare_class(orig_train[each_target].values,verbose=1)
+                scv = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=seed)
+            else:
+                #### Don't print these if there are too many labels - not worth cluttering the screen
+                rare_class_orig = find_rare_class(orig_train[each_target].values,verbose=0)
+                scv = n_splits ##### Stratified K Fold does not work in Multi-Label problems. Gives error.
             ### Perfrom Label Transformation only for Classification Problems ####
             classes = np.unique(orig_train[each_target])
             if first_time:
@@ -651,13 +667,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 label_dict[each_target]['class_nums'] = copy.deepcopy(class_nums)
                 label_dict[each_target]['transformer'] = []
                 label_dict[each_target]['dictionary'] = dict(zip(classes,classes))
-                print('    Target %s is already numeric. No transformation done.' %each_target)
-            if rare_class != 1:
-                print('Alert! Rare Class is not 1 but %s in this data set' %rare_class)
-        else:
-            #### In Regression problems, max_class_length is artificially set to one.
-            #### It turns out that Estimated Time is correlated to number of classes in data set. Hence we use this!
-            max_class_length = 1
+                if model_label == 'Single_Label':
+                    print('    Target %s is already numeric. No transformation done.' %each_target)
+            if model_label == 'Single_Label':
+                if rare_class_orig != 1:
+                    print('Alert! Rare Class is not 1 but %s in this data set' %rare_class)
     ###########################################################################################
     ####  This is where we start doing the iterative hyper tuning parameters #####
     params_dict = defaultdict(list)
@@ -689,19 +703,22 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     GPU_exists = check_if_GPU_exists()
     ###### This is where we set the CPU and GPU parameters for XGBoost
     param = {}
-    if Boosting_Flag:
-        if isinstance(Boosting_Flag,str):
-            if Boosting_Flag.lower() == 'catboost':
-                model_name = 'CatBoost'
-                hyper_param = None
+    if model_label == 'Single_Label':
+        if Boosting_Flag:
+            if isinstance(Boosting_Flag,str):
+                if Boosting_Flag.lower() == 'catboost':
+                    model_name = 'CatBoost'
+                    hyper_param = None
+                else:
+                    model_name = 'XGBoost'
             else:
                 model_name = 'XGBoost'
+        elif Boosting_Flag is None:
+            model_name = 'Linear'
         else:
-            model_name = 'XGBoost'
-    elif Boosting_Flag is None:
-        model_name = 'Linear'
+            model_name = 'Forests'
     else:
-        model_name = 'Forests'
+        model_name = 'Multi_Label'
     #####   Set the Scoring Parameters here based on each model and preferences of user ##############
     cpu_params = {}
     if model_name == 'XGBoost':
@@ -906,6 +923,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         else:
             refit_metric = 'mae'
     else:
+        ##### Sometimes the target is not integer in Classification problems. This is to just make sure.
+        start_train[target] = start_train[target].astype(int)
         if scoring_parameter in ['precision', 'precision_score','average_precision']:
             refit_metric = 'precision'
         elif scoring_parameter in ['logloss', 'log_loss']:
@@ -919,122 +938,147 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         else:
             refit_metric = 'balanced_accuracy'
     print('%s problem: hyperparameters are being optimized for %s' %(modeltype,refit_metric))
-    ###########################################################################################
-    ### Make sure you remove variables that are highly correlated within data set first
-    rem_vars = left_subtract(preds,numvars)
-    if len(numvars) > 0 and feature_reduction:
-        numvars = remove_variables_using_fast_correlation(start_train,numvars, modeltype,
-                                corr_limit,verbose)
-    ### Reduced Preds are now free of correlated variables and hence can be used for Poly adds
-    red_preds = rem_vars + numvars
+    orig_numvars = copy.deepcopy(numvars)
     #### You need to save a copy of this red_preds so you can later on create a start_train
-    ####     with it after each_target cycle is completed. Very important!
-    orig_red_preds = copy.deepcopy(red_preds)
-    for each_target in target:
-        print('\n############# PROCESSING T A R G E T = %s ##########################' %each_target)
-        ########   D E F I N I N G   N E W  T R A I N and N E W   T E S T here #########################
-        ####  This is where we set the orig train data set with multiple labels to the new start_train
-        ####     start_train has the new features added or reduced with the multi targets in one cycle
-        ###      That way, we start each train with one target, and then reset it with multi target
-        #############################################################################################
-        train = start_train[[each_target]+red_preds]
-        if type(orig_test) != str:
-            test = start_test[red_preds]
-        ###### Add Polynomial Variables and Interaction Variables to Train ######
-        if Add_Poly >= 1:
-            if Add_Poly == 1:
-                print('\nAdding only Interaction Variables. This may result in Overfitting!')
-            elif Add_Poly == 2:
-                print('\nAdding only Squared Variables. This may result in Overfitting!')
-            elif Add_Poly == 3:
-                print('\nAdding Both Interaction and Squared Variables. This may result in Overfitting!')
-            ## Since the data is already scaled, we set scaling to None here ##
-            ### For train data we have to set the fit_flag to True   ####
-            if len(numvars) > 1:
-                #### train_red contains reduced numeric variables with original and substituted poly/intxn variables
-                train_sel, lm, train_red,md,fin_xvars,feature_xvar_dict = add_poly_vars_select(train,numvars,
-                                            each_target,modeltype,poly_degree,Add_Poly,md='',
-                                                                corr_limit=corr_limit, scaling='None',
-                                                                fit_flag=True,verbose=verbose)
-                #### train_red contains reduced numeric variables with original and substituted poly/intxn variables
-                if len(left_subtract(train_sel,numvars)) > 0:
-                    #### This means that new intxn and poly vars were added. In that case, you can use them as is
-                    ####  Since these vars were alread tested for correlation, there should be no high correlation!
-                    ###   SO you can take train_sel as the new list of numeric vars (numvars) going forward!
-                    addl_vars = left_subtract(train_sel,numvars)
-                    #numvars = list(set(numvars).intersection(set(train_sel)))
-                    ##### Print the additional Interxn and Poly variables here #######
-                    if verbose >= 1:
-                        print('    Intxn and Poly Vars are: %s' %addl_vars)
-                    train = train_red[train_sel].join(train[rem_vars+[each_target]])
-                    red_preds = [x for x in list(train) if x not in [each_target]]
-                    if type(test) != str:
-                    ######### Add Polynomial and Interaction variables to Test ################
-                    ## Since the data is already scaled, we set scaling to None here ##
-                    ### For Test data we have to set the fit_flag to False   ####
-                        _, _, test_x_df,_,_,_ = add_poly_vars_select(test,numvars,each_target,
-                                                              modeltype,poly_degree,Add_Poly,md,
-                                                              corr_limit, scaling='None', fit_flag=False,
-                                                               verbose=verbose)
-                        ### we need to convert x_vars into text_vars in test_x_df using feature_xvar_dict
-                        rev_feat_x_vars_dict = dict([(v,k) for (k,v) in feature_xvar_dict.items()])
-                        if len(addl_vars) > 0:
-                            addl_vars_x = [rev_feat_x_vars_dict[x] for x in addl_vars]
-                            if len(addl_vars) == 1:
-                                ### you need to do a special case for Series since otherwise it would blow up
-                                test[addl_vars[0]] = test_x_df[addl_vars_x].values
-                            else:
-                                test[addl_vars] = test_x_df[addl_vars_x]
-                        #### Now we should change train_sel to subst_vars since that is the new list of vars going forward
-                        numvars = copy.deepcopy(train_sel)
-                else:
-                    ####  NO new variables were added. so we can skip the rest of the stuff now ###
-                    #### This means the train_sel is the new set of numeric features selected by add_poly algorithm
-                    red_preds = train_sel+rem_vars
-                    print('    No new variable was added by polynomial features...')
+    orig_red_preds = copy.deepcopy(preds)
+    #######    ALERT! #############################################################################
+    ####   We use the first target variable to select variables even in multi-label Settings
+    ###    The reason is sometimes, you can ~200 labels in multi-labels and going thru selecting vars
+    ####   for each label might take time. Hence to simplify we use each_target as the first column.
+    each_target = target[0]
+    print('############# R E M O V I N G   H I G H L Y  C O R R E L A T E D    V A R S #################')
+    ### Make sure you remove variables that are highly correlated within data set first
+    if len(numvars) > 0 and feature_reduction:
+        numvars = remove_variables_using_fast_correlation(start_train,orig_numvars, modeltype,
+                                each_target, corr_limit, verbose)
+    ### Reduced Preds are now free of correlated variables and hence can be used for Poly adds
+    rem_vars = left_subtract(orig_red_preds,numvars)
+    red_preds = rem_vars + numvars
+    ###########################################################################################
+    ########   D E F I N I N G   N E W  T R A I N and N E W   T E S T here #########################
+    ####  This is where we set the orig train data set with multiple labels to the new start_train
+    ####     start_train has the new features added or reduced with the multi targets in one cycle
+    ###      That way, we start each train with one target, and then reset it with multi target
+    #############################################################################################
+    train = start_train[target+red_preds]
+    if type(orig_test) != str:
+        test = start_test[red_preds]
+    ###### Add Polynomial Variables and Interaction Variables to Train ######
+    if Add_Poly >= 1:
+        if Add_Poly == 1:
+            print('\nAdding only Interaction Variables. This may result in Overfitting!')
+        elif Add_Poly == 2:
+            print('\nAdding only Squared Variables. This may result in Overfitting!')
+        elif Add_Poly == 3:
+            print('\nAdding Both Interaction and Squared Variables. This may result in Overfitting!')
+        ## Since the data is already scaled, we set scaling to None here ##
+        ### For train data we have to set the fit_flag to True   ####
+        if len(numvars) > 1:
+            #### train_red contains reduced numeric variables with original and substituted poly/intxn variables
+            train_sel, lm, train_red,md,fin_xvars,feature_xvar_dict = add_poly_vars_select(train,numvars,
+                                        each_target,modeltype,poly_degree,Add_Poly,md='',
+                                                            corr_limit=corr_limit, scaling='None',
+                                                            fit_flag=True,verbose=verbose)
+            #### train_red contains reduced numeric variables with original and substituted poly/intxn variables
+            if len(left_subtract(train_sel,numvars)) > 0:
+                #### This means that new intxn and poly vars were added. In that case, you can use them as is
+                ####  Since these vars were alread tested for correlation, there should be no high correlation!
+                ###   SO you can take train_sel as the new list of numeric vars (numvars) going forward!
+                addl_vars = left_subtract(train_sel,numvars)
+                #numvars = list(set(numvars).intersection(set(train_sel)))
+                ##### Print the additional Interxn and Poly variables here #######
+                if verbose >= 1:
+                    print('    Intxn and Poly Vars are: %s' %addl_vars)
+                train = train_red[train_sel].join(train[rem_vars+target])
+                red_preds = [x for x in list(train) if x not in target]
+                if type(test) != str:
+                ######### Add Polynomial and Interaction variables to Test ################
+                ## Since the data is already scaled, we set scaling to None here ##
+                ### For Test data we have to set the fit_flag to False   ####
+                    _, _, test_x_df,_,_,_ = add_poly_vars_select(test,numvars,each_target,
+                                                          modeltype,poly_degree,Add_Poly,md,
+                                                          corr_limit, scaling='None', fit_flag=False,
+                                                           verbose=verbose)
+                    ### we need to convert x_vars into text_vars in test_x_df using feature_xvar_dict
+                    rev_feat_x_vars_dict = dict([(v,k) for (k,v) in feature_xvar_dict.items()])
+                    if len(addl_vars) > 0:
+                        addl_vars_x = [rev_feat_x_vars_dict[x] for x in addl_vars]
+                        if len(addl_vars) == 1:
+                            ### you need to do a special case for Series since otherwise it would blow up
+                            test[addl_vars[0]] = test_x_df[addl_vars_x].values
+                        else:
+                            test[addl_vars] = test_x_df[addl_vars_x]
+                    #### Now we should change train_sel to subst_vars since that is the new list of vars going forward
+                    numvars = copy.deepcopy(train_sel)
             else:
-                print('\nAdding Polynomial vars ignored since no numeric vars in data')
-                train_sel = copy.deepcopy(numvars)
+                ####  NO new variables were added. so we can skip the rest of the stuff now ###
+                #### This means the train_sel is the new set of numeric features selected by add_poly algorithm
+                red_preds = train_sel+rem_vars
+                print('    No new variable was added by polynomial features...')
         else:
-            ### if there are no Polynomial vars, then all numeric variables are selected
+            print('\nAdding Polynomial vars ignored since no numeric vars in data')
             train_sel = copy.deepcopy(numvars)
-        ################  A U T O   N L P  P R O C E S S I N G   B E G I N S    H E R E !!! ####
-        if len(nlp_columns) > 0:
-                for nlp_column in nlp_columns:
-                    try:
-                        train1, test1, best_nlp_transformer,max_features_limit = Auto_NLP(nlp_column,
-                                                    train, test, each_target, refit_metric,
-                                                    modeltype, top_nlp_features, verbose,
-                                                    build_model=False)
-                        ####### Make sure you include the above new columns created in the predictor variables!
-                        red_preds = [x for x in list(train1) if x not in [each_target]]
-                        train = train1[red_preds+[each_target]]
-                        if not isinstance(orig_test, str):
-                            test = test1[red_preds]
-                        ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####
-                    except:
-                        print('Auto_NLP error. Continuing without NLP processing')
-                        train.drop(nlp_column, axis=1, inplace=True)
-                        if not isinstance(orig_test, str):
-                            test.drop(nlp_column, axis=1, inplace=True)
-                        red_preds = [x for x in list(train) if x not in [each_target]]
-        ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
-        train_sel = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
-        print('Selecting only (%d) float variables this time to remove correlated features...' %len(train_sel))
-        numvars = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
-        #########   A D D   D A T E  T I M E    F E A T U R E S     H E R E ####################
-        if len(date_cols) > 0:
-            #### Do this only if date time columns exist in your data set!
-            for date_col in date_cols:
-                print('Processing %s column for date time features....' %date_col)
-                date_df_train = create_time_series_features(orig_train, date_col)
-                date_col_adds_train = left_subtract(date_df_train.columns.tolist(),date_col)
-                if not isinstance(orig_test, str):
-                    date_df_test = create_time_series_features(orig_test, date_col)
-                    date_col_adds_test = left_subtract(date_df_test.columns.tolist(),date_col)
+    else:
+        ### if there are no Polynomial vars, then all numeric variables are selected
+        train_sel = copy.deepcopy(numvars)
+    ################  A U T O   N L P  P R O C E S S I N G   B E G I N S    H E R E !!! ####
+    if len(nlp_columns) > 0:
+            for nlp_column in nlp_columns:
+                try:
+                    train1, test1, best_nlp_transformer,max_features_limit = Auto_NLP(nlp_column,
+                                                train, test, each_target, refit_metric,
+                                                modeltype, top_nlp_features, verbose,
+                                                build_model=False)
+                    ####### Make sure you include the above new columns created in the predictor variables!
+                    red_preds = [x for x in list(train1) if x not in target]
+                    train = train1[red_preds+target]
+                    if not isinstance(orig_test, str):
+                        test = test1[red_preds]
+                    ################  A U T O   N L P  P R O C E S S I N G   E N D S    H E R E !!! ####
+                except:
+                    print('Auto_NLP error. Continuing without NLP processing')
+                    train.drop(nlp_column, axis=1, inplace=True)
+                    if not isinstance(orig_test, str):
+                        test.drop(nlp_column, axis=1, inplace=True)
+                    red_preds = [x for x in list(train) if x not in target]
+    ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
+    train_sel = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
+    print('    Selected (%d) float variables from remove_correlated_features method ...' %len(train_sel))
+    numvars = train[red_preds].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
+    #########   A D D   D A T E  T I M E    F E A T U R E S     H E R E ####################
+    if len(date_cols) > 0:
+        #### Do this only if date time columns exist in your data set!
+        for date_col in date_cols:
+            print('Processing %s column for date time features....' %date_col)
+            date_df_train = create_time_series_features(orig_train, date_col)
+            date_col_adds_train = left_subtract(date_df_train.columns.tolist(),date_col)
+            print('    Adding %d columns from date-time column %s in train' %(len(date_col_adds_train),date_col))
+            if not isinstance(orig_test, str):
+                print('        Adding time series features for test data...')
+                date_df_test = create_time_series_features(orig_test, date_col)
+                date_col_adds_test = left_subtract(date_df_test.columns.tolist(),date_col)
+            else:
+                date_col_adds_test = []
+            if len(date_col_adds_test) == 0:
+                ### if both create_time_series_features return the same variables, then good
+                date_col_adds = copy.deepcopy(date_col_adds_train)
+                if date_col_adds != []:
+                    train = train.join(date_df_train)
+                    ### Now time to remove the date time column from all further processing ##
+                    #train.drop(date_col,axis=1,inplace=True)
+                    if not isinstance(orig_test, str):
+                        if date_col_adds != []:
+                            test = test.join(date_df_test)
+                            ### Now time to remove the date time column from all further processing ##
+                            #test.drop(date_col,axis=1,inplace=True)
+            else:
+                if len(left_subtract(date_col_adds_train,date_col_adds_test)) != 0 or len(left_subtract(date_col_adds_test,date_col_adds_train)) :
+                    ### if the number of cols created in train data is not same as test data, then
+                    ###  it is a problem. It can happen due to bad data. Just select the common ones
+                    ###  in that case. THat way, it would not blow up later.
+                    print('Error: Due to differences in Train and Test %s, getting different columns created. Continuing...' %date_col)
+                    date_col_adds = list(set(date_col_adds_train).intersection(set(date_col_adds_test)))
                 else:
-                    date_col_adds_test = []
-                if len(date_col_adds_test) == 0:
                     ### if both create_time_series_features return the same variables, then good
                     date_col_adds = copy.deepcopy(date_col_adds_train)
                     if date_col_adds != []:
@@ -1046,80 +1090,64 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 test = test.join(date_df_test)
                                 ### Now time to remove the date time column from all further processing ##
                                 #test.drop(date_col,axis=1,inplace=True)
-                else:
-                    if len(left_subtract(date_col_adds_train,date_col_adds_test)) != 0 or len(left_subtract(date_col_adds_test,date_col_adds_train)) :
-                        ### if the number of cols created in train data is not same as test data, then
-                        ###  it is a problem. It can happen due to bad data. Just select the common ones
-                        ###  in that case. THat way, it would not blow up later.
-                        print('Error: Due to differences in Train and Test %s, getting different columns created. Continuing...' %date_col)
-                        date_col_adds = list(set(date_col_adds_train).intersection(set(date_col_adds_test)))
-                    else:
-                        ### if both create_time_series_features return the same variables, then good
-                        date_col_adds = copy.deepcopy(date_col_adds_train)
-                        if date_col_adds != []:
-                            train = train.join(date_df_train)
-                            ### Now time to remove the date time column from all further processing ##
-                            #train.drop(date_col,axis=1,inplace=True)
-                            if not isinstance(orig_test, str):
-                                if date_col_adds != []:
-                                    test = test.join(date_df_test)
-                                    ### Now time to remove the date time column from all further processing ##
-                                    #test.drop(date_col,axis=1,inplace=True)
-            #########     CREATING TIME FEATURES IS COMPLETED   #############################
-            red_preds = [x for x in list(train) if x not in [each_target]]
-            ### we add new date time variables to the list of numeric float variables to see if they have any
-            ### high correlations to each other. In that case, they can be reduced by the feature reduction scheme.
-            train_sel = train_sel + date_col_adds
-        #########     SELECT IMPORTANT FEATURES HERE   #############################
-        if feature_reduction:
-            important_features,num_vars, imp_cats = find_top_features_xgb(train,red_preds,train_sel,
-                                                         each_target,
-                                                     modeltype,corr_limit,verbose)
-        else:
-            important_features = copy.deepcopy(red_preds)
-            num_vars = copy.deepcopy(numvars)
-            ####  we need to set the rem_vars in case there is no feature reduction #######
-            imp_cats = left_subtract(important_features,num_vars)
-        #####################################################################################
-        if len(important_features) == 0:
-            print('No important features found. Using all input features...')
-            important_features = copy.deepcopy(red_preds)
-            num_vars = copy.deepcopy(numvars)
-            ####  we need to set the rem_vars in case there is no feature reduction #######
-            imp_cats = left_subtract(important_features,num_vars)
-        ### Training an XGBoost model to find important features
-        train = train[important_features+[each_target]]
-        ######################################################################
-        if type(orig_test) != str:
-            test = test[important_features]
-            #######You must convert category variables into integers ###############
-            integer_cats = test[imp_cats].select_dtypes(include=[np.int64,np.int32,np.int16,np.int8,int]).columns.tolist()
-            non_integer_cats = left_subtract(imp_cats, integer_cats)
-            for important_cat in non_integer_cats:
-                test[important_cat] = test[important_cat].astype(int)
-        ##############          F E A T U R E   E N G I N E E R I N G  S T A R T S  N O W    ##############
-        ######    From here on we do some Feature Engg using Target Variable with Data Leakage ############
-        ###   To avoid Model Leakage, we will now split the Data into Train and CV so that Held Out Data
-        ##     is Pure and is unadulterated by learning from its own Target. This is known as Data Leakage.
-        ###################################################################################################
-        print('Starting Feature Engineering now...')
-        X = train[important_features]
-        y = train[each_target]
-        ################     I  M  P  O  R  T  A  N  T  ##################################################
-        ### The reason we don't use train_test_split is because we want only a partial train entropy binned
-        ### If we use the whole of Train for entropy binning then there will be data leakage and our
-        ### cross validation test scores will not be so accurate. So don't change the next 5 lines here!
-        ################     I  M  P  O  R  T  A  N  T  ##################################################
-        part_train, part_cv = split_train_into_two(train, each_target, randomstate=99, modeltype=modeltype)
-        X_train, X_cv = part_train[important_features], part_cv[important_features]
-        y_train, y_cv = part_train[each_target], part_cv[each_target]
-        print('Train CV Split completed with', "TRAIN rows:", part_train.shape[0], "CV rows:", part_cv.shape[0])
-        ################   IMPORTANT ENTROPY  BINNING FIRST TIME   #####################################
-        ############   Add Entropy Binning of Continuous Variables Here ##############################
-        num_vars = train[important_features].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
-        saved_important_features = copy.deepcopy(important_features)  ### these are original features without '_bin' added
-        #### saved_num_vars is an important variable: it contains the orig_num_vars before they were binned
-        saved_num_vars = copy.deepcopy(num_vars)  ### these are original numeric features without '_bin' added
+        #########     CREATING TIME FEATURES IS COMPLETED   #############################
+        red_preds = [x for x in list(train) if x not in target]
+        ### we add new date time variables to the list of numeric float variables to see if they have any
+        ### high correlations to each other. In that case, they can be reduced by the feature reduction scheme.
+        train_sel = train_sel + date_col_adds
+        #rem_cat_vars = left_subtract(red_preds, train_sel)
+    #########     SELECT IMPORTANT FEATURES HERE   #############################
+    if feature_reduction:
+        train_sel = remove_variables_using_fast_correlation(train,red_preds, modeltype,
+                                    each_target, corr_limit, verbose)
+        #red_preds = train_sel + rem_cat_vars
+        important_features,num_vars, imp_cats = find_top_features_xgb(train,train_sel,train_sel,
+                                                     each_target,
+                                                 modeltype,corr_limit,verbose)
+    else:
+        important_features = copy.deepcopy(red_preds)
+        num_vars = copy.deepcopy(numvars)
+        ####  we need to set the rem_vars in case there is no feature reduction #######
+        imp_cats = left_subtract(important_features,num_vars)
+    #####################################################################################
+    if len(important_features) == 0:
+        print('No important features found. Using all input features...')
+        important_features = copy.deepcopy(red_preds)
+        num_vars = copy.deepcopy(numvars)
+        ####  we need to set the rem_vars in case there is no feature reduction #######
+        imp_cats = left_subtract(important_features,num_vars)
+    ### Training an XGBoost model to find important features
+    train = train[important_features+target]
+    ######################################################################
+    if type(orig_test) != str:
+        test = test[important_features]
+        #######You must convert category variables into integers ###############
+        integer_cats = test[imp_cats].select_dtypes(include=[np.int64,np.int32,np.int16,np.int8,int]).columns.tolist()
+        non_integer_cats = left_subtract(imp_cats, integer_cats)
+        for important_cat in non_integer_cats:
+            test[important_cat] = test[important_cat].astype(int)
+    ##############          F E A T U R E   E N G I N E E R I N G  S T A R T S  N O W    ##############
+    ######    From here on we do some Feature Engg using Target Variable with Data Leakage ############
+    ###   To avoid Model Leakage, we will now split the Data into Train and CV so that Held Out Data
+    ##     is Pure and is unadulterated by learning from its own Target. This is known as Data Leakage.
+    ###################################################################################################
+    print('Performing limited feature engineering for binning, add_poly and KMeans_Featurizer flags  ...')
+    ################     I  M  P  O  R  T  A  N  T  ##################################################
+    ### The reason we don't use train_test_split is because we want only a partial train entropy binned
+    ### If we use the whole of Train for entropy binning then there will be data leakage and our
+    ### cross validation test scores will not be so accurate. So don't change the next 5 lines here!
+    ################     I  M  P  O  R  T  A  N  T  ##################################################
+    part_train, part_cv = split_train_into_two(train, target, randomstate=99, modeltype=modeltype)
+    X_train, X_cv = part_train[important_features], part_cv[important_features]
+    y_train, y_cv = part_train[target], part_cv[target]
+    print('Train CV Split completed with', "TRAIN rows:", part_train.shape[0], "CV rows:", part_cv.shape[0])
+    ################   IMPORTANT ENTROPY  BINNING FIRST TIME   #####################################
+    ############   Add Entropy Binning of Continuous Variables Here ##############################
+    num_vars = train[important_features].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
+    saved_important_features = copy.deepcopy(important_features)  ### these are original features without '_bin' added
+    #### saved_num_vars is an important variable: it contains the orig_num_vars before they were binned
+    saved_num_vars = copy.deepcopy(num_vars)  ### these are original numeric features without '_bin' added
+    if model_label == 'Single_Label':
         ###############    BINNING   FIRST    TIME ##################################################
         if Binning_Flag and len(saved_num_vars) > 0:
             #### Do binning only when there are numeric features ####
@@ -1194,13 +1222,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             except:
                 print('    Error in Stacking first time. Continuing without Stacking for this data set...')
                 Stacking_Flag = False
-        ###############################################################################
-        #### part train contains the unscaled original train. It also contains binned and orig_num_vars!
-        #### DO NOT DO TOUCH part_train and part_cv -> we need it to recrate train later!
-        ####################### Now do Feature Scaling Here #################################
-        #part_train_scaled, part_cv_scaled = perform_scaling_numeric_vars(part_train, important_features,
-        #                                        part_cv, model_name, SS)
-        important_features = find_remove_duplicates(important_features)
+    ###############################################################################
+    #### part train contains the unscaled original train. It also contains binned and orig_num_vars!
+    #### DO NOT DO TOUCH part_train and part_cv -> we need it to recrate train later!
+    ####################### Now do Feature Scaling Here #################################
+    #part_train_scaled, part_cv_scaled = perform_scaling_numeric_vars(part_train, important_features,
+    #                                        part_cv, model_name, SS)
+    #### if important_features by mistake has duplicates they must be removed!
+    important_features = find_remove_duplicates(important_features)
+    if model_label == 'Single_Label':
         if not perform_scaling_flag:
             print('Skipping %s scaling since perform_scaling flag is set to False ' %scaling)
             X_train = part_train[important_features]
@@ -1212,87 +1242,102 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                         columns=important_features)
             X_cv = pd.DataFrame(SS.transform(part_cv[important_features]),index=part_cv.index,
                                         columns=important_features)
-        #### if important_features by mistake has duplicates they must be removed!
-        #### Remember that the next 2 lines are crucial: if X and y are dataframes, then predict_proba
-        ###     will return  dataframes or series. Otherwise it will return Numpy array's.
-        ##      Be consistent when using dataframes with XGB. That's the best way to keep feature names!
-        print('###############  M O D E L   B U I L D I N G  B E G I N S  ####################')
-        print('Rows in Train data set = %d' %X_train.shape[0])
-        print('  Features in Train data set = %d' %X_train.shape[1])
-        print('    Rows in held-out data set = %d' %X_cv.shape[0])
-        data_dim = X_train.shape[0]*X_train.shape[1]
-        ###   Setting up the Estimators for Single Label and Multi Label targets only
-        if modeltype == 'Regression':
-            metrics_list = ['neg_mean_absolute_error' ,'neg_mean_squared_error',
-             'neg_mean_squared_log_error','neg_median_absolute_error']
-            eval_metric = "rmse"
-            if scoring_parameter == 'neg_mean_absolute_error' or scoring_parameter =='mae':
-                meae_scorer = make_scorer(gini_meae, greater_is_better=False)
-                scorer = meae_scorer
-            elif scoring_parameter == 'neg_mean_squared_error' or scoring_parameter =='mse':
-                mse_scorer = make_scorer(gini_mse, greater_is_better=False)
-                scorer = mse_scorer
-            elif scoring_parameter == 'neg_mean_squared_log_error' or scoring_parameter == 'log_error':
-                msle_scorer = make_scorer(gini_msle, greater_is_better=False)
-                print('    Log Error is not recommended since predicted values might be negative and error')
-                rmse_scorer = make_scorer(gini_rmse, greater_is_better=False)
-                scorer = rmse_scorer
-            elif scoring_parameter == 'neg_median_absolute_error' or scoring_parameter == 'median_error':
-                mae_scorer = make_scorer(gini_mae, greater_is_better=False)
-                scorer = mae_scorer
-            elif scoring_parameter =='rmse' or scoring_parameter == 'root_mean_squared_error':
-                rmse_scorer = make_scorer(gini_rmse, greater_is_better=False)
-                scorer = rmse_scorer
-            else:
-                scoring_parameter = 'rmse'
-                rmse_scorer = make_scorer(gini_rmse, greater_is_better=False)
-                scorer = rmse_scorer
-            ####      HYPER PARAMETERS FOR TUNING ARE SETUP HERE      ###
-            if hyper_param == 'GS':
-                r_params = {
-                        "Forests": {
-                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
-                                "max_depth": [3, 5, max_depth],
-                                #"criterion" : ['mse','mae'],
+    else:
+        ###### Performing Scaling helps SVM models ######################
+        print('Performing %s scaling of train and validation data' %scaling)
+        SS.fit(part_train[important_features])
+        X_train = pd.DataFrame(SS.transform(part_train[important_features]),index=part_train.index,
+                                    columns=important_features)
+        X_cv = pd.DataFrame(SS.transform(part_cv[important_features]),index=part_cv.index,
+                                    columns=important_features)
+        perform_scaling_flag =  True
+    #### Remember that the next 2 lines are crucial: if X and y are dataframes, then predict_proba
+    ###     will return  dataframes or series. Otherwise it will return Numpy array's.
+    ##      Be consistent when using dataframes with XGB. That's the best way to keep feature names!
+    print('###############  M O D E L   B U I L D I N G  B E G I N S  ####################')
+    print('Rows in Train data set = %d' %X_train.shape[0])
+    print('  Features in Train data set = %d' %X_train.shape[1])
+    print('    Rows in held-out data set = %d' %X_cv.shape[0])
+    data_dim = X_train.shape[0]*X_train.shape[1]*len(target)
+    ###   Setting up the Estimators for Single Label and Multi Label targets only
+    if modeltype == 'Regression':
+        metrics_list = ['neg_mean_absolute_error' ,'neg_mean_squared_error',
+         'neg_mean_squared_log_error','neg_median_absolute_error']
+        eval_metric = "rmse"
+        if scoring_parameter == 'neg_mean_absolute_error' or scoring_parameter =='mae':
+            meae_scorer = make_scorer(gini_meae, greater_is_better=False)
+            scorer = meae_scorer
+        elif scoring_parameter == 'neg_mean_squared_error' or scoring_parameter =='mse':
+            mse_scorer = make_scorer(gini_mse, greater_is_better=False)
+            scorer = mse_scorer
+        elif scoring_parameter == 'neg_mean_squared_log_error' or scoring_parameter == 'log_error':
+            msle_scorer = make_scorer(gini_msle, greater_is_better=False)
+            print('    Log Error is not recommended since predicted values might be negative and error')
+            rmse_scorer = make_scorer(gini_rmse, greater_is_better=False)
+            scorer = rmse_scorer
+        elif scoring_parameter == 'neg_median_absolute_error' or scoring_parameter == 'median_error':
+            mae_scorer = make_scorer(gini_mae, greater_is_better=False)
+            scorer = mae_scorer
+        elif scoring_parameter =='rmse' or scoring_parameter == 'root_mean_squared_error':
+            rmse_scorer = make_scorer(gini_rmse, greater_is_better=False)
+            scorer = rmse_scorer
+        else:
+            scoring_parameter = 'rmse'
+            rmse_scorer = make_scorer(gini_rmse, greater_is_better=False)
+            scorer = rmse_scorer
+        ####      HYPER PARAMETERS FOR TUNING ARE SETUP HERE      ###
+        if hyper_param == 'GS':
+            r_params = {
+                    "Forests": {
+                            "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
+                            "max_depth": [3, 5, max_depth],
+                            #"criterion" : ['mse','mae'],
+                            },
+                    "Linear": {
+                        #'alpha': np.logspace(-5,3),
+                        'epsilon': [0, 0.01, 0.06, 0.1, 0.3, 0.5, 0.8],
+                        'C': [0.01, 0.1,1,1.5, 10,100]
+                            },
+                    "XGBoost": {
+                                    'learning_rate': np.linspace(0.1,0.5,5),
+                                    'gamma': np.linspace(0, 32,7).astype(int),
+                                    "max_depth": [3, 5, max_depth],
+                            },
+                    "CatBoost": {
+                            'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
+                            },
+                    "Multi_Label": {
+                            'estimator__C': [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3]
+                                    }
+                    }
+        else:
+            import scipy as sp
+            r_params = {
+                    "Forests": {
+                           'n_estimators': sp.stats.randint(100,max_estims),
+                            "max_depth": sp.stats.randint(3, max_depth),
+                            "min_samples_leaf": sp.stats.randint(2, 20),
+                            #"criterion" : ['mse','mae'],
+                            },
+                    "Linear": {
+                            #'alpha': sp.stats.uniform(scale=1000),
+                            'epsilon': sp.stats.uniform(scale=1),
+                            'C': sp.stats.uniform(scale=100)
+                            },
+                    "XGBoost":  {
+                            'learning_rate': sp.stats.uniform(scale=1),
+                            'gamma': sp.stats.randint(0, 32),
+                           'n_estimators': sp.stats.randint(100,max_estims),
+                            "max_depth": sp.stats.randint(3, max_depth),
                                 },
-                        "Linear": {
-                            #'alpha': np.logspace(-5,3),
-                            'epsilon': [0, 0.01, 0.06, 0.1, 0.3, 0.5, 0.8],
-                            'C': [0.01, 0.1,1,1.5, 10,100]
-                                },
-                        "XGBoost": {
-                                        'learning_rate': np.linspace(0.1,0.5,5),
-                                        'gamma': np.linspace(0, 32,7).astype(int),
-                                        "max_depth": [3, 5, max_depth],
-                                },
-                        "CatBoost": {
-                                'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
-                                },
-                        }
-            else:
-                import scipy as sp
-                r_params = {
-                        "Forests": {
-                               'n_estimators': sp.stats.randint(100,max_estims),
-                                "max_depth": sp.stats.randint(3, max_depth),
-                                "min_samples_leaf": sp.stats.randint(2, 20),
-                                #"criterion" : ['mse','mae'],
-                                },
-                        "Linear": {
-                                #'alpha': sp.stats.uniform(scale=1000),
-                                'epsilon': sp.stats.uniform(scale=1),
-                                'C': sp.stats.uniform(scale=100)
-                                },
-                        "XGBoost":  {
-                                'learning_rate': sp.stats.uniform(scale=1),
-                                'gamma': sp.stats.randint(0, 32),
-                               'n_estimators': sp.stats.randint(100,max_estims),
-                                "max_depth": sp.stats.randint(3, max_depth),
-                                    },
-                        "CatBoost": {
-                                'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
-                                },
-                        }
+                    "CatBoost": {
+                            'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
+                            },
+                    "Multi_Label": {
+                            'estimator__C': sp.stats.uniform(scale=1)
+                                    }
+                    }
+        if model_label == 'Single_Label':
             if Boosting_Flag:
                 if model_name.lower() == 'catboost':
                     xgbm = CatBoostRegressor(verbose=1,iterations=max_estims,random_state=99,
@@ -1318,115 +1363,126 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 'max_features': "sqrt"
                                 })
         else:
-            #### This is for Binary Classification ##############################
-            classes = label_dict[each_target]['classes']
-            metrics_list = ['accuracy_score','roc_auc_score','logloss', 'precision','recall','f1']
-            # Create regularization hyperparameter distribution with 50 C values ####
-            if hyper_param == 'GS':
-                c_params['XGBoost'] = {
-                                        'learning_rate': np.linspace(0.1,0.5,5),
-                                        'gamma': np.linspace(0, 32,7).astype(int),
-                                        "max_depth": [3, 5, max_depth],
-                                    }
-                c_params["CatBoost"] = {
-                                'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
-                                }
-                if Imbalanced_Flag:
-                    c_params['Linear'] = {
-                                    'C': Cs,
-                                'solver' : solvers,
-                                'penalty' : penalties,
-                                'class_weight':[None, 'balanced'],
-                                    }
-                else:
-                    c_params['Linear'] = {
-                                    'C': Cs,
-                                'class_weight':[None, 'balanced'],
-                                'penalty' : penalties,
-                                    'solver' : solvers,
-                                        }
-                c_params["Forests"] = {
-                    ##### I have selected these to avoid Overfitting which is a problem for small data sets
-                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
+            lvm = LinearSVR(epsilon=0.0, tol=0.001, C=1.0,max_iter=max_iter, random_state=seed)
+            # define the direct multioutput wrapper model
+            xgbm = MultiOutputRegressor(lvm)
+    else:
+        #### This is for Binary Classification ##############################
+        classes = label_dict[each_target]['classes']
+        metrics_list = ['accuracy_score','roc_auc_score','logloss', 'precision','recall','f1']
+        # Create regularization hyperparameter distribution with 50 C values ####
+        if hyper_param == 'GS':
+            c_params['XGBoost'] = {
+                                    'learning_rate': np.linspace(0.1,0.5,5),
+                                    'gamma': np.linspace(0, 32,7).astype(int),
                                     "max_depth": [3, 5, max_depth],
-                                    #'max_features': [1,2,5, max_features],
-                                    #"criterion":['gini','entropy'],
-                                            }
-            else:
-                import scipy as sp
-                c_params['XGBoost'] = {
-                        'learning_rate': sp.stats.uniform(scale=1),
-                        'gamma': sp.stats.randint(0, 32),
-                       'n_estimators': sp.stats.randint(100,max_estims),
-                        "max_depth": sp.stats.randint(3, max_depth),
-                      }
-                c_params["CatBoost"] = {
-                                    'learning_rate': sp.stats.uniform(scale=1),
                                 }
-                if Imbalanced_Flag:
-                    c_params['Linear'] = {
-                                    'C': sp.stats.uniform(scale=100),
+            c_params["CatBoost"] = {
+                            'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
+                            }
+            if Imbalanced_Flag:
+                c_params['Linear'] = {
+                                'C': Cs,
+                            'solver' : solvers,
+                            'penalty' : penalties,
+                            'class_weight':[None, 'balanced'],
+                                }
+            else:
+                c_params['Linear'] = {
+                                'C': Cs,
+                            'class_weight':[None, 'balanced'],
+                            'penalty' : penalties,
                                 'solver' : solvers,
+                                    }
+            c_params["Forests"] = {
+                ##### I have selected these to avoid Overfitting which is a problem for small data sets
+                            "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
+                                "max_depth": [3, 5, max_depth],
+                                #'max_features': [1,2,5, max_features],
+                                #"criterion":['gini','entropy'],
+                                        }
+            c_params["Multi_Label"] = {
+                        'estimator__C': [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3]
+                        }
+        else:
+            import scipy as sp
+            c_params['XGBoost'] = {
+                    'learning_rate': sp.stats.uniform(scale=1),
+                    'gamma': sp.stats.randint(0, 32),
+                   'n_estimators': sp.stats.randint(100,max_estims),
+                    "max_depth": sp.stats.randint(3, max_depth),
+                  }
+            c_params["CatBoost"] = {
+                                'learning_rate': sp.stats.uniform(scale=1),
+                            }
+            if Imbalanced_Flag:
+                c_params['Linear'] = {
+                                'C': sp.stats.uniform(scale=100),
+                            'solver' : solvers,
+                            'penalty' : penalties,
+                            'class_weight':[None, 'balanced'],
+                                }
+            else:
+                c_params['Linear'] = {
+                                'C': sp.stats.uniform(scale=100),
                                 'penalty' : penalties,
-                                'class_weight':[None, 'balanced'],
-                                    }
-                else:
-                    c_params['Linear'] = {
-                                    'C': sp.stats.uniform(scale=100),
-                                    'penalty' : penalties,
-                                    'solver' : solvers,
-                                    }
-                c_params["Forests"] = {
-                    ##### I have selected these to avoid Overfitting which is a problem for small data sets
-                                   'n_estimators': sp.stats.randint(100,max_estims),
-                                    "max_depth": sp.stats.randint(3, max_depth),
-                                    "min_samples_leaf": sp.stats.randint(2, 20),
-                                    #"criterion":['gini','entropy'],
-                                    #'max_features': ['log', "sqrt"] ,
-                                    #'class_weight':[None,'balanced']
-                                            }
-            # Create regularization hyperparameter distribution using uniform distribution
-            if len(classes) == 2:
-                objective = 'binary:logistic'
-                if scoring_parameter == 'accuracy' or scoring_parameter == 'accuracy_score':
-                    accuracy_scorer = make_scorer(gini_accuracy, greater_is_better=True, needs_proba=False)
-                    scorer =accuracy_scorer
-                elif scoring_parameter == 'gini':
-                    gini_scorer = make_scorer(gini_sklearn, greater_is_better=False, needs_proba=True)
-                    scorer =gini_scorer
-                elif scoring_parameter == 'auc' or scoring_parameter == 'roc_auc' or scoring_parameter == 'roc_auc_score':
-                    roc_scorer = make_scorer(gini_roc, greater_is_better=True, needs_threshold=True)
-                    scorer =roc_scorer
-                elif scoring_parameter == 'log_loss' or scoring_parameter == 'logloss':
-                    scoring_parameter = 'neg_log_loss'
-                    logloss_scorer = make_scorer(gini_log_loss, greater_is_better=False, needs_proba=False)
-                    scorer =logloss_scorer
-                elif scoring_parameter=='balanced_accuracy' or scoring_parameter=='balanced-accuracy' or scoring_parameter=='average_accuracy':
-                    bal_accuracy_scorer = make_scorer(gini_bal_accuracy, greater_is_better=True,
-                                                                      needs_proba=False)
-                    scorer = bal_accuracy_scorer
-                elif scoring_parameter == 'precision' or scoring_parameter == 'precision_score':
-                    precision_scorer = make_scorer(gini_precision, greater_is_better=True, needs_proba=False,
+                                'solver' : solvers,
+                                }
+            c_params["Forests"] = {
+                ##### I have selected these to avoid Overfitting which is a problem for small data sets
+                               'n_estimators': sp.stats.randint(100,max_estims),
+                                "max_depth": sp.stats.randint(3, max_depth),
+                                "min_samples_leaf": sp.stats.randint(2, 20),
+                                #"criterion":['gini','entropy'],
+                                #'max_features': ['log', "sqrt"] ,
+                                #'class_weight':[None,'balanced']
+                                        }
+            c_params["Multi_Label"] = {
+                        'estimator__C': sp.stats.uniform(scale=1)
+                        }
+        # Create regularization hyperparameter distribution using uniform distribution
+        if len(classes) == 2:
+            objective = 'binary:logistic'
+            if scoring_parameter == 'accuracy' or scoring_parameter == 'accuracy_score':
+                accuracy_scorer = make_scorer(gini_accuracy, greater_is_better=True, needs_proba=False)
+                scorer =accuracy_scorer
+            elif scoring_parameter == 'gini':
+                gini_scorer = make_scorer(gini_sklearn, greater_is_better=False, needs_proba=True)
+                scorer =gini_scorer
+            elif scoring_parameter == 'auc' or scoring_parameter == 'roc_auc' or scoring_parameter == 'roc_auc_score':
+                roc_scorer = make_scorer(gini_roc, greater_is_better=True, needs_threshold=True)
+                scorer =roc_scorer
+            elif scoring_parameter == 'log_loss' or scoring_parameter == 'logloss':
+                scoring_parameter = 'neg_log_loss'
+                logloss_scorer = make_scorer(gini_log_loss, greater_is_better=False, needs_proba=False)
+                scorer =logloss_scorer
+            elif scoring_parameter=='balanced_accuracy' or scoring_parameter=='balanced-accuracy' or scoring_parameter=='average_accuracy':
+                bal_accuracy_scorer = make_scorer(gini_bal_accuracy, greater_is_better=True,
+                                                                  needs_proba=False)
+                scorer = bal_accuracy_scorer
+            elif scoring_parameter == 'precision' or scoring_parameter == 'precision_score':
+                precision_scorer = make_scorer(gini_precision, greater_is_better=True, needs_proba=False,
+                    pos_label=rare_class)
+                scorer =precision_scorer
+            elif scoring_parameter == 'recall' or scoring_parameter == 'recall_score':
+                recall_scorer = make_scorer(gini_recall, greater_is_better=True, needs_proba=False,
                         pos_label=rare_class)
-                    scorer =precision_scorer
-                elif scoring_parameter == 'recall' or scoring_parameter == 'recall_score':
-                    recall_scorer = make_scorer(gini_recall, greater_is_better=True, needs_proba=False,
-                            pos_label=rare_class)
-                    scorer =recall_scorer
-                elif scoring_parameter == 'f1' or scoring_parameter == 'f1_score':
-                    f1_scorer = make_scorer(gini_f1, greater_is_better=True, needs_proba=False,
-                            pos_label=rare_class)
-                    scorer =f1_scorer
-                elif scoring_parameter == 'f2' or scoring_parameter == 'f2_score':
-                    f2_scorer = make_scorer(f2_measure, greater_is_better=True, needs_proba=False)
-                    scorer =f2_scorer
-                else:
-                    logloss_scorer = make_scorer(gini_log_loss, greater_is_better=False, needs_proba=False)
-                    scorer =logloss_scorer
-                    #f1_scorer = make_scorer(gini_f1, greater_is_better=True, needs_proba=False,
-                    #        pos_label=rare_class)
-                    #scorer = f1_scorer
-                ### DO NOT USE NUM CLASS WITH BINARY CLASSIFICATION ######
+                scorer =recall_scorer
+            elif scoring_parameter == 'f1' or scoring_parameter == 'f1_score':
+                f1_scorer = make_scorer(gini_f1, greater_is_better=True, needs_proba=False,
+                        pos_label=rare_class)
+                scorer =f1_scorer
+            elif scoring_parameter == 'f2' or scoring_parameter == 'f2_score':
+                f2_scorer = make_scorer(f2_measure, greater_is_better=True, needs_proba=False)
+                scorer =f2_scorer
+            else:
+                logloss_scorer = make_scorer(gini_log_loss, greater_is_better=False, needs_proba=False)
+                scorer =logloss_scorer
+                #f1_scorer = make_scorer(gini_f1, greater_is_better=True, needs_proba=False,
+                #        pos_label=rare_class)
+                #scorer = f1_scorer
+            ### DO NOT USE NUM CLASS WITH BINARY CLASSIFICATION ######
+            if model_label == 'Single_Label':
                 if Boosting_Flag:
                     if model_name.lower() == 'catboost':
                         xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
@@ -1456,98 +1512,142 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 'max_features': "sqrt"
                                 })
             else:
-                #####   This is for MULTI Classification ##########################
-                objective = 'multi:softmax'
-                eval_metric = "mlogloss"
-                if scoring_parameter == 'gini':
-                    gini_scorer = make_scorer(gini_sklearn, greater_is_better=False, needs_proba=True)
-                    scorer = gini_scorer
-                elif scoring_parameter=='balanced_accuracy' or scoring_parameter=='balanced-accuracy' or scoring_parameter=='average_accuracy':
-                    bal_accuracy_scorer = make_scorer(gini_bal_accuracy, greater_is_better=True,
-                                                                      needs_proba=False)
-                    scorer = bal_accuracy_scorer
-                elif scoring_parameter == 'roc_auc' or scoring_parameter == 'roc_auc_score':
-                    roc_auc_scorer = make_scorer(gini_sklearn, greater_is_better=False, needs_proba=True)
-                    scorer = roc_auc_scorer
-                elif scoring_parameter == 'average_precision' or scoring_parameter == 'mean_precision':
-                    average_precision_scorer = make_scorer(gini_average_precision,
-                                                           greater_is_better=True, needs_proba=True)
-                    scorer = average_precision_scorer
-                elif scoring_parameter == 'samples_precision':
-                    samples_precision_scorer = make_scorer(gini_samples_precision,
-                                                           greater_is_better=True, needs_proba=True)
-                    scorer = samples_precision_scorer
-                elif scoring_parameter == 'weighted_precision' or scoring_parameter == 'weighted-precision':
-                    weighted_precision_scorer = make_scorer(gini_weighted_precision,
-                                                            greater_is_better=True, needs_proba=True)
-                    scorer = weighted_precision_scorer
-                elif scoring_parameter == 'macro_precision':
-                    macro_precision_scorer = make_scorer(gini_macro_precision,
-                                                         greater_is_better=True, needs_proba=True)
-                    scorer = macro_precision_scorer
-                elif scoring_parameter == 'micro_precision':
-                    scorer = micro_precision_scorer
-                    micro_precision_scorer = make_scorer(gini_micro_precision,
-                                                         greater_is_better=True, needs_proba=True)
-
-                elif scoring_parameter == 'samples_recall':
-                    samples_recall_scorer = make_scorer(gini_samples_recall, greater_is_better=True, needs_proba=True)
-                    scorer = samples_recall_scorer
-                elif scoring_parameter == 'weighted_recall' or scoring_parameter == 'weighted-recall':
-                    weighted_recall_scorer = make_scorer(gini_weighted_recall,
-                                                         greater_is_better=True, needs_proba=True)
-                    scorer = weighted_recall_scorer
-                elif scoring_parameter == 'macro_recall':
-                    macro_recall_scorer = make_scorer(gini_macro_recall,
-                                                      greater_is_better=True, needs_proba=True)
-                    scorer = macro_recall_scorer
-                elif scoring_parameter == 'micro_recall':
-                    micro_recall_scorer = make_scorer(gini_micro_recall, greater_is_better=True, needs_proba=True)
-                    scorer = micro_recall_scorer
-
-                elif scoring_parameter == 'samples_f1':
-                    samples_f1_scorer = make_scorer(gini_samples_f1,
-                                                    greater_is_better=True, needs_proba=True)
-                    scorer = samples_f1_scorer
-                elif scoring_parameter == 'weighted_f1' or scoring_parameter == 'weighted-f1':
-                    weighted_f1_scorer = make_scorer(gini_weighted_f1,
+                ##### This is for Multi-Label but Binary Classification ######################
+                lvm = LinearSVC( tol=0.001, C=1.0,max_iter=max_iter, random_state=seed)
+                xgbm = MultiOutputClassifier(lvm)
+        else:
+            #####   This is for MULTI Classification ##########################
+            objective = 'multi:softmax'
+            eval_metric = "mlogloss"
+            if scoring_parameter == 'gini':
+                gini_scorer = make_scorer(gini_sklearn, greater_is_better=False, needs_proba=True)
+                scorer = gini_scorer
+            elif scoring_parameter=='balanced_accuracy' or scoring_parameter=='balanced-accuracy' or scoring_parameter=='average_accuracy':
+                bal_accuracy_scorer = make_scorer(gini_bal_accuracy, greater_is_better=True,
+                                                                  needs_proba=False)
+                scorer = bal_accuracy_scorer
+            elif scoring_parameter == 'roc_auc' or scoring_parameter == 'roc_auc_score':
+                roc_auc_scorer = make_scorer(gini_sklearn, greater_is_better=False, needs_proba=True)
+                scorer = roc_auc_scorer
+            elif scoring_parameter == 'average_precision' or scoring_parameter == 'mean_precision':
+                average_precision_scorer = make_scorer(gini_average_precision,
+                                                       greater_is_better=True, needs_proba=True)
+                scorer = average_precision_scorer
+            elif scoring_parameter == 'samples_precision':
+                samples_precision_scorer = make_scorer(gini_samples_precision,
+                                                       greater_is_better=True, needs_proba=True)
+                scorer = samples_precision_scorer
+            elif scoring_parameter == 'weighted_precision' or scoring_parameter == 'weighted-precision':
+                weighted_precision_scorer = make_scorer(gini_weighted_precision,
+                                                        greater_is_better=True, needs_proba=True)
+                scorer = weighted_precision_scorer
+            elif scoring_parameter == 'macro_precision':
+                macro_precision_scorer = make_scorer(gini_macro_precision,
                                                      greater_is_better=True, needs_proba=True)
-                    scorer = weighted_f1_scorer
-                elif scoring_parameter == 'macro_f1':
-                    macro_f1_scorer = make_scorer(gini_macro_f1,
+                scorer = macro_precision_scorer
+            elif scoring_parameter == 'micro_precision':
+                scorer = micro_precision_scorer
+                micro_precision_scorer = make_scorer(gini_micro_precision,
+                                                     greater_is_better=True, needs_proba=True)
+
+            elif scoring_parameter == 'samples_recall':
+                samples_recall_scorer = make_scorer(gini_samples_recall, greater_is_better=True, needs_proba=True)
+                scorer = samples_recall_scorer
+            elif scoring_parameter == 'weighted_recall' or scoring_parameter == 'weighted-recall':
+                weighted_recall_scorer = make_scorer(gini_weighted_recall,
+                                                     greater_is_better=True, needs_proba=True)
+                scorer = weighted_recall_scorer
+            elif scoring_parameter == 'macro_recall':
+                macro_recall_scorer = make_scorer(gini_macro_recall,
                                                   greater_is_better=True, needs_proba=True)
-                    scorer = macro_f1_scorer
-                elif scoring_parameter == 'micro_f1':
-                    micro_f1_scorer = make_scorer(gini_micro_f1,
-                                                  greater_is_better=True, needs_proba=True)
-                    scorer = micro_f1_scorer
+                scorer = macro_recall_scorer
+            elif scoring_parameter == 'micro_recall':
+                micro_recall_scorer = make_scorer(gini_micro_recall, greater_is_better=True, needs_proba=True)
+                scorer = micro_recall_scorer
+
+            elif scoring_parameter == 'samples_f1':
+                samples_f1_scorer = make_scorer(gini_samples_f1,
+                                                greater_is_better=True, needs_proba=True)
+                scorer = samples_f1_scorer
+            elif scoring_parameter == 'weighted_f1' or scoring_parameter == 'weighted-f1':
+                weighted_f1_scorer = make_scorer(gini_weighted_f1,
+                                                 greater_is_better=True, needs_proba=True)
+                scorer = weighted_f1_scorer
+            elif scoring_parameter == 'macro_f1':
+                macro_f1_scorer = make_scorer(gini_macro_f1,
+                                              greater_is_better=True, needs_proba=True)
+                scorer = macro_f1_scorer
+            elif scoring_parameter == 'micro_f1':
+                micro_f1_scorer = make_scorer(gini_micro_f1,
+                                              greater_is_better=True, needs_proba=True)
+                scorer = micro_f1_scorer
+            else:
+                weighted_f1_scorer = make_scorer(gini_weighted_f1,
+                                                 greater_is_better=True, needs_proba=True)
+                scorer = weighted_f1_scorer
+            import scipy as sp
+            if hyper_param == 'GS':
+                c_params['XGBoost'] = {
+                                'learning_rate': np.linspace(0.1,0.5,5),
+                                'gamma': np.linspace(0, 32,7).astype(int),
+                                "max_depth": [3, 5, max_depth],
+                            }
+                c_params["CatBoost"] = {
+                                'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
+                                }
+                if Imbalanced_Flag:
+                    c_params['Linear'] = {
+                                'C': Cs,
+                            'class_weight':[None, 'balanced'],
+                            }
                 else:
-                    weighted_f1_scorer = make_scorer(gini_weighted_f1,
-                                                     greater_is_better=True, needs_proba=True)
-                    scorer = weighted_f1_scorer
+                    c_params['Linear'] = {
+                                'C': Cs,
+                                    }
+                c_params["Forests"] = {
+                ##### I have selected these to avoid Overfitting which is a problem for small data sets
+                        "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
+                            "max_depth": [3, 5, max_depth],
+                            #"criterion":['gini','entropy'],
+                                    }
+                c_params["Multi_Label"] = {
+                            'estimator__C': [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3]
+                            }
+            else:
                 import scipy as sp
+                c_params['XGBoost'] = {
+                        'learning_rate': sp.stats.uniform(scale=1),
+                        'gamma': sp.stats.randint(0, 32),
+                       'n_estimators': sp.stats.randint(100, max_estims),
+                        'max_depth': sp.stats.randint(3, max_depth)
+                      }
+                c_params['CatBoost'] = {
+                        'learning_rate': sp.stats.uniform(scale=1),
+                        }
+                if Imbalanced_Flag:
+                    c_params['Linear'] = {
+                            'C': sp.stats.uniform(scale=100),
+                            'class_weight':[None, 'balanced'],
+                            }
+                else:
+                    c_params['Linear'] = {
+                            'C': sp.stats.uniform(scale=100),
+                                    }
+                c_params["Forests"] = {
+                #####   I have set these to avoid OverFitting which is a problem for small data sets ###
+                           'n_estimators': sp.stats.randint(100,max_estims),
+                            "max_depth": sp.stats.randint(3, max_depth),
+                            "min_samples_leaf": sp.stats.randint(2, 20),
+                            #"criterion":['gini','entropy'],
+                            #'class_weight':[None,'balanced']
+                                        }
+                c_params["Multi_Label"] = {
+                            'estimator__C': sp.stats.uniform(scale=1)
+                            }
+            ###################################################################
+            if model_label == 'Single_Label':
                 if Boosting_Flag:
                     # Create regularization hyperparameter distribution using uniform distribution
-                    if hyper_param == 'GS':
-                        c_params['XGBoost'] = {
-                                        'learning_rate': np.linspace(0.1,0.5,5),
-                                        'gamma': np.linspace(0, 32,7).astype(int),
-                                        "max_depth": [3, 5, max_depth],
-                                    }
-                        c_params["CatBoost"] = {
-                                        'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
-                                        }
-                    else:
-                        import scipy as sp
-                        c_params['XGBoost'] = {
-                                'learning_rate': sp.stats.uniform(scale=1),
-                                'gamma': sp.stats.randint(0, 32),
-                               'n_estimators': sp.stats.randint(100, max_estims),
-                                'max_depth': sp.stats.randint(3, max_depth)
-                              }
-                        c_params['CatBoost'] = {
-                                'learning_rate': sp.stats.uniform(scale=1),
-                                }
                     if model_name.lower() == 'catboost':
                         xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
                                 random_state=99,one_hot_max_size=one_hot_size,
@@ -1565,175 +1665,148 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             seed=1)
                         xgbm.set_params(**param)
                 elif Boosting_Flag is None:
-                    if hyper_param == 'GS':
-                        if Imbalanced_Flag:
-                            c_params['Linear'] = {
-                                        'C': Cs,
-                                    'class_weight':[None, 'balanced'],
-                                    }
-                        else:
-                            c_params['Linear'] = {
-                                        'C': Cs,
-                                            }
-                    else:
-                        if Imbalanced_Flag:
-                            c_params['Linear'] = {
-                                    'C': sp.stats.uniform(scale=100),
-                                    'class_weight':[None, 'balanced'],
-                                    }
-                        else:
-                            c_params['Linear'] = {
-                                    'C': sp.stats.uniform(scale=100),
-                                            }
                     #### I have set the Verbose to be False here since it produces too much output ###
                     xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver=solver,
                                                 fit_intercept=True, tol=tolerance, multi_class='auto',
                                               max_iter=max_iter, warm_start=False,
                                               )
                 else:
-                    if hyper_param == 'GS':
-                        c_params["Forests"] = {
-                        ##### I have selected these to avoid Overfitting which is a problem for small data sets
-                                "n_estimators" : np.linspace(100, max_estims, n_steps, dtype = "int"),
-                                    "max_depth": [3, 5, max_depth],
-                                    #"criterion":['gini','entropy'],
-                                            }
-                    else:
-                        c_params["Forests"] = {
-                        #####   I have set these to avoid OverFitting which is a problem for small data sets ###
-                                   'n_estimators': sp.stats.randint(100,max_estims),
-                                    "max_depth": sp.stats.randint(3, max_depth),
-                                    "min_samples_leaf": sp.stats.randint(2, 20),
-                                    #"criterion":['gini','entropy'],
-                                    #'class_weight':[None,'balanced']
-                                                }
                     xgbm = RandomForestClassifier(bootstrap=bootstrap, oob_score=True,warm_start=warm_start,
                                             n_estimators=100,max_depth=3,
                                             min_samples_leaf=2,max_features='auto',
                                           random_state=seed,n_jobs=-1)
-        ######   Now do RandomizedSearchCV  using # Early-stopping ################
-        if modeltype == 'Regression':
-            #scoreFunction = {"mse": "neg_mean_squared_error", "mae": "neg_mean_absolute_error"}
+            else:
+                ##### This is for Multi-Label and Multi-class Classification ######################
+                lvm = LinearSVC(tol=0.001, C=1.0, max_iter=max_iter, random_state=seed)
+                xgbm = MultiOutputClassifier(lvm)
+    ######   Now do RandomizedSearchCV  using # Early-stopping ################
+    if modeltype == 'Regression':
+        #scoreFunction = {"mse": "neg_mean_squared_error", "mae": "neg_mean_absolute_error"}
+        #### I have set the Verbose to be False here since it produces too much output ###
+        if hyper_param == 'GS':
             #### I have set the Verbose to be False here since it produces too much output ###
-            if hyper_param == 'GS':
-                #### I have set the Verbose to be False here since it produces too much output ###
-                gs = GridSearchCV(xgbm,param_grid=r_params[model_name],
-                                               scoring = scorer,
-                                               n_jobs=-1,
-                                               cv = scv,
-                                               refit = refit_metric,
-                                               return_train_score = True,
-                                                verbose=0)
-            elif hyper_param == 'RS':
-                gs = RandomizedSearchCV(xgbm,
-                                               param_distributions = r_params[model_name],
-                                               n_iter = no_iter,
-                                               scoring = scorer,
-                                               refit = refit_metric,
-                                               return_train_score = True,
-                                               random_state = seed,
-                                               cv = scv,
-                                               n_jobs=-1,
-                                                verbose = 0)
-            else:
-                #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
-                gs = copy.deepcopy(xgbm)
+            gs = GridSearchCV(xgbm,param_grid=r_params[model_name],
+                                           scoring = scorer,
+                                           n_jobs=-1,
+                                           cv = scv,
+                                           refit = refit_metric,
+                                           return_train_score = True,
+                                            verbose=0)
+        elif hyper_param == 'RS':
+            gs = RandomizedSearchCV(xgbm,
+                                           param_distributions = r_params[model_name],
+                                           n_iter = no_iter,
+                                           scoring = scorer,
+                                           refit = refit_metric,
+                                           return_train_score = True,
+                                           random_state = seed,
+                                           cv = scv,
+                                           n_jobs=-1,
+                                            verbose = 0)
         else:
-            if hyper_param == 'GS':
-                #### I have set the Verbose to be False here since it produces too much output ###
-                gs = GridSearchCV(xgbm,param_grid=c_params[model_name],
-                                               scoring = scorer,
-                                               return_train_score = True,
-                                               n_jobs=-1,
-                                               refit = refit_metric,
-                                               cv = scv,
-                                                verbose=0)
-            elif hyper_param == 'RS':
-                #### I have set the Verbose to be False here since it produces too much output ###
-                gs = RandomizedSearchCV(xgbm,
-                                               param_distributions = c_params[model_name],
-                                               n_iter = no_iter,
-                                               scoring = scorer,
-                                               refit = refit_metric,
-                                               return_train_score = True,
-                                               random_state = seed,
-                                               n_jobs=-1,
-                                               cv = scv,
-                                                verbose = 0)
+            #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
+            gs = copy.deepcopy(xgbm)
+    else:
+        if hyper_param == 'GS':
+            #### I have set the Verbose to be False here since it produces too much output ###
+            gs = GridSearchCV(xgbm,param_grid=c_params[model_name],
+                                           scoring = scorer,
+                                           return_train_score = True,
+                                           n_jobs=-1,
+                                           refit = refit_metric,
+                                           cv = scv,
+                                            verbose=0)
+        elif hyper_param == 'RS':
+            #### I have set the Verbose to be False here since it produces too much output ###
+            gs = RandomizedSearchCV(xgbm,
+                                           param_distributions = c_params[model_name],
+                                           n_iter = no_iter,
+                                           scoring = scorer,
+                                           refit = refit_metric,
+                                           return_train_score = True,
+                                           random_state = seed,
+                                           n_jobs=-1,
+                                           cv = scv,
+                                            verbose = 0)
+        else:
+            #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
+            gs = copy.deepcopy(xgbm)
+    #trains and optimizes the model
+    eval_set = [(X_train,y_train),(X_cv,y_cv)]
+    if model_label == 'Single_Label':
+        print('Finding Best Model and Hyper Parameters for %s model...' %xgbm)
+    else:
+        print('Using a Multi_Label, %s model to train. This will take time...' %xgbm)
+    ##### Here is where we put the part_train and part_cv together ###########
+    if modeltype != 'Regression':
+        ### Do this only for Binary Classes and Multi-Classes, both are okay
+        baseline_accu = 1-(train[each_target].value_counts(1).sort_values())[rare_class]
+        print('    Baseline Accuracy Needed for Model = %0.2f%%' %(baseline_accu*100))
+    print('CPU Count = %s in this device' %CPU_count)
+    if modeltype == 'Regression':
+        if Boosting_Flag:
+            if model_name.lower() == 'catboost':
+                data_dim = data_dim*one_hot_size/len(preds)
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
             else:
-                #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
-                gs = copy.deepcopy(xgbm)
-        #trains and optimizes the model
-        eval_set = [(X_train,y_train),(X_cv,y_cv)]
-        print('Finding Best Model and Hyper Parameters for Target: %s...' %each_target)
-        ##### Here is where we put the part_train and part_cv together ###########
-        if modeltype != 'Regression':
-            ### Do this only for Binary Classes and Multi-Classes, both are okay
-            baseline_accu = 1-(train[each_target].value_counts(1).sort_values())[rare_class]
-            print('    Baseline Accuracy Needed for Model = %0.2f%%' %(baseline_accu*100))
-        print('CPU Count = %s in this device' %CPU_count)
-        if modeltype == 'Regression':
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
+        elif Boosting_Flag is None:
+            print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(80000.*CPU_count)))
+        else:
+            print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(40000.*CPU_count)))
+    else:
+        ##### This is for classification which differs for GridSearch vs RandomizedSearch ##############
+        if hyper_param == 'GS':
             if Boosting_Flag:
                 if model_name.lower() == 'catboost':
                     data_dim = data_dim*one_hot_size/len(preds)
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(300000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(10000.*CPU_count)))
             elif Boosting_Flag is None:
-                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(80000.*CPU_count)))
+                #### A Linear model is usually the fastest ###########
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
             else:
-                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(40000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(16000.*CPU_count)))
         else:
-            if hyper_param == 'GS':
-                if Boosting_Flag:
-                    if model_name.lower() == 'catboost':
-                        data_dim = data_dim*one_hot_size/len(preds)
-                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(300000.*CPU_count)))
-                    else:
-                        print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(10000.*CPU_count)))
-                elif Boosting_Flag is None:
-                    #### A Linear model is usually the fastest ###########
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
+            if Boosting_Flag:
+                if model_name.lower() == 'catboost':
+                    data_dim = data_dim*one_hot_size/len(preds)
+                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(16000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(40000.*CPU_count)))
+            elif Boosting_Flag is None:
+                print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(100000.*CPU_count)))
             else:
-                if Boosting_Flag:
-                    if model_name.lower() == 'catboost':
-                        data_dim = data_dim*one_hot_size/len(preds)
-                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
-                    else:
-                        print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(40000.*CPU_count)))
-                elif Boosting_Flag is None:
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(100000.*CPU_count)))
-                else:
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(25000.*CPU_count)))
-        ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
-        ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
-        model_start_time = time.time()
-        ################################################################################################################################
-        #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
-        ################################################################################################################################
-        ##### This is where you start training the model ###
-        if Imbalanced_Flag:
-            ####### Imbalanced with Classification #################
-            try:
-                print('##############  Imbalanced Flag on: Training model with SMOTE Oversampling method  ###########')
-                #### The model is the downsampled model Trained on downsampled data sets. ####
-                if modeltype == 'Regression':
-                    ### Since rare class is needed in the next step, just setting the rare_class as artificially 0.
-                    rare_class = 0
-                model, X_train, y_train = training_with_SMOTE(X_train,y_train,eval_set, gs,
-                                       Boosting_Flag, eval_metric,
-                                       modeltype, model_name,training=True,
-                                       minority_class=rare_class,imp_cats=imp_cats,
-                                       calibrator_flag=calibrator_flag,
-                                       GPU_exists=GPU_exists, params = cpu_params,
-                                       verbose=verbose)
-                if isinstance(model, str):
-                    model = copy.deepcopy(gs)
-                    #### If d_model failed, it will just be an empty string, so you try the regular model ###
-                    print('Error in training Imbalanced model first time. Trying regular model..')
-                    Imbalanced_Flag = False
+                print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(25000.*CPU_count)))
+    ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
+    ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
+    model_start_time = time.time()
+    ################################################################################################################################
+    #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
+    ################################################################################################################################
+    ##### This is where you start training the model for FIRST TIME  ############
+    if Imbalanced_Flag:
+        ####### Imbalanced with Classification #################
+        try:
+            print('##############  Imbalanced Flag on: Training model with SMOTE Oversampling method  ###########')
+            #### The model is the downsampled model Trained on downsampled data sets. ####
+            if modeltype == 'Regression':
+                ### Since rare class is needed in the next step, just setting the rare_class as artificially 0.
+                rare_class = 0
+            model, X_train, y_train = training_with_SMOTE(X_train,y_train,eval_set, gs,
+                                   Boosting_Flag, eval_metric,
+                                   modeltype, model_name, training=True,
+                                   minority_class=rare_class,imp_cats=imp_cats,
+                                   calibrator_flag=calibrator_flag,
+                                   GPU_exists=GPU_exists, params = cpu_params,
+                                   model_label=model_label, verbose=verbose)
+            if isinstance(model, str):
+                model = copy.deepcopy(gs)
+                #### If d_model failed, it will just be an empty string, so you try the regular model ###
+                print('Error in training Imbalanced model first time. Trying regular model..')
+                Imbalanced_Flag = False
+                if model_label == 'Single_Label':
                     if Boosting_Flag:
                         if model_name == 'XGBoost':
                             #### Set the Verbose to 0 since we don't want too much output ##
@@ -1760,26 +1833,29 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 model.fit(X_train, y_train, cat_features=imp_cats,use_best_model=False,plot=False)
                     else:
                             model.fit(X_train, y_train)
-                #### If downsampling succeeds, it will be used to get the best score and can become model again ##
-                if hyper_param == 'RS' or hyper_param == 'GS':
-                    best_score = model.best_score_
                 else:
-                    val_keys = list(model.best_score_.keys())
-                    best_score = model.best_score_[val_keys[-1]][validation_metric]
-            except:
-                print('Error in training Imbalanced model first time. Trying regular model..')
-                Imbalanced_Flag = False
-                best_score = 0
-        ################################################################################################################################
-        #######   Though this next step looks like it is a Coding Mistake by Me, don't change it!!! ###################
-        #######   This is for case when Imbalanced with Classification succeeds, this next step is skipped ############
-        ################################################################################################################################
-        ### The model blows up when you use average-precision in Multi-Classes -> needs checking!
-        if not Imbalanced_Flag:
-            ########### This is for both regular Regression and regular Classification Model Training. It is not a Mistake #############
-            ########### In case Imbalanced training fails, this method is also tried. That's why we test the Flag here!!  #############
-            try:
-                model = copy.deepcopy(gs)
+                    model.fit(X_train, y_train)
+            #### If downsampling succeeds, it will be used to get the best score and can become model again ##
+            if hyper_param == 'RS' or hyper_param == 'GS':
+                best_score = model.best_score_
+            else:
+                val_keys = list(model.best_score_.keys())
+                best_score = model.best_score_[val_keys[-1]][validation_metric]
+        except:
+            print('Error in training Imbalanced model first time. Trying regular model..')
+            Imbalanced_Flag = False
+            best_score = 0
+    ################################################################################################################################
+    #######   Though this next step looks like it is a Coding Mistake by Me, don't change it!!! ###################
+    #######   This is for case when Imbalanced with Classification succeeds, this next step is skipped ############
+    ################################################################################################################################
+    ### The model blows up when you use average-precision in Multi-Classes -> needs checking!
+    if not Imbalanced_Flag:
+        ########### This is for both regular Regression and regular Classification Model Training. It is not a Mistake #############
+        ########### In case Imbalanced training fails, this method is also tried. That's why we test the Flag here!!  #############
+        try:
+            model = copy.deepcopy(gs)
+            if model_label == 'Single_Label':
                 if Boosting_Flag:
                     if model_name == 'XGBoost':
                         try:
@@ -1806,46 +1882,49 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             model.fit(X_train, y_train, cat_features=imp_cats, use_best_model=False, plot=False)
                 else:
                     model.fit(X_train, y_train)
-            except:
-                print('Training regular model first time is Erroring: Check if your Input is correct...')
-                return
-            try:
-                if hyper_param == 'RS' or hyper_param == 'GS':
-                    best_score = model.best_score_
-                    validation_metric = copy.deepcopy(scoring_parameter)
+            else:
+                model.fit(X_train, y_train)
+        except:
+            print('Training regular model first time is Erroring: Check if your Input is correct...')
+            return
+        try:
+            if hyper_param == 'RS' or hyper_param == 'GS':
+                best_score = model.best_score_
+                validation_metric = copy.deepcopy(scoring_parameter)
+            else:
+                val_keys = list(model.best_score_.keys())
+                if 'validation' in val_keys:
+                    validation_metric = list(model.best_score_['validation'].keys())[0]
+                    best_score = model.best_score_['validation'][validation_metric]
                 else:
-                    val_keys = list(model.best_score_.keys())
-                    if 'validation' in val_keys:
-                        validation_metric = list(model.best_score_['validation'].keys())[0]
-                        best_score = model.best_score_['validation'][validation_metric]
-                    else:
-                        validation_metric = list(model.best_score_['learn'].keys())[0]
-                        best_score = model.best_score_['learn'][validation_metric]
-            except:
-                print('Error: Not able to print validation metrics. Continuing...')
-        ##   TRAINING OF MODELS COMPLETED. NOW GET METRICS on CV DATA ################
-        print('    Actual training time (in seconds): %0.0f' %(time.time()-model_start_time))
-        print('###########  S I N G L E  M O D E L   R E S U L T S #################')
-        if modeltype != 'Regression':
-            ############## This is for Classification Only !! ########################
-            if scoring_parameter in ['logloss','neg_log_loss','log_loss','log-loss','']:
-                print('{}-fold Cross Validation {} = {}'.format(n_splits, 'logloss', best_score))
-            elif scoring_parameter in ['accuracy','balanced-accuracy','balanced_accuracy','roc_auc','roc-auc',
-                                       'f1','precision','recall','average-precision','average_precision',
-                                      'weighted_f1','weighted-f1','AUC']:
-                print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,scoring_parameter, best_score*100))
-            else:
-                print('%d-fold Cross Validation  %s = %0.1f' %(n_splits,validation_metric, best_score))
+                    validation_metric = list(model.best_score_['learn'].keys())[0]
+                    best_score = model.best_score_['learn'][validation_metric]
+        except:
+            print('Error: Not able to print validation metrics. Continuing...')
+    ##   TRAINING OF MODELS COMPLETED. NOW GET METRICS on CV DATA ################
+    print('    Actual training time (in seconds): %0.0f' %(time.time()-model_start_time))
+    print('###########  S I N G L E  M O D E L   R E S U L T S #################')
+    if modeltype != 'Regression':
+        ############## This is for Classification Only !! ########################
+        if scoring_parameter in ['logloss','neg_log_loss','log_loss','log-loss','']:
+            print('{}-fold Cross Validation {} = {}'.format(n_splits, 'logloss', best_score))
+        elif scoring_parameter in ['accuracy','balanced-accuracy','balanced_accuracy','roc_auc','roc-auc',
+                                   'f1','precision','recall','average-precision','average_precision',
+                                  'weighted_f1','weighted-f1','AUC']:
+            print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,scoring_parameter, best_score*100))
         else:
-            ######### This is for Regression only ###############
-            if best_score < 0:
-                best_score = best_score*-1
-            if scoring_parameter == '':
-                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,'RMSE', best_score))
-            else:
-                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,validation_metric, best_score))
-        #### We now need to set the Best Parameters, Fit the Model on Full X_train and Predict on X_cv
-        ### Find what the order of best params are and set the same as the original model ###
+            print('%d-fold Cross Validation  %s = %0.1f' %(n_splits,validation_metric, best_score))
+    else:
+        ######### This is for Regression only ###############
+        if best_score < 0:
+            best_score = best_score*-1
+        if scoring_parameter == '':
+            print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,'RMSE', best_score))
+        else:
+            print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,validation_metric, best_score))
+    #### We now need to set the Best Parameters, Fit the Model on Full X_train and Predict on X_cv
+    ### Find what the order of best params are and set the same as the original model ###
+    if model_label == 'Single_Label':
         if hyper_param == 'RS' or hyper_param == 'GS':
             best_params= model.best_params_
             print('    Best Parameters for Model = %s' %model.best_params_)
@@ -1859,84 +1938,96 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 best_params = dict(zip(['iterations','learning_rate'],[model.get_best_iteration(),model.get_all_params()['learning_rate']]))
             print('    %s Best Parameters for Model: Iterations = %s, learning_rate = %0.2f' %(
                                 model_name, model.get_best_iteration(), model.get_all_params()['learning_rate']))
-        if hyper_param == 'RS' or hyper_param == 'GS':
-            #### In the case of CatBoost, we don't do any Hyper Parameter tuning #########
-            gs = copy.deepcopy(model)
-            model = gs.best_estimator_
-            if modeltype == 'Multi_Classification':
-                try:
-                    if X_cv.shape[0] <= 1000:
-                        # THis works well for small data sets and is similar to parametric
-                        method=  'sigmoid' # 'isotonic' # #
-                    else:
-                        # THis works well for large data sets and is non-parametric
-                        method=  'isotonic'
-                    from sklearn.calibration import CalibratedClassifierCV
-                    model = CalibratedClassifierCV(model, method=method, cv="prefit")
-                    if not perform_scaling_flag:
-                        X_ful = X_train.append(X_cv)
-                        y_ful = y_train.append(y_cv)
-                    else:
-                        X_ful = np.r_[X_train, X_cv]
-                        y_ful = np.r_[y_train, y_cv]
-                    model.fit(X_ful, y_ful)
-                    print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
-                    calibrator_flag = True
-                except:
-                    calibrator_flag = False
-        ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
-        if model_name.lower() == 'catboost':
-            print('Best Model selected and its parameters are:\n    %s' %model.get_all_params())
+    else:
+        ######## If this is a multi-label model, print the following
+        print('    %s Best Parameters for Model:%s' %(model_name, model.best_params_))
+    if hyper_param == 'RS' or hyper_param == 'GS':
+        #### In the case of CatBoost, we don't do any Hyper Parameter tuning #########
+        gs = copy.deepcopy(model)
+        model = gs.best_estimator_
+        if model_label == 'Single_Label' and modeltype == 'Multi_Classification':
+            try:
+                if X_cv.shape[0] <= 1000:
+                    # THis works well for small data sets and is similar to parametric
+                    method=  'sigmoid' # 'isotonic' # #
+                else:
+                    # THis works well for large data sets and is non-parametric
+                    method=  'isotonic'
+                from sklearn.calibration import CalibratedClassifierCV
+                model = CalibratedClassifierCV(model, method=method, cv="prefit")
+                if not perform_scaling_flag:
+                    X_ful = X_train.append(X_cv)
+                    y_ful = y_train.append(y_cv)
+                else:
+                    X_ful = np.r_[X_train, X_cv]
+                    y_ful = np.r_[y_train, y_cv]
+                model.fit(X_ful, y_ful)
+                print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
+                calibrator_flag = True
+            except:
+                calibrator_flag = False
+    ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
+    if model_name.lower() == 'catboost':
+        print('Best Model selected and its parameters are:\n    %s' %model.get_all_params())
+    else:
+        print('Best Model selected and its attributes are:\n    %s' %model)
+    performed_ensembling = False
+    if model_label == 'Single_Label' and modeltype != 'Regression':
+        m_thresh = 0.5
+        y_proba = model.predict_proba(X_cv)
+        y_pred = model.predict(X_cv)
+        if len(classes) <= 2:
+            print('Finding Best Threshold for Highest F1 Score...')
+            precision, recall, thresholds = precision_recall_curve(y_cv, y_proba[:,rare_class])
+            #precision, recall, thresholds = precision_recall_curve(y_cv, y_proba[:,1])
+            try:
+                f1 = (2*precision*recall)/(precision+recall)
+                f1 = np.nan_to_num(f1)
+                m_idx = np.argmax(f1)
+                m_thresh = thresholds[m_idx]
+                best_f1 = f1[m_idx]
+            except:
+                best_f1 = f1_score(y_cv, y_pred)
+                m_thresh = 0.5
+            # retrieve just the probabilities for the positive class
+            pos_probs = y_proba[:, rare_class]
+            if verbose >= 1:
+                # create a histogram of the predicted probabilities for the Rare Class since it will help decide threshold
+                plt.figure(figsize=(6,6))
+                plt.hist(pos_probs, bins=Bins, color='g')
+                plt.title("Model's Predictive Probability Histogram for Rare Class=%s with suggested threshold in red" %rare_class_orig)
+                plt.axvline(x=m_thresh, color='r', linestyle='--')
+                plt.show();
+            print("    Using threshold=0.5. However, %0.3f provides better F1=%0.2f for rare class..." %(m_thresh,best_f1))
+            ###y_pred = (y_proba[:,rare_class]>=m_thresh).astype(int)
+            predicted = copy.deepcopy(y_proba)
+            predicted [:,0] = (predicted [:,0] >= (1-m_thresh)).astype('int')
+            predicted [:,1] = (predicted [:,1] > m_thresh).astype('int')
+            if m_thresh != 0.5:
+                y_pred = predicted[:,rare_class]
         else:
-            print('Best Model selected and its parameters are:\n    %s' %model)
-        performed_ensembling = False
-        if modeltype != 'Regression':
-            m_thresh = 0.5
-            y_proba = model.predict_proba(X_cv)
+            #### This is where you predict for Multi-class classification models #####
             y_pred = model.predict(X_cv)
-            if len(classes) <= 2:
-                print('Finding Best Threshold for Highest F1 Score...')
-                precision, recall, thresholds = precision_recall_curve(y_cv, y_proba[:,rare_class])
-                #precision, recall, thresholds = precision_recall_curve(y_cv, y_proba[:,1])
-                try:
-                    f1 = (2*precision*recall)/(precision+recall)
-                    f1 = np.nan_to_num(f1)
-                    m_idx = np.argmax(f1)
-                    m_thresh = thresholds[m_idx]
-                    best_f1 = f1[m_idx]
-                except:
-                    best_f1 = f1_score(y_cv, y_pred)
-                    m_thresh = 0.5
-                # retrieve just the probabilities for the positive class
-                pos_probs = y_proba[:, rare_class]
-                if verbose >= 1:
-                    # create a histogram of the predicted probabilities for the Rare Class since it will help decide threshold
-                    plt.figure(figsize=(6,6))
-                    plt.hist(pos_probs, bins=Bins, color='g')
-                    plt.title("Model's Predictive Probability Histogram for Rare Class=%s with suggested threshold in red" %rare_class_orig)
-                    plt.axvline(x=m_thresh, color='r', linestyle='--')
-                    plt.show();
-                print("    Using threshold=0.5. However, %0.3f provides better F1=%0.2f for rare class..." %(m_thresh,best_f1))
-                ###y_pred = (y_proba[:,rare_class]>=m_thresh).astype(int)
-                predicted = copy.deepcopy(y_proba)
-                predicted [:,0] = (predicted [:,0] >= (1-m_thresh)).astype('int')
-                predicted [:,1] = (predicted [:,1] > m_thresh).astype('int')
-                if m_thresh != 0.5:
-                    y_pred = predicted[:,rare_class]
-        else:
-            #### This is where you predict for Regression models #####
-            y_pred = model.predict(X_cv)
-        ###   This is where you print out the First Model's Results ########
-        print('########################################################')
-        ##### This next step is very important since some models give series, others give arrays. Very painful!
-        if isinstance(y_pred,pd.Series):
-            y_pred = y_pred.values
-        if isinstance(y_cv,pd.Series):
-            y_cv = y_cv.values
-        print('%s Model Prediction Results on Held Out CV Data Set:' %model_name)
+    else:
+        #### This is where you predict for Multi-Output Multi-Label models #####
+        y_pred = model.predict(X_cv)
+    ###   This is where you print out the First Model's Results ########
+    print('########################################################')
+    ##### This next step is very important since some models give series, others give arrays. Very painful!
+    if isinstance(y_pred,pd.Series) or isinstance(y_pred,pd.DataFrame):
+        y_pred = y_pred.values
+    if isinstance(y_cv,pd.Series) or isinstance(y_cv,pd.DataFrame):
+        y_cv = y_cv.values
+    print('%s Model Prediction Results on Held Out CV Data Set:' %model_name)
+    if model_label == 'Single_Label':
         if modeltype == 'Regression':
-            rmsle_calculated_m = rmse(y_cv, y_pred)
-            print_regression_model_stats(y_cv, y_pred,'%s Model: Predicted vs Actual for %s'%(model_name,each_target))
+            try:
+                y_cv.shape[1]
+                rmsle_calculated_m = rmse(y_cv.ravel(), y_pred)
+                print_regression_model_stats(y_cv.ravel(), y_pred,'%s Model: Predicted vs Actual for %s'%(model_name,each_target))
+            except:
+                rmsle_calculated_m = rmse(y_cv, y_pred)
+                print_regression_model_stats(y_cv, y_pred,'%s Model: Predicted vs Actual for %s'%(model_name,each_target))
         else:
             if model_name == 'Forests':
                 if calibrator_flag:
@@ -1953,9 +2044,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print('    Balanced Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
                 print(classification_report(y_cv,y_pred))
                 print(confusion_matrix(y_cv, y_pred))
-        ######      SET BEST PARAMETERS HERE ######
-        ### Find what the order of best params are and set the same as the original model ###
-        ## This is where we set the best parameters from training to the model ####
+    else:
+        if modeltype == 'Regression':
+            print('Multi-Label Regression Error Report:')
+            print('    MAE = %0.4f' %mean_absolute_error(y_cv, y_pred))
+            print('    RMSE = %0.4f' %np.sqrt(mean_squared_error(y_cv, y_pred)))
+        else:
+            print('Multi-Label Classification Report:')
+            print(classification_report(y_cv, y_pred ))
+    ######      SET BEST PARAMETERS HERE ######
+    ### Find what the order of best params are and set the same as the original model ###
+    ## This is where we set the best parameters from training to the model ####
+    if model_label == 'Single_Label':
+        #### You do ensembling or stacking only for Single_Label problems ############
         if modeltype == 'Regression':
             if not Stacking_Flag:
                 print('################# E N S E M B L E  M O D E L  ##################')
@@ -2069,7 +2170,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     count += 1
         if not Stacking_Flag and performed_ensembling:
             if modeltype == 'Regression':
-                rmsle_calculated_f = rmse(y_cv, y_pred)
+                try:
+                    y_cv.shape[1]
+                    rmsle_calculated_f = rmse(y_cv.ravel(), y_pred)
+                except:
+                    rmsle_calculated_f = rmse(y_cv, y_pred)
                 print('After multiple models, Ensemble Model Results:')
                 print('    RMSE Score = %0.5f' %(rmsle_calculated_f,))
                 print('#############################################################################')
@@ -2112,11 +2217,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     print('Could not plot Cross Validation Parameters')
         print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
         print('Training model on complete Train data and Predicting using give Test Data...')
-        ################        I M P O R T A N T: C O M B I N I N G  D A T A ######################
-        #### This is Second time: we combine train and CV into Train and Test Sets #################
-        train = part_train.append(part_cv)
-        important_features = [x for x in list(train) if x not in [each_target]]
-        ############################################################################################
+    ################        I M P O R T A N T: C O M B I N I N G  D A T A ######################
+    #### This is Second time: we combine train and CV into Train and Test Sets #################
+    train = part_train.append(part_cv)
+    important_features = [x for x in list(train) if x not in target]
+    ############################################################################################
+    if model_label == 'Single_Label':
         ###### Now that we have used partial data to make stacking predictors, we can remove them from consideration!
         if Stacking_Flag:
             important_features = left_subtract(important_features, addcol)
@@ -2210,38 +2316,39 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 saved_num_vars.append(addcol) ### You need to add it for binning later!
             except:
                 print('Error in Stacking second time. Continuing...')
-        ############################################################################################
-        if len(important_features) == 0:
-            print('No important features found. Using all input features...')
-            important_features = copy.deepcopy(saved_important_features)
-            #important_features = copy.deepcopy(red_preds)
-        ############################################################################################
-        if model_name.lower() == 'catboost':
-            print('    Setting best params for CatBoost model from Initial State since you cannot change params to a fitted Catboost model ')
-            model = xgbm.set_params(**best_params)
-            print('    Number of Categorical and Integer variables used in CatBoost training = %d' %len(imp_cats))
-        #### Perform Scaling of Train data a second time using FULL TRAIN data set this time !
-        #### important_features keeps track of all variables that we need to ensure they are scaled!
-        if not perform_scaling_flag:
-            print('No %s scaling performed since scaling flag is set to false' %scaling)
-            X = train[important_features]
-            if not isinstance(orig_test, str):
-                X_test = test[important_features]
-        else:
-            print('Performing %s scaling of train and test data...' %scaling)
-            SS.fit(train[important_features])
-            X = SS.transform(train[important_features])
-            if not isinstance(orig_test, str):
-                X_test = SS.transform(test[important_features])
-        ################   T R A I N I N G   M O D E L  A  S E C O N D   T I M E  ###################
-        ### The next 2 lines are crucial: if X and y are dataframes, then next 2 should be df's
-        ###   They should not be df.values since they will become numpy arrays and XGB will error.
-        trainm = train[important_features+[each_target]]
-        red_preds = copy.deepcopy(important_features)
-        y = trainm[each_target]
-        eval_set = [()]
-        ##### ############      TRAINING MODEL SECOND TIME WITH FULL_TRAIN AND PREDICTING ON TEST ############
-        model_start_time = time.time()
+    ############################################################################################
+    if len(important_features) == 0:
+        print('No important features found. Using all input features...')
+        important_features = copy.deepcopy(saved_important_features)
+        #important_features = copy.deepcopy(red_preds)
+    ############################################################################################
+    if model_name.lower() == 'catboost':
+        print('    Setting best params for CatBoost model from Initial State since you cannot change params to a fitted Catboost model ')
+        model = xgbm.set_params(**best_params)
+        print('    Number of Categorical and Integer variables used in CatBoost training = %d' %len(imp_cats))
+    #### Perform Scaling of Train data a second time using FULL TRAIN data set this time !
+    #### important_features keeps track of all variables that we need to ensure they are scaled!
+    if not perform_scaling_flag:
+        print('No %s scaling performed since scaling flag is set to false' %scaling)
+        X = train[important_features]
+        if not isinstance(orig_test, str):
+            X_test = test[important_features]
+    else:
+        print('Performing %s scaling of train and test data...' %scaling)
+        SS.fit(train[important_features])
+        X = SS.transform(train[important_features])
+        if not isinstance(orig_test, str):
+            X_test = SS.transform(test[important_features])
+    ################   T R A I N I N G   M O D E L  A  S E C O N D   T I M E  ###################
+    ### The next 2 lines are crucial: if X and y are dataframes, then next 2 should be df's
+    ###   They should not be df.values since they will become numpy arrays and XGB will error.
+    trainm = train[important_features+target]
+    red_preds = copy.deepcopy(important_features)
+    y = trainm[target]
+    eval_set = [()]
+    ##### ############      TRAINING MODEL SECOND TIME WITH FULL_TRAIN AND PREDICTING ON TEST ############
+    model_start_time = time.time()
+    if model_label == 'Single_Label':
         if modeltype != 'Regression':
             if Imbalanced_Flag:
                 try:
@@ -2252,7 +2359,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                       training=False, minority_class=rare_class,
                                       imp_cats=imp_cats, calibrator_flag=calibrator_flag,
                                       GPU_exists=GPU_exists, params=cpu_params,
-                                      verbose=verbose)
+                                      model_label=model_label, verbose=verbose)
                     ## This is where we test if the previous training with SMOTE went smoothly. If not, we  try with a different method here.
                     if isinstance(model, str):
                         #### If downsampling model failed, it will just be an empty string, so you can try regular model ###
@@ -2316,89 +2423,103 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             except:
                 print('Training model second time is Erroring: Check if Input is correct...')
                 return
-        print('Actual Training time taken in seconds = %0.0f' %(time.time()-model_start_time))
-        print('TRAINING OF MODELS COMPLETED. NOW START PREDICTIONS ON TEST DATA...')
-        #### new_cols is to keep track of new prediction columns we are creating #####
-        new_cols = []
-        if not isinstance(orig_test, str):
-            ### If there is a test data frame, then let us predict on it #######
-            ### The next 3 lines are crucial: if X and y are dataframes, then next 2 should be df's
-            ###   They should not be df.values since they will become numpy arrays and XGB will error.
+    else:
+        model.fit(X, y)
+    print('     Actual Training time taken in seconds = %0.0f' %(time.time()-model_start_time))
+    print('Training of models completed. Now starting predictions on test data...')
+    #### new_cols is to keep track of new prediction columns we are creating #####
+    new_cols = []
+    if not isinstance(orig_test, str):
+        ### If there is a test data frame, then let us predict on it #######
+        ### The next 3 lines are crucial: if X and y are dataframes, then next 2 should be df's
+        ###   They should not be df.values since they will become numpy arrays and XGB will error.
+        try:
+            #### We need the id columns to carry over into the predictions ####
+            testm = orig_test[id_cols].join(pd.DataFrame(X_test, index=orig_test.index, columns=red_preds))
+        except:
+            ### if for some reason id columns are not available, then do without it
+            testm = pd.DataFrame(X_test, index=orig_test.index, columns=red_preds)
+    else:
+        print('Since there is no Test file, we will do a final prediction on Train itself as return it as testm dataframe')
+        orig_index = orig_train.index
+        trainm = train.reindex(index = orig_index)
+        X_test = SS.transform(testm[red_preds])
+        testm = orig_train[id_cols].join(pd.DataFrame(X_test, index=orig_train.index, columns=red_preds))
+    ############  This is where we start predictions on test data if available #############
+    ####### This is where you make predictions on test data for Multi-Label problems #####
+    if modeltype == 'Regression':
+        y_pred = model.predict(X_test)
+        ##### This next step is very important since some models give series, others give arrays. Very painful!
+        if isinstance(y_pred,pd.Series) or isinstance(y_pred,pd.DataFrame) :
+            y_pred = y_pred.values
+        ########   This is for Regression Problems Only ###########
+        ######  If Stacking_ Flag is False, then we do Ensembling #######
+        if not Stacking_Flag and not model_label == 'Multi_Label':
             try:
-                #### We need the id columns to carry over into the predictions ####
-                testm = orig_test[id_cols].join(pd.DataFrame(X_test, index=orig_test.index, columns=red_preds))
-            except:
-                ### if for some reason id columns are not available, then do without it
-                testm = pd.DataFrame(X_test, index=orig_test.index, columns=red_preds)
-        else:
-            print('Since there is no Test file, we will do a final prediction on Train itself as return it as testm dataframe')
-            orig_index = orig_train.index
-            trainm = train.reindex(index = orig_index)
-            X_test = SS.transform(testm[red_preds])
-            testm = orig_train[id_cols].join(pd.DataFrame(X_test, index=orig_train.index, columns=red_preds))
-        ############  This is where we start predictions on test data if available #############
-        if modeltype == 'Regression':
-            y_pred = model.predict(X_test)
-            ##### This next step is very important since some models give series, others give arrays. Very painful!
-            if isinstance(y_pred,pd.Series):
-                y_pred = y_pred.values
-            ########   This is for Regression Problems Only ###########
-            ######  If Stacking_ Flag is False, then we do Ensembling #######
-            if not Stacking_Flag:
-                try:
-                    new_cols = []
-                    subm = pd.DataFrame()
-                    #### This is for Ensembling  Only #####
-                    #### In Test data verbose is set to zero since no results can be obtained!
-                    models_list, ensembles = QuickML_Ensembling(X, y, X_test, '',
-                                              modeltype=modeltype, Boosting_Flag=Boosting_Flag,
-                                               scoring='', verbose=0)
-                    models_list.append(model_name)
-                    for models, each in zip(models_list, range(len(models_list))):
-                        new_col = each_target+'_'+models+'_predictions'
-                        if each+1 == len(models_list):
-                            subm[new_col] = y_pred
-                            testm[new_col] = y_pred
-                        else:
-                            subm[new_col] = ensembles[:,each]
-                            testm[new_col] = ensembles[:,each]
-                        new_cols.append(new_col)
-                    ### After this, y_pred is a Series from now on. You need y_pred.values  ####
-                    if len(new_cols) == 5:
-                        print('    Calculating weighted average ensemble of %d regressors' %len(new_cols))
-                        ensem_pred = subm[new_cols[-1]]*0.5+0.125*(subm[new_cols[0]]+subm[
-                                        new_cols[1]]+subm[new_cols[2]]+subm[new_cols[3]])
+                new_cols = []
+                subm = pd.DataFrame()
+                #### This is for Ensembling  Only #####
+                #### In Test data verbose is set to zero since no results can be obtained!
+                models_list, ensembles = QuickML_Ensembling(X, y, X_test, '',
+                                          modeltype=modeltype, Boosting_Flag=Boosting_Flag,
+                                           scoring='', verbose=0)
+                models_list.append(model_name)
+                for models, each in zip(models_list, range(len(models_list))):
+                    new_col = each_target+'_'+models+'_predictions'
+                    if each+1 == len(models_list):
+                        subm[new_col] = y_pred
+                        testm[new_col] = y_pred
                     else:
-                        print('    Calculating regular average ensemble of %d regressors' %len(cols))
-                        ensem_pred = (subm[new_cols].mean(axis=1))
-                    ##### This next step is very important since some models give series, others give arrays. Very painful!
-                    if isinstance(y_pred,pd.Series):
-                        ensem_pred = ensem_pred.values
-                    new_col = each_target+'_Ensembled_predictions'
-                    testm[new_col] = ensem_pred
+                        subm[new_col] = ensembles[:,each]
+                        testm[new_col] = ensembles[:,each]
                     new_cols.append(new_col)
-                    print('Completed Ensemble predictions on held out data')
-                except:
-                    print('Could not complete Ensembling predictions on held out data due to Error')
-            else:
-                stack_cols, stacksfinal = QuickML_Stacking(X, y, X_test,
-                              modeltype, Boosting_Flag,
-                              scoring_parameter,verbose=verbose)
-                new_col = each_target+'_Stacked_'+stack_cols[0].split("_")[0]+'_predictions'
-                if len(stack_cols) == 1:
-                    testm[new_col] = stacksfinal
+                ### After this, y_pred is a Series from now on. You need y_pred.values  ####
+                if len(new_cols) == 5:
+                    print('    Calculating weighted average ensemble of %d regressors' %len(new_cols))
+                    ensem_pred = subm[new_cols[-1]]*0.5+0.125*(subm[new_cols[0]]+subm[
+                                    new_cols[1]]+subm[new_cols[2]]+subm[new_cols[3]])
                 else:
-                    #### Just average the predictions from each stacked model into a final pred
-                    testm[new_col] = stacksfinal.mean(axis=1)
+                    print('    Calculating regular average ensemble of %d regressors' %len(cols))
+                    ensem_pred = (subm[new_cols].mean(axis=1))
+                ##### This next step is very important since some models give series, others give arrays. Very painful!
+                if isinstance(y_pred,pd.Series):
+                    ensem_pred = ensem_pred.values
+                new_col = each_target+'_Ensembled_predictions'
+                testm[new_col] = ensem_pred
+                new_cols.append(new_col)
+                print('Completed Ensemble predictions on held out data')
+            except:
+                print('Could not complete Ensembling predictions on held out data due to Error')
+        elif Stacking_Flag and not model_label == 'Multi_Label':
+            stack_cols, stacksfinal = QuickML_Stacking(X, y, X_test,
+                          modeltype, Boosting_Flag,
+                          scoring_parameter,verbose=verbose)
+            new_col = each_target+'_Stacked_'+stack_cols[0].split("_")[0]+'_predictions'
+            if len(stack_cols) == 1:
+                testm[new_col] = stacksfinal
+            else:
+                #### Just average the predictions from each stacked model into a final pred
+                testm[new_col] = stacksfinal.mean(axis=1)
+        ###### This applies to Single_Label as well as Multi_Label problems ##########
+        if model_label == 'Single_Label':
             if not isinstance(sample_submission, str):
                 sample_submission[each_target] = y_pred
             #### If there is a test file, it probably doesn't have target, so add predictions to it!
             testm[each_target+'_predictions'] = y_pred
         else:
+            if not isinstance(sample_submission, str):
+                for predict_col, i in zip(target, range(len(target))):
+                    sample_submission[predict_col] = y_pred[:,i]
+            #### If there is a test file, it probably doesn't have target, so add predictions to it!
+            for predict_col, i in zip(target, range(len(target))):
+                testm[predict_col+'_predictions'] = y_pred[:,i]
+    else:
+        y_pred = model.predict(X_test)
+        if model_label == 'Single_Label':
+            #### Only certain multi-output classifiers provide probas. For now LinearSVC can't. Hence skip this...
             proba_cols = []
             ########   This is for both Binary and Multi Classification Problems ###########
             y_proba = model.predict_proba(X_test)
-            y_pred = model.predict(X_test)
             predicted = copy.deepcopy(y_proba)
             if len(classes) <= 2:
                 predicted [:,0] = (predicted [:,0] >= (1-m_thresh)).astype('int')
@@ -2411,28 +2532,40 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     ### If the model is good with the modified threshold, then you use the modified threshold!
                     print('    Making test Data predictions using modified Threshold = %0.3f' %m_thresh)
                     y_pred = predicted[:,rare_class]
-            else:
-                ##### For multi-class, just make predictions of multiple classes here #######
-                y_pred = model.predict(X_test)
-            ##### This next step is very important since some models give series, others give arrays. Very painful!
-            if isinstance(y_pred,pd.Series):
-                y_pred = y_pred.values.astype(int)
-            else:
-                ### In a small number of cases, it's an array but has a shape of 1.
-                ### This causes errors later. Hence I have to make it a singleton array.
-                try:
-                    if y_pred.shape[1] == 1:
-                        y_pred = y_pred.ravel()
-                except:
-                    y_pred = y_pred.astype(int)
+            ### You will need to create probabilities for each class here  ####
+            for each_class in classes:
+                if isinstance(each_class, str):
+                    proba_col = each_target+'_proba_'+each_class
+                else:
+                    proba_col = each_target+'_proba_'+str(each_class)
+                count = int(label_dict[each_target]['dictionary'][each_class])
+                testm[proba_col] = y_proba[:,count]
+            proba_cols.append(proba_col)
+        ##### This next step is very important since some models give series, others give arrays. Very painful!
+        if isinstance(y_pred,pd.Series):
+            y_pred = y_pred.values.astype(int)
+        else:
+            ### In a small number of cases, it's an array but has a shape of 1.
+            ### This causes errors later. Hence I have to make it a singleton array.
+            try:
+                if y_pred.shape[1] == 1:
+                    y_pred = y_pred.ravel()
+            except:
+                y_pred = y_pred.astype(int)
+        ##### Now take each target in the list of targets and apply reverse transformation on predicted labels ####
+        for each_target, i in zip(target, range(len(target))):
             if len(label_dict[each_target]['transformer']) == 0:
                 #########  NO   T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
                 ### if there is no transformer, then leave the predicted classes as is
                 classes = label_dict[each_target]['classes']
                 ##### If there is no transformer, you can just predict the classes as is and save it here ###
-                testm[each_target+'_predictions'] = y_pred
+                predict_cols = each_target+'_predictions'
+                if model_label == 'Single_Label':
+                    testm[predict_cols] = y_pred
+                else:
+                    testm[predict_cols] = y_pred[:,i]
                 ######  If Stacking_Flag is False, then we do Ensembling #######
-                if not Stacking_Flag:
+                if not Stacking_Flag and model_label == 'Single_Label':
                     ### Ensembling is not done when the model name is CatBoost ####
                     new_cols = []
                     subm = pd.DataFrame()
@@ -2456,16 +2589,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             subm[new_col] = ensembles[:,each]
                             testm[new_col] = ensembles[:,each]
                         new_cols.append(new_col)
-                ### You will need to create probabilities for each class here  ####
-                for each_class in classes:
-                    if isinstance(each_class, str):
-                        proba_col = each_target+'_proba_'+each_class
-                    else:
-                        proba_col = each_target+'_proba_'+str(each_class)
-                    count = int(label_dict[each_target]['dictionary'][each_class])
-                    testm[proba_col] = y_proba[:,count]
-                    proba_cols.append(proba_col)
-                if not Stacking_Flag:
+                    ####### now combine the predictions into one ensembled prediction #######
                     new_col = each_target+'_Ensembled_predictions'
                     if len(new_cols) == 5:
                         print('    Calculating weighted average ensemble of %d classifiers' %len(new_cols))
@@ -2474,19 +2598,23 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     else:
                         print('    Calculating average ensemble of %d classifiers' %len(new_cols))
                         ensem_pred = (subm[new_cols].mean(axis=1)).astype(int)
-                else:
+                elif Stacking_Flag and not model_label == 'Single_Label':
                     stack_cols, stacksfinal = QuickML_Stacking(X, y, X_test,
                                        modeltype, Boosting_Flag,scoring_parameter,verbose)
                     new_col = each_target+'_Stacked_'+stack_cols[0].split("_")[0]+'_predictions'
                     ensem_pred = np.argmax(stacksfinal,axis=1)
-                ##### This next step is very important since some models give series, others give arrays. Very painful!
-                if isinstance(ensem_pred,pd.Series):
-                    ensem_pred = ensem_pred.values
-                testm[new_col] = ensem_pred
-                new_cols.append(new_col)
+                if model_label == 'Single_Label':
+                    ##### This next step is very important since some models give series, others give arrays. Very painful!
+                    if isinstance(ensem_pred,pd.Series):
+                        ensem_pred = ensem_pred.values
+                    testm[new_col] = ensem_pred
+                    new_cols.append(new_col)
                 if not isinstance(sample_submission, str):
                     try:
-                        sample_submission[each_target] = y_pred
+                        if model_label == 'Single_Label':
+                            sample_submission[each_target] = y_pred
+                        else:
+                            sample_submission[each_target] = y_pred[:,i]
                     except:
                         print('Error: Sample submission file is incorrect. Please check it. continuing...')
             else:
@@ -2553,7 +2681,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 new_cols.append(new_col)
                 if not isinstance(sample_submission, str):
                     sample_submission[each_target] = pd.Series(y_pred).map(transformer).values
-        #####################   P L O T   F E A T U R E   I M P O R T A N C E S   H E R E ###################
+    #####################   P L O T   F E A T U R E   I M P O R T A N C E S   H E R E ###################
+    if model_label == 'Single_Label':
         if calibrator_flag:
             plot_model = model.base_estimator
         else:
@@ -2674,64 +2803,77 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             shap.summary_plot(shap_values, X_test)
             except:
                 print('Could not plot SHAP values since SHAP is not installed or could not import SHAP in this machine')
-        print('############### P R E D I C T I O N  O N  T E S T   C O M P L E T E D  #################')
-        print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
-        ##  Write the test and submission files to disk ###
-        print('Writing Output files to disk...')
-        #############################################################################################
-        if not isinstance(testm, str):
-            try:
-                write_file_to_folder(testm, each_target, each_target+'_'+modeltype+'_'+'test_modified.csv')
-                #####   D R A W   K D E  P L O T S   FOR PROBABILITY OF PREDICTIONS - very useful! #########
-                if modeltype != 'Regression':
-                    if verbose >= 2:
-                        testm[proba_cols].plot(kind='kde',figsize=(10,6),
-                                        title='Predictive Probability Density Chart with suggested threshold in red')
-                        plt.axvline(x=m_thresh, color='r', linestyle='--');
-            except:
-                print('    Error: Not able to save test modified file. Skipping...')
-        #############################################################################################
-        if isinstance(sample_submission, str):
-            try:
-                sample_submission = testm[id_cols+[each_target+'_predictions']]
-            except:
-                print('Error: Could not create sample submission file from Test data')
+    else:
+        ############ No Plotting feature importances for Multi-Label problems ##############
+        print('    No feature importance plots available for Multi-Label problems')
+    print('############### P R E D I C T I O N  O N  T E S T   C O M P L E T E D  #################')
+    print('    Time taken thus far (in seconds) = %0.0f' %(time.time()-start_time))
+    ##  Write the test and submission files to disk ###
+    print('Writing Output files to disk...')
+    #############################################################################################
+    if not isinstance(testm, str):
         try:
-            write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
+            write_file_to_folder(testm, each_target, each_target+'_'+modeltype+'_'+'test_modified.csv')
+            #####   D R A W   K D E  P L O T S   FOR PROBABILITY OF PREDICTIONS - very useful! #########
+            if modeltype != 'Regression':
+                if verbose >= 2:
+                    testm[proba_cols].plot(kind='kde',figsize=(10,6),
+                                    title='Predictive Probability Density Chart with suggested threshold in red')
+                    plt.axvline(x=m_thresh, color='r', linestyle='--');
         except:
-            print('    Error: Not able to save submission file. Skipping...')
-        #############################################################################################
+            print('    Error: Not able to save test modified file. Skipping...')
+    #############################################################################################
+    if isinstance(sample_submission, str):
         try:
-            #### Bring trainm back to its original index ###################
-            orig_index = orig_train.index
-            trainm = train.reindex(index = orig_index)
-            write_file_to_folder(trainm, each_target, each_target+'_'+modeltype+'_'+'train_modified.csv')
+            if len(id_cols) > 0:
+                sample_submission = testm[id_cols]
+            else:
+                sample_submission = pd.DataFrame(index=testm.index,columns=[])
+            if len(target) == 1:
+                    sample_submission[each_target] = testm[each_target+'_predictions']
+            else:
+                predict_cols = [x+'_predictions' for x in target]
+                for predict_col, target_col in zip(predict_cols, target):
+                    sample_submission[target_col] = testm[predict_col]
         except:
-            print('    Error: Not able to save train modified file. Skipping...')
-        ### In case of multi-label models, we will reset the start train and test dataframes to contain new features created
-        start_train = start_train[target].join(start_train[orig_red_preds])
-        if not isinstance(orig_test, str):
-            start_test = start_test[orig_red_preds]
-        #### Once each target cycle is over, reset the red_preds to the orig_red_preds so we can start over
-        red_preds = copy.deepcopy(orig_red_preds)
-    #### Perform Final Multi-Label Operations here since all Labels are finished by now ###
-    #### Don't change the target here to each_target since this is for multi-label situations only ###
-    if (scoring_parameter == 'basket_recall' or scoring_parameter == 'jaccard') and modeltype != 'Regression':
-        y_preds = np.array(list(zipped))
-        _,_,_,y_actuals = train_test_split(train[red_preds], train[target].values,
-                                    test_size=test_size, random_state=seed)
-        print('Shape of Actuals: %s and Preds: %s' %(y_actuals.shape[0], y_preds.shape[0]))
-        if y_actuals.shape[0] == y_preds.shape[0]:
-            if scoring_parameter == 'basket_recall' and len(target) > 1:
-                accu_all = basket_recall(y_actuals, y_preds).mean()
-                print('        Mean Basket Recall = {:,.1f}%'.format(
-                                                                accu_all*100))
-            elif scoring_parameter == 'jaccard' and len(target) > 1:
-            ##  This shows similarity in multi-label situations ####
-                accu_all = jaccard_multilabel(y_actuals, y_preds)
-                print('        Mean Jaccard Similarity  = %s' %(
-                                        accu_all))
-    ##   END OF ONE LABEL IN A MULTI LABEL DATA SET ! WHEW ! ###################
+            print('Error: Could not create sample submission file from Test data')
+    try:
+        write_file_to_folder(sample_submission, each_target, each_target+'_'+modeltype+'_'+'submission.csv')
+    except:
+        print('    Error: Not able to save submission file. Skipping...')
+    #############################################################################################
+    try:
+        #### Bring trainm back to its original index ###################
+        orig_index = orig_train.index
+        trainm = train.reindex(index = orig_index)
+        write_file_to_folder(trainm, each_target, each_target+'_'+modeltype+'_'+'train_modified.csv')
+    except:
+        print('    Error: Not able to save train modified file. Skipping...')
+    ### In case of multi-label models, we will reset the start train and test dataframes to contain new features created
+    start_train = start_train[target].join(start_train[orig_red_preds])
+    if not isinstance(orig_test, str):
+        start_test = start_test[orig_red_preds]
+    #### Once each target cycle is over, reset the red_preds to the orig_red_preds so we can start over
+    #red_preds = copy.deepcopy(orig_red_preds)
+    if model_label != 'Single_Label':
+        #### Perform Final Multi-Label Operations here since all Labels are finished by now ###
+        #### Don't change the target here to each_target since this is for multi-label situations only ###
+        if (scoring_parameter == 'basket_recall' or scoring_parameter == 'jaccard') and modeltype != 'Regression':
+            y_preds = np.array(list(zipped))
+            _,_,_,y_actuals = train_test_split(train[red_preds], train[target].values,
+                                        test_size=test_size, random_state=seed)
+            print('Shape of Actuals: %s and Preds: %s' %(y_actuals.shape[0], y_preds.shape[0]))
+            if y_actuals.shape[0] == y_preds.shape[0]:
+                if scoring_parameter == 'basket_recall' and len(target) > 1:
+                    accu_all = basket_recall(y_actuals, y_preds).mean()
+                    print('        Mean Basket Recall = {:,.1f}%'.format(
+                                                                    accu_all*100))
+                elif scoring_parameter == 'jaccard' and len(target) > 1:
+                ##  This shows similarity in multi-label situations ####
+                    accu_all = jaccard_multilabel(y_actuals, y_preds)
+                    print('        Mean Jaccard Similarity  = %s' %(
+                                            accu_all))
+        ##   END OF SHOWING METRICS LABEL IN A MULTI LABEL DATA SET ! WHEW ! ###################
     print('###############  C O M P L E T E D  ################')
     print('Time Taken in mins = %0.1f for the Entire Process' %((time.time()-start_time)/60))
     #return model, imp_features_df.index.tolist(), trainm, testm
@@ -2814,7 +2956,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     print('No categorical feature reduction done. All %d Categorical vars selected ' %(len(catvars)))
     if len(numvars) > 1:
         final_list = remove_variables_using_fast_correlation(train,numvars,modeltype,
-                             corr_limit,verbose)
+                             target, corr_limit,verbose)
     else:
         final_list = copy.deepcopy(numvars)
     print('    Adding %s categorical variables to reduced numeric variables  of %d' %(
@@ -2831,7 +2973,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     train.dropna(axis=0,subset=preds+[target],inplace=True)
     ########   Dont move this train and y definition anywhere else ########
     y = train[target]
-    print('############## F E A T U R E   S E L E C T I O N  ####################')
+    print('############## F E A T U R E   S E L E C T I O N    BY   XGBOOST   ####################')
     important_features = []
     if modeltype == 'Regression':
         objective = 'reg:squarederror'
@@ -3338,17 +3480,21 @@ def return_dictionary_list(lst_of_tuples):
 def remove_variables_using_fast_correlation(df, numvars, modeltype, target,
                                 corr_limit = 0.70,verbose=0):
     """
-    #### THIS METHOD IS KNOWN AS SULO METHOD in HONOR OF my mother SULOCHANA SESHADRI #######
-    This highly efficient method removes variables that are highly correlated using a series of
-    pair-wise correlation knockout rounds. It is extremely fast and hence can work on thousands
-    of variables in less than a minute, even on a laptop. You need to send in a list of numeric
-    variables and that's all! The method defines high Correlation as anything over 0.70 (absolute)
-    but this can be changed. If two variables have absolute correlation higher than this, they
-    will be marked, and using a process of elimination, one of them will get knocked out:
-    To decide order of variables to keep, we use mutuail information score to select. MIS returns
-    a ranked list of these correlated variables: when we select one, we knock out others
-    that it is correlated to. Then we select next var. This way we knock out correlated variables.
-    Finally we are left with uncorrelated variables that are also highly important (mutual score).
+    #### THIS METHOD IS KNOWN AS THE SULA METHOD in HONOR OF my mother SULOCHANA SESHADRI #######
+    S U L A : Simple Uncorrelated Linear Algorithm will get a set of uncorrelated vars easily.
+    SULA is a highly efficient method that removes variables that are highly correlated but
+    breaks the logjam that occurs when deciding which of the 2 correlated variables to remove.
+    SULA uses the MIS (mutual_info_score) to decide to keep the higher scored variable.
+    This method enables an extremely fast and highly effective method that keeps the variables
+    you want while discarding lesser highr correlated variables in less than a minute, even on a laptop.
+    You need to send in a dataframe with a list of numeric variables and define a threshold - that's all.
+    This threshold will define the "high Correlation" mark - you can set it as anything over + or - 0.70.
+    You can change this limit. If two variables have absolute correlation higher than limit, they
+    will be red-lined, and using a series of knockout rounds, one of them will get knocked out:
+    To decide which variables to keep in knockout rounds, mutual information score is used.
+    MIS returns a ranked list of correlated variables: when we select one to keep, we knock out those
+    that were correlated to it. This way we knock out correlated variables from each round.
+    In the end, SULA gives us the least correlated variables that have the best mutual information score!
     ##############  YOU MUST INCLUDE THE ABOVE MESSAGE IF YOU COPY THIS CODE IN YOUR LIBRARY #####
     """
     print('Searching for and removing highly correlated variables amoung %d numeric variables' %len(numvars))
@@ -3405,8 +3551,7 @@ def remove_variables_using_fast_correlation(df, numvars, modeltype, target,
         ##### Now we combine the uncorrelated list to the selected correlated list above
         rem_col_list = left_subtract(list(correlation_dataframe),corr_list)
         final_list = rem_col_list + selected_corr_list
-        if verbose >= 1:
-            print('\nAfter removing highly correlated variables, following %d numeric vars selected: %s' %(len(final_list),final_list))
+        print('    After removing highly correlated variables, following %d numeric vars selected: %s' %(len(final_list),final_list))
     return final_list
 ###############################################################################################
 def count_freq_in_list(lst):
@@ -3448,8 +3593,8 @@ from sklearn.linear_model import Lasso
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.model_selection import GridSearchCV
 
-def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly=2,md='',corr_limit=0.70,
-                         scaling=True, fit_flag=False, verbose=0):
+def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly=2,md='',
+                            corr_limit=0.70,scaling=True, fit_flag=False, verbose=0):
     """
     #### This adds Polynomial and Interaction Variables of any Size to a data set and returns the best vars
     among those poly and interaction variables. Notice you will get a list of variables as well as the modified
@@ -3640,7 +3785,8 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         New_XP.columns = final_text_vars
         #### New_XP will be the final dataframe that we will send with orig and poly/intxn variables
         ########## R E M O V E    C O R R E L A T E D   V A R I A B L E S ################
-        final_text_vars = remove_variables_using_fast_correlation(New_XP,final_text_vars,modeltype,
+        final_text_vars = remove_variables_using_fast_correlation(New_XP,final_text_vars,
+                                modeltype,targetvar,
                                 corr_limit,verbose)
         final_x_vars = [feature_textvar_dict[x] for x in final_text_vars]
         if verbose >= 1:
@@ -3930,7 +4076,7 @@ def split_data_new(trainfile, testfile, target,sep, modeltype='Regression', rand
     else:
         indices = np.random.permutation(traindf.shape[0])
         train_rows = int(0.8*traindf.shape[0])
-    predictors = [x for x in traindf if x not in [target]]
+    predictors = [x for x in traindf if x not in target]
     ##### select only string columns from the train data
     cols = copy.deepcopy(predictors)
     #cols = select_num_columns(traindf[predictors]).columns.tolist()
@@ -3971,7 +4117,7 @@ def split_data_new(trainfile, testfile, target,sep, modeltype='Regression', rand
                     tsdata = testdf[:]
                 else:
                     print('Test data has single class. Overwriting predictions on Test Target column.')
-                    predictors = [x for x in list(traindf) if x not in [target]]
+                    predictors = [x for x in list(traindf) if x not in target]
                     tsdata = testdf[:]
             except:
                 print('No Target column in Test data')
@@ -4071,7 +4217,6 @@ def create_ts_features(df, tscol):
     except:
         print('    Error in creating date time derived features. Continuing...')
     df = df[dt_adds].fillna(0).astype(int)
-    print('    Adding %d columns from date time column %s' %(len(dt_adds),tscol))
     return df
 ################################################################
 from dateutil.relativedelta import relativedelta
@@ -4135,7 +4280,7 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
                                      training=True,minority_class=1,imp_cats=[],
                                      calibrator_flag=False,
                                      GPU_exists=False, params={},
-                                     verbose=0):
+                                     model_label='Single_Label', verbose=0):
     """
     #########    OVERSAMPLING OF MINORITY CLASS AND TRAINING  SIZES  ###############
     ####  SMOTE (Synthetic Minority Oversampling Technique) works well with imbalanced classes.
@@ -4223,45 +4368,48 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
             else:
                 y_df.value_counts(1).plot(kind='bar',title='Distribution of classes before SMOTE', ax=ax1, color='r')
                 train_ovr[df_target].value_counts(1).plot(kind='bar',title='Distribution of classes after SMOTE', ax=ax2, color='b')
-    if Boosting_Flag:
-        if model_name == 'XGBoost':
-            early_stopping = 5
-            try:
-                if calibrator_flag:
-                    model.base_estimator.set_params(**params)
-                    model.fit(train_ovr[train_preds], train_ovr[df_target])
-                else:
-                    if eval_set==[()]:
-                        model.fit(train_ovr[train_preds], train_ovr[df_target], verbose=False)
-                    else:
-                        model.fit(train_ovr[train_preds], train_ovr[df_target],early_stopping_rounds=early_stopping,
-                            eval_metric=eval_metric,eval_set=eval_set,verbose=False)
-            except:
-                #### On Colab, even though GPU exists, many people don't turn it on.
-                ####  In that case, XGBoost blows up when gpu_predictor is used.
-                ####  This is to turn it back to cpu_predictor in case GPU errors!
-                if GPU_exists:
-                    print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
+    if model_label == 'Single_Label':
+        if Boosting_Flag:
+            if model_name == 'XGBoost':
+                early_stopping = 5
+                try:
                     if calibrator_flag:
                         model.base_estimator.set_params(**params)
                         model.fit(train_ovr[train_preds], train_ovr[df_target])
                     else:
-                        model.estimator.set_params(**params)
-                        model.fit(train_ovr[train_preds], train_ovr[df_target])
-                else:
-                    if eval_set==[()]:
-                        model.fit(train_ovr[train_preds], train_ovr[df_target],
-                             verbose=False)
+                        if eval_set==[()]:
+                            model.fit(train_ovr[train_preds], train_ovr[df_target], verbose=False)
+                        else:
+                            model.fit(train_ovr[train_preds], train_ovr[df_target],early_stopping_rounds=early_stopping,
+                                eval_metric=eval_metric,eval_set=eval_set,verbose=False)
+                except:
+                    #### On Colab, even though GPU exists, many people don't turn it on.
+                    ####  In that case, XGBoost blows up when gpu_predictor is used.
+                    ####  This is to turn it back to cpu_predictor in case GPU errors!
+                    if GPU_exists:
+                        print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
+                        if calibrator_flag:
+                            model.base_estimator.set_params(**params)
+                            model.fit(train_ovr[train_preds], train_ovr[df_target])
+                        else:
+                            model.estimator.set_params(**params)
+                            model.fit(train_ovr[train_preds], train_ovr[df_target])
                     else:
-                        model.fit(train_ovr[train_preds], train_ovr[df_target], early_stopping_rounds=early_stopping,
-                            eval_metric=eval_metric,eval_set=eval_set,verbose=False)
-        else:
-            early_stopping = 250
-            if eval_set == [()]:
-                model.fit(train_ovr[train_preds], train_ovr[df_target], cat_features=imp_cats,plot=False)
+                        if eval_set==[()]:
+                            model.fit(train_ovr[train_preds], train_ovr[df_target],
+                                 verbose=False)
+                        else:
+                            model.fit(train_ovr[train_preds], train_ovr[df_target], early_stopping_rounds=early_stopping,
+                                eval_metric=eval_metric,eval_set=eval_set,verbose=False)
             else:
-                model.fit(train_ovr[train_preds], train_ovr[df_target], cat_features=imp_cats,
-                            eval_set=eval_set, use_best_model=True, plot=True)
+                early_stopping = 250
+                if eval_set == [()]:
+                    model.fit(train_ovr[train_preds], train_ovr[df_target], cat_features=imp_cats,plot=False)
+                else:
+                    model.fit(train_ovr[train_preds], train_ovr[df_target], cat_features=imp_cats,
+                                eval_set=eval_set, use_best_model=True, plot=True)
+        else:
+            model.fit(train_ovr[train_preds], train_ovr[df_target])
     else:
         model.fit(train_ovr[train_preds], train_ovr[df_target])
     print('Imbalanced class training completed.')
@@ -4698,7 +4846,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.668'
+version_number = '0.1.669'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

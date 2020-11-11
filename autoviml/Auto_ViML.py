@@ -26,6 +26,8 @@ import pdb
 from sklearn.svm import LinearSVR, LinearSVC
 from sklearn.multioutput import MultiOutputRegressor, MultiOutputClassifier
 from sklearn.multioutput import RegressorChain, ClassifierChain
+from sklearn.multiclass import OneVsRestClassifier
+
 from sklearn.linear_model import Lasso
 from sklearn.model_selection import StratifiedShuffleSplit
 import matplotlib.pylab as plt
@@ -433,6 +435,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     calibrator_flag = False  ### In Multi-class data sets, a CalibratedClassifier works better than regular classifiers!
     max_class_length = 1 ### It turns out the number of classes is directly correlated to Estimated Time. Hence this!
     perform_scaling_flag = True #### For linear models, scaling is a must but for other models, its not necessary but okay.
+    xgb_booster = 'dart'  ### you can set this to either of dart, gbtree or gblinear
     print('##############  D A T A   S E T  A N A L Y S I S  #######################')
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
     if isinstance(Boosting_Flag,str):
@@ -703,22 +706,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     GPU_exists = check_if_GPU_exists()
     ###### This is where we set the CPU and GPU parameters for XGBoost
     param = {}
-    if model_label == 'Single_Label':
-        if Boosting_Flag:
-            if isinstance(Boosting_Flag,str):
-                if Boosting_Flag.lower() == 'catboost':
-                    model_name = 'CatBoost'
-                    hyper_param = None
-                else:
-                    model_name = 'XGBoost'
+    if Boosting_Flag:
+        if isinstance(Boosting_Flag,str):
+            if Boosting_Flag.lower() == 'catboost':
+                model_name = 'CatBoost'
+                hyper_param = None
             else:
                 model_name = 'XGBoost'
-        elif Boosting_Flag is None:
-            model_name = 'Linear'
         else:
-            model_name = 'Forests'
+            model_name = 'XGBoost'
+    elif Boosting_Flag is None:
+        model_name = 'Linear'
     else:
-        model_name = 'Multi_Label'
+        model_name = 'Forests'
     #####   Set the Scoring Parameters here based on each model and preferences of user ##############
     cpu_params = {}
     if model_name == 'XGBoost':
@@ -1309,7 +1309,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
                             },
                     "Multi_Label": {
-                            'estimator__C': [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3]
+                            #'estimator__C': [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3]
                                     }
                     }
         else:
@@ -1336,38 +1336,46 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             'learning_rate': np.logspace(Alpha_min,Alpha_max,40),
                             },
                     "Multi_Label": {
-                            'estimator__C': sp.stats.uniform(scale=1)
+                            #'estimator__C': sp.stats.uniform(scale=1)
                                     }
                     }
-        if model_label == 'Single_Label':
-            if Boosting_Flag:
-                if model_name.lower() == 'catboost':
-                    xgbm = CatBoostRegressor(verbose=1,iterations=max_estims,random_state=99,
-                            one_hot_max_size=one_hot_size,
-                            loss_function=loss_function, eval_metric=catboost_scoring,
-                            subsample=0.7,bootstrap_type='Bernoulli',
-                            metric_period = 100,
-                           early_stopping_rounds=250,boosting_type='Plain')
-                else:
-                    xgbm = XGBRegressor(seed=seed,n_jobs=-1,random_state=seed,subsample=subsample,
-                                         colsample_bytree=col_sub_sample,n_estimators=max_estims,
-                                        objective=objective)
-                    xgbm.set_params(**param)
-            elif Boosting_Flag is None:
-                #xgbm = Lasso(max_iter=max_iter,random_state=seed)
-                #xgbm = Lasso(max_iter=max_iter,random_state=seed)
-                xgbm = LinearSVR(epsilon=0.0, tol=0.001, C=1.0,random_state=seed)
+        if Boosting_Flag:
+            if model_name.lower() == 'catboost':
+                xgbm = CatBoostRegressor(verbose=1,iterations=max_estims,random_state=99,
+                        one_hot_max_size=one_hot_size,
+                        loss_function=loss_function, eval_metric=catboost_scoring,
+                        subsample=0.7,bootstrap_type='Bernoulli',
+                        metric_period = 500,
+                       early_stopping_rounds=250,boosting_type='Plain')
             else:
-                xgbm = RandomForestRegressor(
-                                **{
-                                'bootstrap': bootstrap, 'n_jobs': -1, 'warm_start': warm_start,
-                                'random_state':seed,'min_samples_leaf':2,
-                                'max_features': "sqrt"
-                                })
+                xgbm = XGBRegressor(seed=seed,n_jobs=-1,random_state=seed,subsample=subsample,
+                                     colsample_bytree=col_sub_sample,n_estimators=200,
+                                     booster=xgb_booster,
+                                    objective=objective)
+                xgbm.set_params(**param)
+        elif Boosting_Flag is None:
+            #xgbm = Lasso(max_iter=max_iter,random_state=seed)
+            #xgbm = Lasso(max_iter=max_iter,random_state=seed)
+            xgbm = LinearSVR(epsilon=0.0, tol=0.001, C=1.0,max_iter=max_iter, random_state=seed)
         else:
-            lvm = LinearSVR(epsilon=0.0, tol=0.001, C=1.0,max_iter=max_iter, random_state=seed)
-            # define the direct multioutput wrapper model
-            xgbm = MultiOutputRegressor(lvm)
+            xgbm = RandomForestRegressor(
+                            **{
+                            'bootstrap': bootstrap, 'n_jobs': -1, 'warm_start': warm_start,
+                            'random_state':seed,'min_samples_leaf':2,
+                            'max_features': "sqrt"
+                            })
+        if model_label != 'Single_Label':
+            #### For Multi-Label Problems = you have to change the model to a multi-output model
+            if Boosting_Flag:
+                if isinstance(Boosting_Flag, str):
+                    if Boosting_Flag.lower() == 'chain':
+                        ### Regressor Chain a stacking algorithm - it predicts one target and
+                        ###  uses it to predict other targets in a daisy chain. Neat!
+                        xgbm = RegressorChain(xgbm)
+                    else:
+                        xgbm = MultiOutputRegressor(xgbm)
+        else:
+            xgbm = MultiOutputRegressor(xgbm)
     else:
         #### This is for Binary Classification ##############################
         classes = label_dict[each_target]['classes']
@@ -1491,12 +1499,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             random_state=99,one_hot_max_size=one_hot_size,
                             loss_function=loss_function, eval_metric=catboost_scoring,
                             subsample=0.7,bootstrap_type='Bernoulli',
-                            metric_period = 100,
+                            metric_period = 500,
                            early_stopping_rounds=250,boosting_type='Plain')
                     else:
                         xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                             colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
-                            max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=max_estims,
+                            max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
                             n_jobs=-1, nthread=None, objective=objective,
                             random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                             seed=1)
@@ -1515,8 +1523,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 })
             else:
                 ##### This is for Multi-Label but Binary Classification ######################
-                lvm = LinearSVC( tol=0.001, C=1.0,max_iter=max_iter, random_state=seed)
-                xgbm = MultiOutputClassifier(lvm)
+                xgbm = OneVsRestClassifier(estimator=xgbm)
         else:
             #####   This is for MULTI Classification ##########################
             objective = 'multi:softmax'
@@ -1655,12 +1662,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 random_state=99,one_hot_max_size=one_hot_size,
                                 loss_function=loss_function, eval_metric=catboost_scoring,
                                 subsample=0.7,bootstrap_type='Bernoulli',
-                                metric_period = 100,
+                                metric_period = 500,
                                early_stopping_rounds=250,boosting_type='Plain')
                     else:
                         xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                                     colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
-                            max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=max_estims,
+                            max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
                             n_jobs=-1, nthread=None, objective=objective,
                             random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                             num_class= len(classes),
@@ -1679,60 +1686,63 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                           random_state=seed,n_jobs=-1)
             else:
                 ##### This is for Multi-Label and Multi-class Classification ######################
-                lvm = LinearSVC(tol=0.001, C=1.0, max_iter=max_iter, random_state=seed)
-                xgbm = MultiOutputClassifier(lvm)
+                xgbm = OneVsRestClassifier(estimator=xgbm)
     ######   Now do RandomizedSearchCV  using # Early-stopping ################
-    if modeltype == 'Regression':
-        #scoreFunction = {"mse": "neg_mean_squared_error", "mae": "neg_mean_absolute_error"}
-        #### I have set the Verbose to be False here since it produces too much output ###
-        if hyper_param == 'GS':
+    if model_label == 'Single_Label':
+        if modeltype == 'Regression':
+            #scoreFunction = {"mse": "neg_mean_squared_error", "mae": "neg_mean_absolute_error"}
             #### I have set the Verbose to be False here since it produces too much output ###
-            gs = GridSearchCV(xgbm,param_grid=r_params[model_name],
-                                           scoring = scorer,
-                                           n_jobs=-1,
-                                           cv = scv,
-                                           refit = refit_metric,
-                                           return_train_score = True,
-                                            verbose=0)
-        elif hyper_param == 'RS':
-            gs = RandomizedSearchCV(xgbm,
-                                           param_distributions = r_params[model_name],
-                                           n_iter = no_iter,
-                                           scoring = scorer,
-                                           refit = refit_metric,
-                                           return_train_score = True,
-                                           random_state = seed,
-                                           cv = scv,
-                                           n_jobs=-1,
-                                            verbose = 0)
+            if hyper_param == 'GS':
+                #### I have set the Verbose to be False here since it produces too much output ###
+                gs = GridSearchCV(xgbm,param_grid=r_params[model_name],
+                                               scoring = scorer,
+                                               n_jobs=-1,
+                                               cv = scv,
+                                               refit = refit_metric,
+                                               return_train_score = True,
+                                                verbose=0)
+            elif hyper_param == 'RS':
+                gs = RandomizedSearchCV(xgbm,
+                                               param_distributions = r_params[model_name],
+                                               n_iter = no_iter,
+                                               scoring = scorer,
+                                               refit = refit_metric,
+                                               return_train_score = True,
+                                               random_state = seed,
+                                               cv = scv,
+                                               n_jobs=-1,
+                                                verbose = 0)
+            else:
+                #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
+                gs = copy.deepcopy(xgbm)
         else:
-            #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
-            gs = copy.deepcopy(xgbm)
+            if hyper_param == 'GS':
+                #### I have set the Verbose to be False here since it produces too much output ###
+                gs = GridSearchCV(xgbm,param_grid=c_params[model_name],
+                                               scoring = scorer,
+                                               return_train_score = True,
+                                               n_jobs=-1,
+                                               refit = refit_metric,
+                                               cv = scv,
+                                                verbose=0)
+            elif hyper_param == 'RS':
+                #### I have set the Verbose to be False here since it produces too much output ###
+                gs = RandomizedSearchCV(xgbm,
+                                               param_distributions = c_params[model_name],
+                                               n_iter = no_iter,
+                                               scoring = scorer,
+                                               refit = refit_metric,
+                                               return_train_score = True,
+                                               random_state = seed,
+                                               n_jobs=-1,
+                                               cv = scv,
+                                                verbose = 0)
+            else:
+                #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
+                gs = copy.deepcopy(xgbm)
     else:
-        if hyper_param == 'GS':
-            #### I have set the Verbose to be False here since it produces too much output ###
-            gs = GridSearchCV(xgbm,param_grid=c_params[model_name],
-                                           scoring = scorer,
-                                           return_train_score = True,
-                                           n_jobs=-1,
-                                           refit = refit_metric,
-                                           cv = scv,
-                                            verbose=0)
-        elif hyper_param == 'RS':
-            #### I have set the Verbose to be False here since it produces too much output ###
-            gs = RandomizedSearchCV(xgbm,
-                                           param_distributions = c_params[model_name],
-                                           n_iter = no_iter,
-                                           scoring = scorer,
-                                           refit = refit_metric,
-                                           return_train_score = True,
-                                           random_state = seed,
-                                           n_jobs=-1,
-                                           cv = scv,
-                                            verbose = 0)
-        else:
-            #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
-            gs = copy.deepcopy(xgbm)
+        ## For multi-label problems, you can't do GridSearch or RandomizedSearch since it will take too long
+        gs = copy.deepcopy(xgbm)
     #trains and optimizes the model
     eval_set = [(X_train,y_train),(X_cv,y_cv)]
     if model_label == 'Single_Label':
@@ -1838,11 +1848,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 else:
                     model.fit(X_train, y_train)
             #### If downsampling succeeds, it will be used to get the best score and can become model again ##
-            if hyper_param == 'RS' or hyper_param == 'GS':
-                best_score = model.best_score_
-            else:
-                val_keys = list(model.best_score_.keys())
-                best_score = model.best_score_[val_keys[-1]][validation_metric]
+            if model_label == 'Single_Label':
+                if hyper_param == 'RS' or hyper_param == 'GS':
+                    best_score = model.best_score_
+                else:
+                    val_keys = list(model.best_score_.keys())
+                    best_score = model.best_score_[val_keys[-1]][validation_metric]
         except:
             print('Error in training Imbalanced model first time. Trying regular model..')
             Imbalanced_Flag = False
@@ -1890,43 +1901,44 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             print('Training regular model first time is Erroring: Check if your Input is correct...')
             return
         try:
-            if hyper_param == 'RS' or hyper_param == 'GS':
-                best_score = model.best_score_
-                validation_metric = copy.deepcopy(scoring_parameter)
-            else:
-                val_keys = list(model.best_score_.keys())
-                if 'validation' in val_keys:
-                    validation_metric = list(model.best_score_['validation'].keys())[0]
-                    best_score = model.best_score_['validation'][validation_metric]
+            if model_label == 'Single_Label':
+                if hyper_param == 'RS' or hyper_param == 'GS':
+                    best_score = model.best_score_
+                    validation_metric = copy.deepcopy(scoring_parameter)
                 else:
-                    validation_metric = list(model.best_score_['learn'].keys())[0]
-                    best_score = model.best_score_['learn'][validation_metric]
+                    val_keys = list(model.best_score_.keys())
+                    if 'validation' in val_keys:
+                        validation_metric = list(model.best_score_['validation'].keys())[0]
+                        best_score = model.best_score_['validation'][validation_metric]
+                    else:
+                        validation_metric = list(model.best_score_['learn'].keys())[0]
+                        best_score = model.best_score_['learn'][validation_metric]
         except:
             print('Error: Not able to print validation metrics. Continuing...')
     ##   TRAINING OF MODELS COMPLETED. NOW GET METRICS on CV DATA ################
     print('    Actual training time (in seconds): %0.0f' %(time.time()-model_start_time))
     print('###########  S I N G L E  M O D E L   R E S U L T S #################')
-    if modeltype != 'Regression':
-        ############## This is for Classification Only !! ########################
-        if scoring_parameter in ['logloss','neg_log_loss','log_loss','log-loss','']:
-            print('{}-fold Cross Validation {} = {}'.format(n_splits, 'logloss', best_score))
-        elif scoring_parameter in ['accuracy','balanced-accuracy','balanced_accuracy','roc_auc','roc-auc',
-                                   'f1','precision','recall','average-precision','average_precision',
-                                  'weighted_f1','weighted-f1','AUC']:
-            print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,scoring_parameter, best_score*100))
-        else:
-            print('%d-fold Cross Validation  %s = %0.1f' %(n_splits,validation_metric, best_score))
-    else:
-        ######### This is for Regression only ###############
-        if best_score < 0:
-            best_score = best_score*-1
-        if scoring_parameter == '':
-            print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,'RMSE', best_score))
-        else:
-            print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,validation_metric, best_score))
-    #### We now need to set the Best Parameters, Fit the Model on Full X_train and Predict on X_cv
-    ### Find what the order of best params are and set the same as the original model ###
     if model_label == 'Single_Label':
+        if modeltype != 'Regression':
+            ############## This is for Classification Only !! ########################
+            if scoring_parameter in ['logloss','neg_log_loss','log_loss','log-loss','']:
+                print('{}-fold Cross Validation {} = {}'.format(n_splits, 'logloss', best_score))
+            elif scoring_parameter in ['accuracy','balanced-accuracy','balanced_accuracy','roc_auc','roc-auc',
+                                       'f1','precision','recall','average-precision','average_precision',
+                                      'weighted_f1','weighted-f1','AUC']:
+                print('%d-fold Cross Validation  %s = %0.1f%%' %(n_splits,scoring_parameter, best_score*100))
+            else:
+                print('%d-fold Cross Validation  %s = %0.1f' %(n_splits,validation_metric, best_score))
+        else:
+            ######### This is for Regression only ###############
+            if best_score < 0:
+                best_score = best_score*-1
+            if scoring_parameter == '':
+                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,'RMSE', best_score))
+            else:
+                print('%d-fold Cross Validation %s Score = %0.4f' %(n_splits,validation_metric, best_score))
+        #### We now need to set the Best Parameters, Fit the Model on Full X_train and Predict on X_cv
+        ### Find what the order of best params are and set the same as the original model ###
         if hyper_param == 'RS' or hyper_param == 'GS':
             best_params= model.best_params_
             print('    Best Parameters for Model = %s' %model.best_params_)
@@ -1940,39 +1952,39 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 best_params = dict(zip(['iterations','learning_rate'],[model.get_best_iteration(),model.get_all_params()['learning_rate']]))
             print('    %s Best Parameters for Model: Iterations = %s, learning_rate = %0.2f' %(
                                 model_name, model.get_best_iteration(), model.get_all_params()['learning_rate']))
+        if hyper_param == 'RS' or hyper_param == 'GS':
+            #### In the case of CatBoost, we don't do any Hyper Parameter tuning #########
+            gs = copy.deepcopy(model)
+            model = gs.best_estimator_
+            if model_label == 'Single_Label' and modeltype == 'Multi_Classification':
+                try:
+                    if X_cv.shape[0] <= 1000:
+                        # THis works well for small data sets and is similar to parametric
+                        method=  'sigmoid' # 'isotonic' # #
+                    else:
+                        # THis works well for large data sets and is non-parametric
+                        method=  'isotonic'
+                    from sklearn.calibration import CalibratedClassifierCV
+                    model = CalibratedClassifierCV(model, method=method, cv="prefit")
+                    if not perform_scaling_flag:
+                        X_ful = X_train.append(X_cv)
+                        y_ful = y_train.append(y_cv)
+                    else:
+                        X_ful = np.r_[X_train, X_cv]
+                        y_ful = np.r_[y_train, y_cv]
+                    model.fit(X_ful, y_ful)
+                    print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
+                    calibrator_flag = True
+                except:
+                    calibrator_flag = False
+        ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
+        if model_name.lower() == 'catboost':
+            print('Best Model selected and its parameters are:\n    %s' %model.get_all_params())
+        else:
+            print('Best Model selected and its attributes are:\n    %s' %model)
     else:
         ######## If this is a multi-label model, print the following
-        print('    %s Best Parameters for Model:%s' %(model_name, model.best_params_))
-    if hyper_param == 'RS' or hyper_param == 'GS':
-        #### In the case of CatBoost, we don't do any Hyper Parameter tuning #########
-        gs = copy.deepcopy(model)
-        model = gs.best_estimator_
-        if model_label == 'Single_Label' and modeltype == 'Multi_Classification':
-            try:
-                if X_cv.shape[0] <= 1000:
-                    # THis works well for small data sets and is similar to parametric
-                    method=  'sigmoid' # 'isotonic' # #
-                else:
-                    # THis works well for large data sets and is non-parametric
-                    method=  'isotonic'
-                from sklearn.calibration import CalibratedClassifierCV
-                model = CalibratedClassifierCV(model, method=method, cv="prefit")
-                if not perform_scaling_flag:
-                    X_ful = X_train.append(X_cv)
-                    y_ful = y_train.append(y_cv)
-                else:
-                    X_ful = np.r_[X_train, X_cv]
-                    y_ful = np.r_[y_train, y_cv]
-                model.fit(X_ful, y_ful)
-                print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
-                calibrator_flag = True
-            except:
-                calibrator_flag = False
-    ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
-    if model_name.lower() == 'catboost':
-        print('Best Model selected and its parameters are:\n    %s' %model.get_all_params())
-    else:
-        print('Best Model selected and its attributes are:\n    %s' %model)
+        print('    for Multi-Label problems, there is no GridSearchCV or RandomizedSearchCV since it will take too long')
     performed_ensembling = False
     if model_label == 'Single_Label' and modeltype != 'Regression':
         m_thresh = 0.5
@@ -2023,13 +2035,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     print('%s Model Prediction Results on Held Out CV Data Set:' %model_name)
     if model_label == 'Single_Label':
         if modeltype == 'Regression':
-            try:
-                y_cv.shape[1]
-                rmsle_calculated_m = rmse(y_cv.ravel(), y_pred)
-                print_regression_model_stats(y_cv.ravel(), y_pred,'%s Model: Predicted vs Actual for %s'%(model_name,each_target))
-            except:
-                rmsle_calculated_m = rmse(y_cv, y_pred)
-                print_regression_model_stats(y_cv, y_pred,'%s Model: Predicted vs Actual for %s'%(model_name,each_target))
+            rmsle_calculated_m = rmse(y_cv, y_pred)
+            print_regression_model_stats(y_cv, y_pred,'%s Model: Predicted vs Actual for %s'%(model_name,each_target))
         else:
             if model_name == 'Forests':
                 if calibrator_flag:
@@ -2040,11 +2047,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             if len(classes) == 2:
                 print('    Regular Accuracy Score = %0.1f%%' %(accuracy_score(y_cv,y_pred)*100))
                 y_probas = model.predict_proba(X_cv)
-                try:
-                    y_cv.shape[1]
-                    print_classification_model_stats(y_cv.ravel(), y_probas, m_thresh)
-                except:
-                    rmsle_calculated_m = print_classification_model_stats(y_cv, y_probas, m_thresh)
+                rmsle_calculated_m = print_classification_model_stats(y_cv, y_probas, m_thresh)
             else:
                 ###### Use a nice classification matrix printing module here #########
                 print('    Balanced Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
@@ -2125,6 +2128,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         else:
                             subm[new_col] = cv_ensembles[:,each]
                         cols.append(new_col)
+                    print('#############################################################################')
                     if len(cols) == 5:
                         print('    Displaying results of weighted average ensemble of %d classifiers' %len(cols))
                         ensem_pred = np.round(subm[cols[-1]]*0.5+0.125*(subm[cols[0]]+subm[
@@ -2132,7 +2136,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     else:
                         print('    Calculating regular average ensemble of %d classifiers' %len(cols))
                         ensem_pred = (subm[cols].mean(axis=1)).astype(int)
-                    print('#############################################################################')
                     performed_ensembling = True
                     ##### This next step is very important since some models give series, others give arrays. Very painful!
                     if isinstance(ensem_pred,pd.Series):
@@ -2176,11 +2179,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     count += 1
         if not Stacking_Flag and performed_ensembling:
             if modeltype == 'Regression':
-                try:
-                    y_cv.shape[1]
-                    rmsle_calculated_f = rmse(y_cv.ravel(), y_pred)
-                except:
-                    rmsle_calculated_f = rmse(y_cv, y_pred)
+                rmsle_calculated_f = rmse(y_cv, y_pred)
                 print('After multiple models, Ensemble Model Results:')
                 print('    RMSE Score = %0.5f' %(rmsle_calculated_f,))
                 print('#############################################################################')
@@ -2329,8 +2328,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         #important_features = copy.deepcopy(red_preds)
     ############################################################################################
     if model_name.lower() == 'catboost':
-        print('    Setting best params for CatBoost model from Initial State since you cannot change params to a fitted Catboost model ')
-        model = xgbm.set_params(**best_params)
+        if model_label == 'Single_Label':
+            print('    Setting best params for CatBoost model from Initial State since you cannot change params to a fitted Catboost model ')
+            model = xgbm.set_params(**best_params)
         print('    Number of Categorical and Integer variables used in CatBoost training = %d' %len(imp_cats))
     #### Perform Scaling of Train data a second time using FULL TRAIN data set this time !
     #### important_features keeps track of all variables that we need to ensure they are scaled!
@@ -2556,11 +2556,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         else:
             ### In a small number of cases, it's an array but has a shape of 1.
             ### This causes errors later. Hence I have to make it a singleton array.
-            try:
-                if y_pred.shape[1] == 1:
-                    y_pred = y_pred.ravel()
-            except:
-                y_pred = y_pred.astype(int)
+            y_pred = y_pred.astype(int)
         ##### Now take each target in the list of targets and apply reverse transformation on predicted labels ####
         for each_target, i in zip(target, range(len(target))):
             if len(label_dict[each_target]['transformer']) == 0:
@@ -2996,7 +2992,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         if len(classes) == 2:
             model_xgb = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                 colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
-                max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=100,
+                max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
                 n_jobs=-1, nthread=None, objective='binary:logistic',
                 random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                 seed=1)
@@ -3004,7 +3000,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         else:
             model_xgb = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                         colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
-                max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=100,
+                max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
                 n_jobs=-1, nthread=None, objective='multi:softmax',
                 random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                 seed=1)

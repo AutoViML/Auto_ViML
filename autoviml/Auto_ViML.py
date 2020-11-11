@@ -673,7 +673,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if model_label == 'Single_Label':
                     print('    Target %s is already numeric. No transformation done.' %each_target)
             if model_label == 'Single_Label':
-                if rare_class_orig != 1:
+                if rare_class != 1:
                     print('Alert! Rare Class is not 1 but %s in this data set' %rare_class)
     ###########################################################################################
     ####  This is where we start doing the iterative hyper tuning parameters #####
@@ -962,14 +962,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     train = start_train[target+red_preds]
     if type(orig_test) != str:
         test = start_test[red_preds]
-    ###### Add Polynomial Variables and Interaction Variables to Train ######
+    print('###### ADD_POLY Flag: Adding Polynomial Variables and Interaction Variables to Train #####')
     if Add_Poly >= 1:
         if Add_Poly == 1:
-            print('\nAdding only Interaction Variables. This may result in Overfitting!')
+            print('Adding only Interaction Variables. This may result in Overfitting!')
         elif Add_Poly == 2:
-            print('\nAdding only Squared Variables. This may result in Overfitting!')
+            print('Adding only Squared Variables. This may result in Overfitting!')
         elif Add_Poly == 3:
-            print('\nAdding Both Interaction and Squared Variables. This may result in Overfitting!')
+            print('Adding Both Interaction and Squared Variables. This may result in Overfitting!')
         ## Since the data is already scaled, we set scaling to None here ##
         ### For train data we have to set the fit_flag to True   ####
         if len(numvars) > 1:
@@ -991,9 +991,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 train = train_red[train_sel].join(train[rem_vars+target])
                 red_preds = [x for x in list(train) if x not in target]
                 if type(test) != str:
-                ######### Add Polynomial and Interaction variables to Test ################
-                ## Since the data is already scaled, we set scaling to None here ##
-                ### For Test data we have to set the fit_flag to False   ####
+                    ######### Add Polynomial and Interaction variables to Test ################
+                    ## Since the data is already scaled, we set scaling to None here ##
+                    ### For Test data we have to set the fit_flag to False   ####
                     _, _, test_x_df,_,_,_ = add_poly_vars_select(test,numvars,each_target,
                                                           modeltype,poly_degree,Add_Poly,md,
                                                           corr_limit, scaling='None', fit_flag=False,
@@ -1008,14 +1008,20 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         else:
                             test[addl_vars] = test_x_df[addl_vars_x]
                     #### Now we should change train_sel to subst_vars since that is the new list of vars going forward
-                    numvars = copy.deepcopy(train_sel)
+                    copy_preds = copy.deepcopy(numvars)
+                    ####### If the original test column's dtype was integer, put it back as integer ###
+                    for each_pred in copy_preds:
+                        if orig_test[each_pred].dtype == int:
+                            test[each_pred] = test[each_pred].astype(int)
+                    ###### Now reset the numvars to be the new set of float variables ##########
+                    numvars = train.select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
             else:
                 ####  NO new variables were added. so we can skip the rest of the stuff now ###
                 #### This means the train_sel is the new set of numeric features selected by add_poly algorithm
                 red_preds = train_sel+rem_vars
                 print('    No new variable was added by polynomial features...')
         else:
-            print('\nAdding Polynomial vars ignored since no numeric vars in data')
+            print('Adding Polynomial vars ignored since no numeric vars in data')
             train_sel = copy.deepcopy(numvars)
     else:
         ### if there are no Polynomial vars, then all numeric variables are selected
@@ -1086,6 +1092,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 ### Now time to remove the date time column from all further processing ##
                                 #test.drop(date_col,axis=1,inplace=True)
         #########     CREATING TIME FEATURES IS COMPLETED   #############################
+    pdb.set_trace()
     ######  We have to detect float variables again since we have created new variables using Auto_NLP!!
     red_preds = [x for x in list(train) if x not in target]
     ### we add new date time variables to the list of numeric float variables to see if they have any
@@ -3506,6 +3513,7 @@ def remove_variables_using_fast_correlation(df, numvars, modeltype, target,
     In the end, SULA gives us the least correlated variables that have the best mutual information score!
     ##############  YOU MUST INCLUDE THE ABOVE MESSAGE IF YOU COPY THIS CODE IN YOUR LIBRARY #####
     """
+    df = copy.deepcopy(df)
     print('Searching for and removing highly correlated variables amoung %d numeric variables' %len(numvars))
     correlation_dataframe = df[numvars].corr()
     a = correlation_dataframe.values
@@ -3613,6 +3621,8 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     If Fit_Flag=True, then it is assumed that it is Training data and hence variables are selected
     If Fit_Flag=False, then it is assumed it is Test data and no variables are chosen but we keep training ones.
     """
+    data = copy.deepcopy(data)
+    numvars = copy.deepcopy(numvars)
     tolerance = 0.01
     orig_data_index = data.index
     if modeltype == 'Regression':
@@ -3628,10 +3638,6 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     selected = []
     X_data = data[predictors]
     #######  Initial Model with all input variables ######
-    if fit_flag:
-        Y = data[targetvar]
-        print('Building Inital Model with given variables...')
-        print_model_metrics(modeltype,lm,X_data,Y,False)
     if scaling == 'Standard':
         XS = StandardScaler().fit_transform(X_data)
     elif scaling == 'MinMax':
@@ -3643,6 +3649,11 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         XS = copy.deepcopy(X_data)
     #XS.columns=predictors
     X = copy.deepcopy(XS)
+    ################## Fit the model after scaling data ###############
+    if fit_flag:
+        Y = data[targetvar]
+        print('Building Inital Model with given variables...')
+        print_model_metrics(modeltype,lm,X,Y,False)
     ######## Here is where the Interaction variable selection begins ############
     #print('Adding Polynomial %s-degree and Interaction variables...' %poly_degree)
     if Add_Poly == 1:
@@ -3790,11 +3801,25 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
             if len(sel_text_vars) <= 30:
                 print('    Added variables: %s' %sel_text_vars)
         final_text_vars = [feature_xvar_dict[x] for x in final_x_vars]
-        New_XP = XP1[final_x_vars]
-        New_XP.columns = final_text_vars
+        ##########################################################################################
+        final_df = md.transform(data[predictors])
+        xnames = md.get_feature_names()
+        final_df = pd.DataFrame(final_df,index=orig_data_index, columns=xnames)
+        final_df = final_df[final_x_vars]
+        final_df.columns = final_text_vars
+        copy_preds = copy.deepcopy(predictors)
+        ####### If the original column's dtype was integer, put it back as integer ###
+        for each_pred in copy_preds:
+            if data[each_pred].dtype == int:
+                final_df[each_pred] = final_df[each_pred].astype(int)
+        final_df[targetvar] = data[targetvar].values
+        #####################################################
+        #New_XP = XP1[final_x_vars]
+        #New_XP.columns = final_text_vars
+        #New_XP[targetvar] = data[targetvar].values
         #### New_XP will be the final dataframe that we will send with orig and poly/intxn variables
         ########## R E M O V E    C O R R E L A T E D   V A R I A B L E S ################
-        final_text_vars = remove_variables_using_fast_correlation(New_XP,final_text_vars,
+        final_text_vars = remove_variables_using_fast_correlation(final_df,final_text_vars,
                                 modeltype,targetvar,
                                 corr_limit,verbose)
         final_x_vars = [feature_textvar_dict[x] for x in final_text_vars]
@@ -3802,10 +3827,13 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
             print('Finally selecting %d variables after high-correlation test' %len(final_text_vars))
             if len(final_text_vars) <= 30:
                 print('    Selected variables are: %s' %final_text_vars)
-        return final_text_vars, lm_p, New_XP, md, final_x_vars,feature_xvar_dict
+        return final_text_vars, lm_p, final_df, md, final_x_vars,feature_xvar_dict
     else:
         #### Just return the transformed dataframe with all orig+poly+intxn vars
-        return predictors, lm, XP1, md, x_vars,feature_xvar_dict
+        final_df = md.transform(data[predictors])
+        xnames = md.get_feature_names()
+        final_df = pd.DataFrame(final_df,index=orig_data_index, columns=xnames)
+        return predictors, lm, final_df, md, xnames, ""
 ##################################################################################
 ## Import sklearn
 from sklearn.model_selection import cross_val_score,KFold, StratifiedKFold
@@ -4263,9 +4291,9 @@ def create_time_series_features(dtf, ts_column):
         if all(date_items[0] == item for item in date_items):
             if date_items[0] == 4:
                 ### If it is just a year variable alone, you should leave it as just a year!
-                dtf[ts_column+'_age_in_years'] = dtf[ts_column].map(lambda x: pd.to_datetime(x,format='%Y')).apply(compute_age).values
-                print('    Adding one column from date time column %s' %ts_column)
-                return dtf[[ts_column,ts_column+'_age_in_years']]
+                age_col = ts_column+'_age_in_years'
+                dtf[age_col] = dtf[ts_column].map(lambda x: pd.to_datetime(x,format='%Y')).apply(compute_age).values
+                return dtf[[ts_column,age_col]]
             else:
                 ### if it is not a year alone, then convert it into a date time variable
                 dtf[ts_column] = pd.to_datetime(dtf[ts_column], infer_datetime_format=True)

@@ -1364,6 +1364,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             'random_state':seed,'min_samples_leaf':2,
                             'max_features': "sqrt"
                             })
+        #### DON'T MODIFY THE NEXT LINE!!! IT MAY APPEAR STUPID BUT IT IS NEEDED TO GET MODELS ABOVE
+        ###  INTO THIS MULTI_LABEL FORMAT. SO LEAVE IT ALONE - AS-IS !!!
         if model_label != 'Single_Label':
             #### For Multi-Label Problems = you have to change the model to a multi-output model
             if Boosting_Flag:
@@ -1492,36 +1494,37 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 #        pos_label=rare_class)
                 #scorer = f1_scorer
             ### DO NOT USE NUM CLASS WITH BINARY CLASSIFICATION ######
-            if model_label == 'Single_Label':
-                if Boosting_Flag:
-                    if model_name.lower() == 'catboost':
-                        xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
-                            random_state=99,one_hot_max_size=one_hot_size,
-                            loss_function=loss_function, eval_metric=catboost_scoring,
-                            subsample=0.7,bootstrap_type='Bernoulli',
-                            metric_period = 500,
-                           early_stopping_rounds=250,boosting_type='Plain')
-                    else:
-                        xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
-                            colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
-                            max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
-                            n_jobs=-1, nthread=None, objective=objective,
-                            random_state=1, reg_alpha=0.5, reg_lambda=0.5,
-                            seed=1)
-                        xgbm.set_params(**param)
-                elif Boosting_Flag is None:
-                    #### I have set the Verbose to be False here since it produces too much output ###
-                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver=solver,
-                                                fit_intercept=True, tol=tolerance,
-                                             warm_start=warm_start, max_iter=max_iter)
+            if Boosting_Flag:
+                if model_name.lower() == 'catboost':
+                    xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
+                        random_state=99,one_hot_max_size=one_hot_size,
+                        loss_function=loss_function, eval_metric=catboost_scoring,
+                        subsample=0.7,bootstrap_type='Bernoulli',
+                        metric_period = 500,
+                       early_stopping_rounds=250,boosting_type='Plain')
                 else:
-                    xgbm = RandomForestClassifier(
-                                **{
-                                'bootstrap': bootstrap, 'n_jobs': -1, 'warm_start': warm_start,
-                                'random_state':seed,'min_samples_leaf':2,'oob_score':True,
-                                'max_features': "sqrt"
-                                })
+                    xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
+                        colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
+                        max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
+                        n_jobs=-1, nthread=None, objective=objective,
+                        random_state=1, reg_alpha=0.5, reg_lambda=0.5,
+                        seed=1)
+                    xgbm.set_params(**param)
+            elif Boosting_Flag is None:
+                #### I have set the Verbose to be False here since it produces too much output ###
+                xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver=solver,
+                                            fit_intercept=True, tol=tolerance,
+                                         warm_start=warm_start, max_iter=max_iter)
             else:
+                xgbm = RandomForestClassifier(
+                            **{
+                            'bootstrap': bootstrap, 'n_jobs': -1, 'warm_start': warm_start,
+                            'random_state':seed,'min_samples_leaf':2,'oob_score':True,
+                            'max_features': "sqrt"
+                            })
+            #### NEXT LINE IS NEEDED TO GET MODELS ABOVE INTO A WRAPPER
+            ###  WRAPPER IS THIS MULTI_LABEL FORMAT. SO LEAVE IT ALONE - AS-IS !!!
+            if model_label != 'Single_Label':
                 ##### This is for Multi-Label but Binary Classification ######################
                 xgbm = OneVsRestClassifier(estimator=xgbm)
         else:
@@ -1654,37 +1657,38 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             'estimator__C': sp.stats.uniform(scale=1)
                             }
             ###################################################################
-            if model_label == 'Single_Label':
-                if Boosting_Flag:
-                    # Create regularization hyperparameter distribution using uniform distribution
-                    if model_name.lower() == 'catboost':
-                        xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
-                                random_state=99,one_hot_max_size=one_hot_size,
-                                loss_function=loss_function, eval_metric=catboost_scoring,
-                                subsample=0.7,bootstrap_type='Bernoulli',
-                                metric_period = 500,
-                               early_stopping_rounds=250,boosting_type='Plain')
-                    else:
-                        xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
-                                    colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
-                            max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
-                            n_jobs=-1, nthread=None, objective=objective,
-                            random_state=1, reg_alpha=0.5, reg_lambda=0.5,
-                            num_class= len(classes),
-                            seed=1)
-                        xgbm.set_params(**param)
-                elif Boosting_Flag is None:
-                    #### I have set the Verbose to be False here since it produces too much output ###
-                    xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver=solver,
-                                                fit_intercept=True, tol=tolerance, multi_class='auto',
-                                              max_iter=max_iter, warm_start=False,
-                                              )
+            if Boosting_Flag:
+                # Create regularization hyperparameter distribution using uniform distribution
+                if model_name.lower() == 'catboost':
+                    xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
+                            random_state=99,one_hot_max_size=one_hot_size,
+                            loss_function=loss_function, eval_metric=catboost_scoring,
+                            subsample=0.7,bootstrap_type='Bernoulli',
+                            metric_period = 500,
+                           early_stopping_rounds=250,boosting_type='Plain')
                 else:
-                    xgbm = RandomForestClassifier(bootstrap=bootstrap, oob_score=True,warm_start=warm_start,
-                                            n_estimators=100,max_depth=3,
-                                            min_samples_leaf=2,max_features='auto',
-                                          random_state=seed,n_jobs=-1)
+                    xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
+                                colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
+                        max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
+                        n_jobs=-1, nthread=None, objective=objective,
+                        random_state=1, reg_alpha=0.5, reg_lambda=0.5,
+                        num_class= len(classes),
+                        seed=1)
+                    xgbm.set_params(**param)
+            elif Boosting_Flag is None:
+                #### I have set the Verbose to be False here since it produces too much output ###
+                xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver=solver,
+                                            fit_intercept=True, tol=tolerance, multi_class='auto',
+                                          max_iter=max_iter, warm_start=False,
+                                          )
             else:
+                xgbm = RandomForestClassifier(bootstrap=bootstrap, oob_score=True,warm_start=warm_start,
+                                        n_estimators=100,max_depth=3,
+                                        min_samples_leaf=2,max_features='auto',
+                                      random_state=seed,n_jobs=-1)
+            #### NEXT LINE IS NEEDED TO GET MODELS ABOVE INTO A WRAPPER
+            ###  WRAPPER IS THIS MULTI_LABEL FORMAT. SO LEAVE IT ALONE - AS-IS !!!
+            if model_label != 'Single_Label':
                 ##### This is for Multi-Label and Multi-class Classification ######################
                 xgbm = OneVsRestClassifier(estimator=xgbm)
     ######   Now do RandomizedSearchCV  using # Early-stopping ################

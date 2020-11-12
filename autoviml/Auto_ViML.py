@@ -1272,15 +1272,21 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                         columns=important_features)
             X_cv = pd.DataFrame(SS.transform(part_cv[important_features]),index=part_cv.index,
                                         columns=important_features)
+            perform_scaling_flag = True
     else:
-        ###### Performing Scaling helps SVM models ######################
-        print('Performing %s scaling of train and validation data' %scaling)
-        SS.fit(part_train[important_features])
-        X_train = pd.DataFrame(SS.transform(part_train[important_features]),index=part_train.index,
-                                    columns=important_features)
-        X_cv = pd.DataFrame(SS.transform(part_cv[important_features]),index=part_cv.index,
-                                    columns=important_features)
-        perform_scaling_flag =  True
+        if not perform_scaling_flag:
+            print('Skipping %s scaling since perform_scaling flag is set to False ' %scaling)
+            X_train = part_train[important_features]
+            X_cv = part_cv[important_features]
+        else:
+            ###### Performing Scaling helps SVM models ######################
+            print('Performing %s scaling of train and validation data' %scaling)
+            SS.fit(part_train[important_features])
+            X_train = pd.DataFrame(SS.transform(part_train[important_features]),index=part_train.index,
+                                        columns=important_features)
+            X_cv = pd.DataFrame(SS.transform(part_cv[important_features]),index=part_cv.index,
+                                        columns=important_features)
+            perform_scaling_flag =  True
     #### Remember that the next 2 lines are crucial: if X and y are dataframes, then predict_proba
     ###     will return  dataframes or series. Otherwise it will return Numpy array's.
     ##      Be consistent when using dataframes with XGB. That's the best way to keep feature names!
@@ -2083,7 +2089,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         # THis works well for large data sets and is non-parametric
                         method=  'isotonic'
                     from sklearn.calibration import CalibratedClassifierCV
-                    model = CalibratedClassifierCV(model, method=method, cv="prefit")
+                    model = CalibratedClassifierCV(model, method=method, cv=n_splits)
                     if not perform_scaling_flag:
                         X_ful = X_train.append(X_cv)
                         y_ful = y_train.append(y_cv)
@@ -2476,13 +2482,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             X_test = test[important_features]
     else:
         print('Performing %s scaling of train and test data...' %scaling)
-        SS.fit(train[important_features])
-        X = pd.DataFrame(SS.transform(train[important_features]),index=orig_train.index,
+        X = train[important_features]
+        SS.fit(X)
+        X = pd.DataFrame(SS.transform(X),index=orig_train.index,
                                         columns=important_features)
         if not isinstance(orig_test, str):
             X_test = pd.DataFrame(SS.transform(test[important_features]),index=orig_test.index,
                                         columns=important_features)
-    ################   T R A I N I N G   M O D E L  A  S E C O N D   T I M E  ###################
+    print('#####   T R A I N I N G   M O D E L   O N    F U L L   T R A I N  D A T A  #############')
     ### The next 2 lines are crucial: if X and y are dataframes, then next 2 should be df's
     ###   They should not be df.values since they will become numpy arrays and XGB will error.
     trainm = train[important_features+target]
@@ -2519,7 +2526,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                     #### Set the Verbose to 0 since we don't want too much output ##
                                 if model_name == 'XGBoost':
                                     #### Set the Verbose to 0 since we don't want too much output ##
-                                    model.fit(X, y, verbose=0)
+                                    model.fit(X, y)
                                 else:
                                     model.fit(X, y, cat_features=imp_cats, plot=False)
                             else:
@@ -3597,7 +3604,7 @@ def marthas_columns(data,verbose=0):
     It's a neat way of printing data types and information compared to the boring describe() function in Pandas.
     """
     data = data[:]
-    print('Data Set Shape: %d rows, %d cols\n' % data.shape)
+    print('Data Set Shape: %d rows, %d cols' % data.shape)
     if data.shape[1] > 30:
         print('Too many columns to print')
     else:
@@ -3610,7 +3617,7 @@ def marthas_columns(data,verbose=0):
                         data[col].nunique(),
                         data[col].value_counts().head(2).to_dict()
                     ))
-            print('-------------------------------------------------------------')
+            print('--------------------------------------------------------------------')
 ##################################################################################
 def left_subtract(l1,l2):
     lst = []

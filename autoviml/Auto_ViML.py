@@ -180,11 +180,11 @@ from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, Tim
 from sklearn.model_selection import ShuffleSplit
 def split_train_into_two(train_data, target, randomstate, modeltype):
     preds = [x for x in list(train_data) if x not in target]
-    if modeltype == 'Classification':
+    if modeltype.endswith('Classification'):
         X = train_data[preds]
         y = train_data[target]
         if train_data.shape[0] <= 1000:
-            sss = StratifiedShuffleSplit(n_splits=2, test_size=0.30, random_state=randomstate)
+            sss = StratifiedShuffleSplit(n_splits=2, test_size=0.10, random_state=randomstate)
         else:
             sss = StratifiedShuffleSplit(n_splits=2, test_size=0.20, random_state=randomstate)
         trainindex, testindex = sss.split(X, y)
@@ -192,7 +192,10 @@ def split_train_into_two(train_data, target, randomstate, modeltype):
         testdf = train_data.iloc[trainindex[1]]
     else:
         indices = np.random.permutation(train_data.shape[0])
-        train_rows = int(0.8*train_data.shape[0])
+        if len(indices) <= 1000:
+            train_rows = int(0.9*train_data.shape[0])
+        else:
+            train_rows = int(0.8*train_data.shape[0])
         training_idx, test_idx = indices[:train_rows], indices[train_rows:]
         traindf, testdf = train_data.iloc[training_idx], train_data.iloc[test_idx]
     return traindf, testdf
@@ -424,8 +427,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     one_hot_size = 500 #### This determines the max length of one_hot_max_size parameter of CatBoost algrithm
     Alpha_min = -3 #### The lowest value of Alpha in LOGSPACE that is used in CatBoost
     Alpha_max = 2 #### The highest value of Alpha in LOGSPACE that is used in Lasso or Ridge Regression
-    Cs = [0.001,0.005,0.01,0.05,0.1,0.25,0.5,1,2,4,6,10,20,30,40,50,100,150,200,400,800,1000,2000]
-    #Cs = np.logspace(-4,3,40) ### The list of values of C used in Logistic Regression
+    #Cs = np.linspace(0.0001,0.9,5).tolist()+np.linspace(1,100,10).tolist()
+    C_min = 10e-5  ### The lowest value of C used in Logistic Regression
+    C_max = 100  ### The highest value of C used in Logistic Regression
+    #Cs = np.linspace(C_min,C_max,100)
+    Cs = np.logspace(-4,3,40) ### The list of values of C used in Logistic Regression
     tolerance = 0.001 #### This tolerance is needed to speed up Logistic Regression. Otherwise, SAGA takes too long!!
     #### 'lbfgs' is the fastest one but doesnt provide accurate results. Newton-CG is slower but accurate!
     #### SAGA is extremely slow. Even slower than Newton-CG. Liblinear is the fastest and as accurate as Newton-CG!
@@ -984,8 +990,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     train = start_train[target+red_preds]
     if type(orig_test) != str:
         test = start_test[red_preds]
-    print('########   A D D I N G  P O L Y N O M I A L   &   I N T E R A C T I O N    V A R S  #####')
     if Add_Poly >= 1:
+        print('########   A D D I N G  P O L Y N O M I A L   &   I N T E R A C T I O N    V A R S  #####')
         if Add_Poly == 1:
             print('Adding only Interaction Variables. This may result in Overfitting!')
         elif Add_Poly == 2:
@@ -1199,7 +1205,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             imp_cats += binned_num_vars
             #### Also note that important_features does not contain orig_num_vars which have been erased.
         else:
-            print('    Binning_Flag set to False or there are no numeric vars in data set to be binned')
+            print('    Binning_Flag set to False or there are no float vars in data set to be binned')
         #######################   KMEANS   FIRST   TIME     ############################
         ### Now we add another Feature tied to KMeans clustering using Predictor and Target variables ###
         if KMeans_Featurizer and len(saved_num_vars) > 0:
@@ -1224,7 +1230,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ####### The features are checked again once we add the cluster feature ####
             important_features.append(km_label)
         else:
-            print('    KMeans_Featurizer set to False or there are no numeric vars in data')
+            print('    KMeans_Featurizer set to False or there are no float variables in data')
             km_label = ''
         #######################   STACKING   FIRST   TIME     ############################
         ######### This is where you do Stacking of Multi Model Results into One Column ###
@@ -1497,7 +1503,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 'C': sp.stats.uniform(scale=100),
                             'solver' : solvers,
                             'penalty' : penalties,
-                            'class_weight':[None, 'balanced'],
+                            #'class_weight':[None, 'balanced'],
                                 }
             else:
                 c_params['Linear'] = {
@@ -1577,9 +1583,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     xgbm.set_params(**param)
             elif Boosting_Flag is None:
                 #### I have set the Verbose to be False here since it produces too much output ###
-                xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver=solver,
-                                            fit_intercept=True, tol=tolerance,
-                                         warm_start=warm_start, max_iter=max_iter)
+                #xgbm = LogisticRegression(random_state=seed,verbose=False,solver=solver,
+                #                            fit_intercept=True, tol=tolerance,
+                #                         warm_start=warm_start, max_iter=max_iter)
+                xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,tol=0.01,
+                                             warm_start=False, max_iter=max_iter)
             else:
                 xgbm = RandomForestClassifier(
                             **{
@@ -2400,7 +2408,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ### Those binned variables have now become categorical vars and must be added to imp_cats.
             #### Also note that important_features does not contain orig_num_vars which have been erased.
         else:
-            print('    Binning_Flag set to False or there are no numeric vars in data set to be binned')
+            print('    Binning_Flag set to False or there are no float vars in data set to be binned')
         ### Now we add another Feature tied to KMeans clustering using Predictor and Target variables ###
         #######################   KMEANS   SECOND   TIME     ############################
         if KMeans_Featurizer and len(saved_num_vars) > 0:

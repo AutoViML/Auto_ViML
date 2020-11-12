@@ -13,4 +13,5 @@ nltk
 imbalanced-learn>=0.7
 regex
 beautifulsoup4
+shap>=0.36.0
 emoji

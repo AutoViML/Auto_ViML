@@ -123,6 +123,15 @@ def check_if_GPU_exists():
     else:
         return True
 #############################################################################################
+def modify_array_to_integer(y_pred, negative_flag=False):
+    """
+    Simiple utility to plug all negative values with 0 and turn them into integer
+    """
+    y_pred = y_pred.astype(int)
+    if negative_flag:
+        y_pred[y_pred<0] = 0
+    return y_pred
+##########################################################################
 def analyze_problem_type(train, targ,verbose=0):
     """
     This module analyzes a Target Variable and finds out whether it is a
@@ -1307,15 +1316,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             rmse_scorer = make_scorer(gini_rmse, greater_is_better=False)
             scorer = rmse_scorer
         ###### You need to change the string used in hyper-params based on model selected ####
+        estimator_string = 'estimator'
         if Boosting_Flag:
             if isinstance(Boosting_Flag, str):
                 if Boosting_Flag.lower() == 'chain':
                     estimator_string = 'base_estimator'
-            else:
-                estimator_string = 'estimator'
-        else:
-            estimator_string = "estimator"
-        ####      HYPER PARAMETERS FOR TUNING ARE SETUP HERE      ###
+                    print('Using Multi-Output Regressor, this will take time to train...')
+        ####      HYPER PARAMETERS FOR REGRESSION TUNING ARE SETUP HERE      ###
         if hyper_param == 'GS':
             r_params = {
                     "Forests": {
@@ -1425,7 +1432,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     if Boosting_Flag.lower() == 'chain':
                         ### Regressor Chain a stacking algorithm - it predicts one target and
                         ###  uses it to predict other targets in a daisy chain. Neat!
-                        xgbm = RegressorChain(xgbm, order=[0,1,2])
+                        xgbm = RegressorChain(xgbm, order= np.arange(len(target)).tolist())
                     else:
                         xgbm = MultiOutputRegressor(xgbm)
             else:
@@ -2028,7 +2035,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             print('Error: Not able to print validation metrics. Continuing...')
     ##   TRAINING OF MODELS COMPLETED. NOW GET METRICS on CV DATA ################
     print('    Actual training time (in seconds): %0.0f' %(time.time()-model_start_time))
-    print('###########  S I N G L E  M O D E L   R E S U L T S #################')
+    print('###########  %s  M O D E L   R E S U L T S #################' %model_label)
     if model_label == 'Single_Label':
         if modeltype != 'Regression':
             ############## This is for Classification Only !! ########################
@@ -2088,16 +2095,22 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     calibrator_flag = True
                 except:
                     calibrator_flag = False
-        ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
+            elif model_label == 'Multi_Label' and modeltype == 'Binary_Classification':
+                print('    No GridSearch or RandomizedSearch for %s %s since it takes too long' %(
+                                    model_label,modeltype))
         if model_name.lower() == 'catboost':
             print('Best Model selected and its parameters are:\n    %s' %model.get_all_params())
         else:
             print('Best Model selected and its attributes are:\n    %s' %model)
     else:
         ######## If this is a multi-label model, print the following
-        print('    for Multi-Label problems, there is no GridSearchCV or RandomizedSearchCV since it will take too long')
+        print('    %s typically takes time to train models...' %model_label)
+    ##############   These are settings for making sure predictions as same type as target ################
+    ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
     performed_ensembling = False
+    modify_targets_flag = False
     if model_label == 'Single_Label' and modeltype != 'Regression':
+        ############   This is for Single Label Classification Problems only ######
         m_thresh = 0.5
         y_proba = model.predict_proba(X_cv)
         y_pred = model.predict(X_cv)
@@ -2144,6 +2157,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     if isinstance(y_cv,pd.Series) or isinstance(y_cv,pd.DataFrame):
         y_cv = y_cv.values
     print('%s Model Prediction Results on Held Out CV Data Set:' %model_name)
+    ###### Make sure that you change the model's predictions to be the same type as original target ####
+    int_types = [np.int8, np.int16, np.int32, np.int64]
+    targets_negative_flag = len(y_cv<0) == 0
+    if y_cv.dtype in int_types:
+        y_pred = modify_array_to_integer(y_pred, targets_negative_flag)
+        modify_targets_flag = True
+    #############    N O W   P R I N T   A L L  R E S U L T S ####################
     if model_label == 'Single_Label':
         if modeltype == 'Regression':
             rmsle_calculated_m = rmse(y_cv, y_pred)
@@ -2202,8 +2222,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         ensem_pred = (subm[cols].mean(axis=1))
                     print('#############################################################################')
                     performed_ensembling = True
-                    #### Since we have a new ensembled y_pred, make sure it is series or array before printing it!
-                    if isinstance(y_pred,pd.Series):
+                    #### Since we have a new ensembled y_pred, make sure it is an array before printing it!
+                    if isinstance(ensem_pred,pd.Series) or isinstance(ensem_pred,pd.DataFrame):
                         print_regression_model_stats(y_cv, ensem_pred.values,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
                     else:
                         print_regression_model_stats(y_cv, ensem_pred,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
@@ -2573,12 +2593,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     index=orig_index, columns=important_features)
         testm = orig_train[id_cols].join(X_test)
     ############  This is where we start predictions on test data if available #############
-    ####### This is where you make predictions on test data for Multi-Label problems #####
+    y_pred = model.predict(X_test)
+    ##### This next step is very important since some models give series, others give arrays. Very painful!
+    if isinstance(y_pred,pd.Series) or isinstance(y_pred,pd.DataFrame) :
+        y_pred = y_pred.values
+    ####### This is where you modify predictions on test data to be same as original data type #####
+    if modify_targets_flag:
+        y_pred = modify_array_to_integer(y_pred, targets_negative_flag)
     if modeltype == 'Regression':
-        y_pred = model.predict(X_test)
-        ##### This next step is very important since some models give series, others give arrays. Very painful!
-        if isinstance(y_pred,pd.Series) or isinstance(y_pred,pd.DataFrame) :
-            y_pred = y_pred.values
         ########   This is for Regression Problems Only ###########
         ######  If Stacking_ Flag is False, then we do Ensembling #######
         if not Stacking_Flag and not model_label == 'Multi_Label':
@@ -2609,7 +2631,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     print('    Calculating regular average ensemble of %d regressors' %len(cols))
                     ensem_pred = (subm[new_cols].mean(axis=1))
                 ##### This next step is very important since some models give series, others give arrays. Very painful!
-                if isinstance(y_pred,pd.Series):
+                if isinstance(ensem_pred,pd.Series) or isinstance(ensem_pred,pd.DataFrame):
                     ensem_pred = ensem_pred.values
                 new_col = each_target+'_Ensembled_predictions'
                 testm[new_col] = ensem_pred
@@ -2641,7 +2663,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             for predict_col, i in zip(target, range(len(target))):
                 testm[predict_col+'_predictions'] = y_pred[:,i]
     else:
-        y_pred = model.predict(X_test)
         if model_label == 'Single_Label':
             #### Only certain multi-output classifiers provide probas. For now LinearSVC can't. Hence skip this...
             proba_cols = []
@@ -2668,13 +2689,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 count = int(label_dict[each_target]['dictionary'][each_class])
                 testm[proba_col] = y_proba[:,count]
                 proba_cols.append(proba_col)
-        ##### This next step is very important since some models give series, others give arrays. Very painful!
-        if isinstance(y_pred,pd.Series):
-            y_pred = y_pred.values.astype(int)
-        else:
-            ### In a small number of cases, it's an array but has a shape of 1.
-            ### This causes errors later. Hence I have to make it a singleton array.
-            y_pred = y_pred.astype(int)
         ##### Now take each target in the list of targets and apply reverse transformation on predicted labels ####
         for each_target, i in zip(target, range(len(target))):
             if len(label_dict[each_target]['transformer']) == 0:
@@ -3371,6 +3385,7 @@ def classify_columns(df_preds, verbose=0):
     ####### Returns a dictionary with 10 kinds of vars like the following: # continuous_vars,int_vars
     # cat_vars,factor_vars, bool_vars,discrete_string_vars,nlp_vars,date_vars,id_vars,cols_delete
     """
+    train = copy.deepcopy(df_preds)
     #### If there are 30 chars are more in a discrete_string_var, it is then considered an NLP variable
     max_nlp_char_size = 30
     max_cols_to_print = 30
@@ -3380,7 +3395,6 @@ def classify_columns(df_preds, verbose=0):
     cat_limit = 15
     def add(a,b):
         return a+b
-    train = df_preds[:]
     sum_all_cols = dict()
     orig_cols_total = train.shape[1]
     #Types of columns
@@ -3536,7 +3550,7 @@ def classify_columns(df_preds, verbose=0):
     ###############  This is where you print all the types of variables ##############
     ####### Returns 8 vars in the following order: continuous_vars,int_vars,cat_vars,
     ###  string_bool_vars,discrete_string_vars,nlp_vars,date_or_id_vars,cols_delete
-    if verbose >= 1:
+    if verbose == 1:
         print("    Number of Numeric Columns = ", len(continuous_vars))
         print("    Number of Integer-Categorical Columns = ", len(int_vars))
         print("    Number of String-Categorical Columns = ", len(cat_vars))
@@ -3548,19 +3562,19 @@ def classify_columns(df_preds, verbose=0):
         print("    Number of Date Time Columns = ", len(date_vars))
         print("    Number of ID Columns = ", len(id_vars))
         print("    Number of Columns to Delete = ", len(cols_delete))
-        if verbose >= 2:
-            print('Printing first %d columns by each type of column:' %max_cols_to_print)
-            print("    Numeric Columns: %s" %continuous_vars[:max_cols_to_print])
-            print("    Integer-Categorical Columns: %s" %int_vars[:max_cols_to_print])
-            print("    String-Categorical Columns: %s" %cat_vars[:max_cols_to_print])
-            print("    Factor-Categorical Columns: %s" %factor_vars[:max_cols_to_print])
-            print("    String-Boolean Columns: %s" %string_bool_vars[:max_cols_to_print])
-            print("    Numeric-Boolean Columns: %s" %num_bool_vars[:max_cols_to_print])
-            print("    Discrete String Columns: %s" %discrete_string_vars[:max_cols_to_print])
-            print("    NLP text Columns: %s" %nlp_vars[:max_cols_to_print])
-            print("    Date Time Columns: %s" %date_vars[:max_cols_to_print])
-            print("    ID Columns: %s" %id_vars[:max_cols_to_print])
-            print("    Columns that will not be considered in modeling: %s" %cols_delete[:max_cols_to_print])
+    if verbose == 2:
+        marthas_columns(df_preds,verbose=1)
+        print("    Numeric Columns: %s" %continuous_vars[:max_cols_to_print])
+        print("    Integer-Categorical Columns: %s" %int_vars[:max_cols_to_print])
+        print("    String-Categorical Columns: %s" %cat_vars[:max_cols_to_print])
+        print("    Factor-Categorical Columns: %s" %factor_vars[:max_cols_to_print])
+        print("    String-Boolean Columns: %s" %string_bool_vars[:max_cols_to_print])
+        print("    Numeric-Boolean Columns: %s" %num_bool_vars[:max_cols_to_print])
+        print("    Discrete String Columns: %s" %discrete_string_vars[:max_cols_to_print])
+        print("    NLP text Columns: %s" %nlp_vars[:max_cols_to_print])
+        print("    Date Time Columns: %s" %date_vars[:max_cols_to_print])
+        print("    ID Columns: %s" %id_vars[:max_cols_to_print])
+        print("    Columns that will not be considered in modeling: %s" %cols_delete[:max_cols_to_print])
     ##### now collect all the column types and column names into a single dictionary to return!
     len_sum_all_cols = reduce(add,[len(v) for v in sum_all_cols.values()])
     if len_sum_all_cols == orig_cols_total:
@@ -3577,6 +3591,27 @@ def classify_columns(df_preds, verbose=0):
             print(' Missing columns = %s' %left_subtract(list(train),flat_list))
     return sum_all_cols
 #################################################################################
+def marthas_columns(data,verbose=0):
+    """
+    This program is named  in honor of my one of students who came up with the idea for it.
+    It's a neat way of printing data types and information compared to the boring describe() function in Pandas.
+    """
+    data = data[:]
+    print('Data Set Shape: %d rows, %d cols\n' % data.shape)
+    if data.shape[1] > 30:
+        print('Too many columns to print')
+    else:
+        if verbose==1:
+            print('Data Set columns info:')
+            for col in data.columns:
+                print('* %s: %d nulls, %d unique vals, most common: %s' % (
+                        col,
+                        data[col].isnull().sum(),
+                        data[col].nunique(),
+                        data[col].value_counts().head(2).to_dict()
+                    ))
+            print('-------------------------------------------------------------')
+##################################################################################
 def left_subtract(l1,l2):
     lst = []
     for i in l1:
@@ -5003,6 +5038,6 @@ print("""Imported Auto_ViML version: %s. Call using:
                             verbose=1)
             """ %version_number)
 print("To remove previous versions, perform 'pip uninstall autoviml'")
-print('NEW! Now Auto_ViML comes with a feature_engineering module using featuretools library!')
+print('    NEW! Auto_ViML can solve multi-label, multi-output problems!')
 print('To get the latest version, perform "pip install autoviml --no-cache-dir --ignore-installed"')
 ###########################################################################################

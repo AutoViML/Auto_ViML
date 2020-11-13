@@ -1888,38 +1888,38 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         if Boosting_Flag:
             if model_name.lower() == 'catboost':
                 data_dim = data_dim*one_hot_size/len(preds)
-                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(3000000.*CPU_count)))
             else:
-                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(50000.*CPU_count)))
         elif Boosting_Flag is None:
-            print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(80000.*CPU_count)))
+            print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(80000.*CPU_count)))
         else:
-            print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(40000.*CPU_count)))
+            print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(40000.*CPU_count)))
     else:
         ##### This is for classification which differs for GridSearch vs RandomizedSearch ##############
         if hyper_param == 'GS':
             if Boosting_Flag:
                 if model_name.lower() == 'catboost':
                     data_dim = data_dim*one_hot_size/len(preds)
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(300000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(300000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*(max_class_length**2)/(10000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*(max_class_length**2)*len(target)/(10000.*CPU_count)))
             elif Boosting_Flag is None:
                 #### A Linear model is usually the fastest ###########
-                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(50000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(50000.*CPU_count)))
             else:
-                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length/(16000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(16000.*CPU_count)))
         else:
             if Boosting_Flag:
                 if model_name.lower() == 'catboost':
                     data_dim = data_dim*one_hot_size/len(preds)
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(3000000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length*len(target)/(3000000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*(max_class_length)**2/(40000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*(max_class_length)*len(target)**2/(40000.*CPU_count)))
             elif Boosting_Flag is None:
-                print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(100000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length*len(target)/(100000.*CPU_count)))
             else:
-                print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length/(25000.*CPU_count)))
+                print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length*len(target)/(25000.*CPU_count)))
     ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
     ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
     model_start_time = time.time()
@@ -4877,6 +4877,63 @@ def print_classification_model_stats(y_true, predicted, m_thresh=0.5):
         print('Error: printing classification model metrics. Continuing...')
         return 0
 #####################################################################
+#####     REGRESSION CHARTS AND METRICS ARE PRINTED PLOTTED HERE
+#####################################################################
+import time
+def plot_regression_scatters(df, df2, num_vars, kind='scatter'):
+    """
+    Great way to plot continuous variables fast. Just sent them in and it will take care of the rest!
+    """
+    num_vars_len = len(num_vars)
+    col = 2
+    start_time = time.time()
+    if num_vars_len % 2 == 0:
+        row = num_vars_len//col
+    else:
+        row = num_vars_len//col + 1
+    fig, ax = plt.subplots(row, col)
+    if col < 2:
+        fig.set_size_inches(min(15,8),row*5)
+        fig.subplots_adjust(hspace=0.5) ### This controls the space betwen rows
+        fig.subplots_adjust(wspace=0.3) ### This controls the space between columns
+    else:
+        fig.set_size_inches(min(col*10,20),row*5)
+        fig.subplots_adjust(hspace=0.3) ### This controls the space betwen rows
+        fig.subplots_adjust(wspace=0.3) ### This controls the space between columns
+    fig.suptitle('Regression Metrics Plots', fontsize=20)
+    counter = 0
+    if row == 1:
+        ax = ax.reshape(-1,1).T
+    for k in np.arange(row):
+        for l in np.arange(col):
+            if counter < len(num_vars):
+                try:
+                    if col==1:
+                        x = df[:,counter]
+                        y = df2[:,counter]
+                        ax1 = ax[k][l]
+                        ax1.scatter(x, y)
+                        ax1.set_xlabel('Actuals')
+                        ax1.set_ylabel('Predicted')
+                        ax1.set_title('Target = %s' %num_vars[counter])
+                        counter += 1
+                    else:
+                        x = df[:,counter]
+                        y = df2[:,counter]
+                        ax1 = ax[k][l]
+                        ax1.scatter(x, y)
+                        ax1.set_xlabel('Actuals')
+                        ax1.set_ylabel('Predicted')
+                        ax1.set_title('Target = %s' %num_vars[counter])
+                        counter += 1
+                except:
+                    if col == 1:
+                        counter += 1
+                    else:
+                        ax[k][l].set_title('No plot as %s is not numeric' %num_vars[counter])
+                        counter += 1
+    print('Plot completed in %0.3f seconds' %(time.time()-start_time))
+################################################################################
 def print_regression_model_stats(actuals, predicted, title='Model'):
     """
     This program prints and returns MAE, RMSE, MAPE.
@@ -4886,43 +4943,54 @@ def print_regression_model_stats(actuals, predicted, title='Model'):
     """
     figsize = (10, 10)
     colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk')
+    if isinstance(actuals,pd.Series) or isinstance(actuals,pd.DataFrame):
+        cols = actuals.columns.tolist()
+        actuals = actuals.values
+    if isinstance(predicted,pd.Series) or isinstance(predicted,pd.DataFrame):
+        predicted = predicted.values
     if len(actuals) != len(predicted):
         print('Error: Number of actuals and predicted dont match. Continuing...')
     else:
         try:
-            plt.figure(figsize=figsize)
-            dfplot = pd.DataFrame([actuals,predicted]).T
-            dfplot.columns = ['Actuals','Predictions']
-            x = actuals
-            y =  predicted
-            lineStart = actuals.min()
-            lineEnd = actuals.max()
-            plt.scatter(x, y, color = next(colors), alpha=0.5,label='Predictions')
-            plt.plot([lineStart, lineEnd], [lineStart, lineEnd], 'k-', color = next(colors))
-            plt.xlim(lineStart, lineEnd)
-            plt.ylim(lineStart, lineEnd)
-            plt.xlabel('Actual')
-            plt.ylabel('Predicted')
-            plt.legend()
-            plt.title(title)
-            plt.show();
+            assert actuals.shape[1]
+            multi_label = True
+        except:
+            multi_label = False
+        try:
+            if multi_label:
+                plot_regression_scatters(actuals,predicted,target)
+            else:
+                dfplot = pd.DataFrame([actuals,predicted]).T
+                dfplot.columns = ['Actuals','Predicted']
+                plot_dfplot(dfplot)
         except:
             print('Could not draw regression plot but continuing...')
-        mae = mean_absolute_error(actuals, predicted)
-        mae_asp = (mean_absolute_error(actuals, predicted)/actuals.std())*100
-        rmse_asp = (np.sqrt(mean_squared_error(actuals,predicted))/actuals.std())*100
-        rmse = print_rmse(actuals, predicted)
-        _ = print_mape(actuals, predicted)
-        mape = print_mape(actuals, predicted)
-        print('    MAE = %0.4f' %mae)
-        print("    MAPE = %0.0f%%" %(mape))
-        print('    RMSE = %0.4f' %rmse)
-        print('    MAE as %% std dev of Actuals = %0.1f%%' %(mae/abs(actuals).std()*100))
-        # Normalized RMSE print('RMSE = {:,.Of}'.format(rmse))
-        print('    Normalized RMSE (%% of MinMax of Actuals) = %0.0f%%' %(100*rmse/abs(actuals.max()-actuals.min())))
-        print('    Normalized RMSE (%% of Std Dev of Actuals) = %0.0f%%' %(100*rmse/actuals.std()))
+        if multi_label:
+            for i in range(actuals.shape[1]):
+                actuals_x = actuals[:,i]
+                predicted_x = predicted[:,i]
+                print('Regression Metrics for Target=%s' %cols[i])
+                mae, mae_asp, rmse_asp = print_reg_metrics(actuals_x, predicted_x)
+        else:
+            mae, mae_asp, rmse_asp = print_reg_metrics(actuals, predicted)
         return mae, mae_asp, rmse_asp
-###################################################
+################################################################################
+def print_reg_metrics(actuals, predicted):
+    mae = mean_absolute_error(actuals, predicted)
+    mae_asp = (mean_absolute_error(actuals, predicted)/actuals.std())*100
+    rmse_asp = (np.sqrt(mean_squared_error(actuals,predicted))/actuals.std())*100
+    rmse = print_rmse(actuals, predicted)
+    _ = print_mape(actuals, predicted)
+    mape = print_mape(actuals, predicted)
+    print('    MAE = %0.4f' %mae)
+    print("    MAPE = %0.0f%%" %(mape))
+    print('    RMSE = %0.4f' %rmse)
+    print('    MAE as %% std dev of Actuals = %0.1f%%' %(mae/abs(actuals).std()*100))
+    # Normalized RMSE print('RMSE = {:,.Of}'.format(rmse))
+    print('    Normalized RMSE (%% of MinMax of Actuals) = %0.0f%%' %(100*rmse/abs(actuals.max()-actuals.min())))
+    print('    Normalized RMSE (%% of Std Dev of Actuals) = %0.0f%%' %(100*rmse/actuals.std()))
+    return mae, mae_asp, rmse_asp
+################################################################################
 def print_static_rmse(actual, predicted, start_from=0,verbose=0):
     """
     this calculates the ratio of the rmse error to the standard deviation of the actuals.
@@ -4936,7 +5004,7 @@ def print_static_rmse(actual, predicted, start_from=0,verbose=0):
         print('    Std Deviation of Actuals = %0.2f' %(std_dev))
         print('    Normalized RMSE = %0.1f%%' %(rmse*100/std_dev))
     return rmse, rmse/std_dev
-##########################################################
+################################################################################
 from sklearn.metrics import mean_squared_error,mean_absolute_error
 def print_rmse(y, y_hat):
     """
@@ -4951,7 +5019,29 @@ def print_mape(y, y_hat):
     """
     perc_err = (100*(y - y_hat))/y
     return np.mean(abs(perc_err))
-######################################
+
+    from sklearn.metrics import mean_absolute_error, mean_squared_error
+    from itertools import cycle
+    import pdb
+    import matplotlib.pyplot as plt
+    def plot_dfplot(dfplot,plot_title='Predicted vs Actuals'):
+        figsize = (10, 10)
+        colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk')
+        plt.figure(figsize=figsize)
+        actuals = dfplot['Actuals']
+        predicted =  dfplot['Predicted']
+        lineStart = actuals.min()
+        lineEnd = actuals.max()
+        plt.scatter(actuals, predicted, color = next(colors), alpha=0.5,label='Predictions')
+        plt.plot([lineStart, lineEnd], [lineStart, lineEnd], 'k-', color = next(colors))
+        plt.xlim(lineStart, lineEnd)
+        plt.ylim(lineStart, lineEnd)
+        plt.xlabel('Actual')
+        plt.ylabel('Predicted')
+        plt.legend()
+        plt.title(plot_title, fontsize=12)
+        plt.show();
+###############################################################################
 from collections import defaultdict
 def return_list_matching_keys(dicto,list_keys):
     '''Return a list of values matching keys in a dictionary

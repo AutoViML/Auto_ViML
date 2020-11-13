@@ -178,18 +178,27 @@ def analyze_problem_type(train, targ,verbose=0):
 ###################################################################################
 from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, TimeSeriesSplit
 from sklearn.model_selection import ShuffleSplit
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MultiLabelBinarizer
 def split_train_into_two(train_data, target, randomstate, modeltype):
     preds = [x for x in list(train_data) if x not in target]
     if modeltype.endswith('Classification'):
-        X = train_data[preds]
-        y = train_data[target]
-        if train_data.shape[0] <= 1000:
-            sss = StratifiedShuffleSplit(n_splits=2, test_size=0.10, random_state=randomstate)
+        if len(target) == 1:
+            X = train_data[preds]
+            y = train_data[target]
+            if train_data.shape[0] <= 1000:
+                sss = StratifiedShuffleSplit(n_splits=2, test_size=0.10, random_state=randomstate)
+            else:
+                sss = StratifiedShuffleSplit(n_splits=2, test_size=0.20, random_state=randomstate)
+            trainindex, testindex = sss.split(X, y)
+            traindf = train_data.iloc[trainindex[0]]
+            testdf = train_data.iloc[trainindex[1]]
         else:
-            sss = StratifiedShuffleSplit(n_splits=2, test_size=0.20, random_state=randomstate)
-        trainindex, testindex = sss.split(X, y)
-        traindf = train_data.iloc[trainindex[0]]
-        testdf = train_data.iloc[trainindex[1]]
+            print('Splitting a multi-label dataset into train and validation')
+            mlb = MultiLabelBinarizer()
+            X = train_data[preds]
+            Y = pd.DataFrame(mlb.fit_transform(train_data[target].values), columns=mlb.classes_, index=train_data.index)
+            traindf, testdf = train_test_split(train_data, test_size=0.2,shuffle=True, stratify=Y, random_state=99)
     else:
         indices = np.random.permutation(train_data.shape[0])
         if len(indices) <= 1000:

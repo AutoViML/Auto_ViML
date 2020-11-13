@@ -1185,7 +1185,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         y_train, y_cv = part_train[each_target], part_cv[each_target]
     else:
         y_train, y_cv = part_train[target], part_cv[target]
-    print('Train CV Split completed with', "TRAIN rows:", part_train.shape[0], "CV rows:", part_cv.shape[0])
+    print('    Train CV Split completed with', "TRAIN rows = ", part_train.shape[0], ", CV rows = ", part_cv.shape[0])
     ################   IMPORTANT ENTROPY  BINNING FIRST TIME   #####################################
     ############   Add Entropy Binning of Continuous Variables Here ##############################
     num_vars = train[important_features].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
@@ -1426,13 +1426,36 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         metric_period = 500,
                        early_stopping_rounds=250,boosting_type='Plain')
             else:
-                #xgbm = XGBRegressor(n_estimators=200, random_state=seed)
                 objective = 'reg:squarederror'
-                xgbm = XGBRegressor( n_estimators=100,subsample=subsample,objective=objective,
-                                        booster='gbtree',
-                                        colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
-                                         gamma=1, seed=1,n_jobs=-1,random_state=1)
-                #xgbm.set_params(**param)
+                if model_label == 'Multi_Label':
+                    ##### For multi-label, it is better to keep the XGBoost simple ##########
+                    xgbm = XGBRegressor(n_estimators=20, objective=objective, n_jobs=-1, random_state=seed)
+                    scorer = 'neg_mean_squared_error'
+                    #### Better to reduce the number of iterations and no hyper-param searching since it takes too long #########
+                    no_iter = 10
+                    if hyper_param == 'GS':
+                        c_params = {
+                                    "XGBoost": {
+                                    #'estimator__learning_rate': np.linspace(0.1,0.5,5),
+                                    #'estimator__gamma': np.linspace(0, 32,7).astype(int),
+                                    #"estimator__n_estimators": np.linspace(100, max_estims, 3).astype(int),
+                                        }
+                                    }
+                    else:
+                        c_params = {
+                                    "XGBoost": {
+                                    #'estimator__learning_rate': sp.stats.uniform(scale=1),
+                                    #'estimator__gamma': sp.stats.randint(0, 32),
+                                    #'estimator__n_estimators': sp.stats.randint(100,max_estims),
+                                    }
+                                }
+                else:
+                    ##### For Single-label, it is better to keep the XGBoost complex ##########
+                    xgbm = XGBRegressor( n_estimators=100,subsample=subsample,objective=objective,
+                                            booster='gbtree',
+                                            colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
+                                             gamma=1, seed=1,n_jobs=-1,random_state=1)
+                    xgbm.set_params(**param)
         elif Boosting_Flag is None:
             #xgbm = Lasso(max_iter=max_iter,random_state=seed)
             #xgbm = Lasso(max_iter=max_iter,random_state=seed)
@@ -1448,14 +1471,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ###  INTO THIS MULTI_LABEL FORMAT. SO LEAVE IT ALONE - AS-IS !!!
         if model_label != 'Single_Label':
             #### For Multi-Label Problems = you have to change the model to a multi-output model
-            if Boosting_Flag:
-                if isinstance(Boosting_Flag, str):
-                    if Boosting_Flag.lower() == 'chain':
+            if Boosting_Flag and isinstance(Boosting_Flag, str):
+                if Boosting_Flag.lower() == 'chain':
                         ### Regressor Chain a stacking algorithm - it predicts one target and
                         ###  uses it to predict other targets in a daisy chain. Neat!
                         xgbm = RegressorChain(xgbm, order= np.arange(len(target)).tolist())
-                    else:
-                        xgbm = MultiOutputRegressor(xgbm)
+                else:
+                    xgbm = MultiOutputRegressor(xgbm)
             else:
                 xgbm = MultiOutputRegressor(xgbm)
     else:
@@ -4944,7 +4966,6 @@ def print_regression_model_stats(actuals, predicted, title='Model'):
     figsize = (10, 10)
     colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk')
     if isinstance(actuals,pd.Series) or isinstance(actuals,pd.DataFrame):
-        cols = actuals.columns.tolist()
         actuals = actuals.values
     if isinstance(predicted,pd.Series) or isinstance(predicted,pd.DataFrame):
         predicted = predicted.values
@@ -4954,11 +4975,23 @@ def print_regression_model_stats(actuals, predicted, title='Model'):
         try:
             assert actuals.shape[1]
             multi_label = True
+            if isinstance(actuals,pd.Series):
+                cols = [actuals.name]
+            elif isinstance(actuals,pd.DataFrame):
+                cols = actuals.columns.tolist()
+            else:
+                cols = ['target_'+str(i) for i in range(actuals.shape[1])]
         except:
             multi_label = False
+            if isinstance(actuals,pd.Series):
+                cols = [actuals.name]
+            elif isinstance(actuals,pd.DataFrame):
+                cols = actuals.columns.tolist()
+            else:
+                cols = ['target_1']
         try:
             if multi_label:
-                plot_regression_scatters(actuals,predicted,target)
+                plot_regression_scatters(actuals,predicted,cols)
             else:
                 dfplot = pd.DataFrame([actuals,predicted]).T
                 dfplot.columns = ['Actuals','Predicted']
@@ -5019,28 +5052,28 @@ def print_mape(y, y_hat):
     """
     perc_err = (100*(y - y_hat))/y
     return np.mean(abs(perc_err))
-
-    from sklearn.metrics import mean_absolute_error, mean_squared_error
-    from itertools import cycle
-    import pdb
-    import matplotlib.pyplot as plt
-    def plot_dfplot(dfplot,plot_title='Predicted vs Actuals'):
-        figsize = (10, 10)
-        colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk')
-        plt.figure(figsize=figsize)
-        actuals = dfplot['Actuals']
-        predicted =  dfplot['Predicted']
-        lineStart = actuals.min()
-        lineEnd = actuals.max()
-        plt.scatter(actuals, predicted, color = next(colors), alpha=0.5,label='Predictions')
-        plt.plot([lineStart, lineEnd], [lineStart, lineEnd], 'k-', color = next(colors))
-        plt.xlim(lineStart, lineEnd)
-        plt.ylim(lineStart, lineEnd)
-        plt.xlabel('Actual')
-        plt.ylabel('Predicted')
-        plt.legend()
-        plt.title(plot_title, fontsize=12)
-        plt.show();
+################################################################################
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from itertools import cycle
+import pdb
+import matplotlib.pyplot as plt
+def plot_dfplot(dfplot,plot_title='Predicted vs Actuals'):
+    figsize = (10, 10)
+    colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk')
+    plt.figure(figsize=figsize)
+    actuals = dfplot['Actuals']
+    predicted =  dfplot['Predicted']
+    lineStart = actuals.min()
+    lineEnd = actuals.max()
+    plt.scatter(actuals, predicted, color = next(colors), alpha=0.5,label='Predictions')
+    plt.plot([lineStart, lineEnd], [lineStart, lineEnd], 'k-', color = next(colors))
+    plt.xlim(lineStart, lineEnd)
+    plt.ylim(lineStart, lineEnd)
+    plt.xlabel('Actual')
+    plt.ylabel('Predicted')
+    plt.legend()
+    plt.title(plot_title, fontsize=12)
+    plt.show();
 ###############################################################################
 from collections import defaultdict
 def return_list_matching_keys(dicto,list_keys):

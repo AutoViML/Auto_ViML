@@ -719,7 +719,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     error_rate = []
     ######  This is where we do the training and hyper parameter tuning ########
     orig_preds = [x for x in list(orig_train) if x not in target]
-    count = 0
+    multilabel_count = 0 #### This counts the number of times multi-labels  have jaccard metrics
     #################    CLASSIFY  COLUMNS   HERE    ######################
     var_df = classify_columns(orig_train[orig_preds], verbose)
     #####       Classify Columns   ################
@@ -1305,7 +1305,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #### Remember that the next 2 lines are crucial: if X and y are dataframes, then predict_proba
     ###     will return  dataframes or series. Otherwise it will return Numpy array's.
     ##      Be consistent when using dataframes with XGB. That's the best way to keep feature names!
-    print('###############  M O D E L   B U I L D I N G  B E G I N S  ####################')
+    print('############### %s M O D E L   B U I L D I N G  B E G I N S  ####################' %model_name)
     print('Rows in Train data set = %d' %X_train.shape[0])
     print('  Features in Train data set = %d' %X_train.shape[1])
     print('    Rows in held-out data set = %d' %X_cv.shape[0])
@@ -1369,11 +1369,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             estimator_string+'__C': [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3]
                                     },
                             "Forests": {
-                            estimator_string+'__n_estimators':  np.linspace(100, max_estims, n_steps, dtype = "int"),
+                            'n_estimators':  np.linspace(100, max_estims, n_steps, dtype = "int"),
                             },
                             "XGBoost": {
                             estimator_string+'__n_estimators':  np.linspace(100, max_estims, n_steps, dtype = "int"),
                             estimator_string+'__learning_rate': np.linspace(0.1,0.5,5),
+                            estimator_string+'__gamma': np.linspace(0, 32,7).astype(int),
                             },
                             "CatBoost": {
                             }
@@ -1407,11 +1408,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             estimator_string+'__C': sp.stats.uniform(scale=1)
                                 },
                         "Forests": {
-                            estimator_string+'__n_estimators': sp.stats.randint(100,max_estims)
+                            #estimator_string+'__n_estimators': sp.stats.randint(100,max_estims)
+                            'n_estimators': sp.stats.randint(100,max_estims)
                                 },
                         "XGBoost": {
                             estimator_string+'__learning_rate': sp.stats.uniform(scale=1),
                            estimator_string+'__n_estimators': sp.stats.randint(100,max_estims),
+                           estimator_string+'__gamma': sp.stats.randint(0, 32),
                                 },
                         "CatBoost": {
                                 }
@@ -1429,30 +1432,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 objective = 'reg:squarederror'
                 if model_label == 'Multi_Label':
                     ##### For multi-label, it is better to keep the XGBoost simple ##########
-                    xgbm = XGBRegressor(n_estimators=20, objective=objective, n_jobs=-1, random_state=seed)
-                    scorer = 'neg_mean_squared_error'
-                    #### Better to reduce the number of iterations and no hyper-param searching since it takes too long #########
-                    no_iter = 10
-                    if hyper_param == 'GS':
-                        c_params = {
-                                    "XGBoost": {
-                                    #'estimator__learning_rate': np.linspace(0.1,0.5,5),
-                                    #'estimator__gamma': np.linspace(0, 32,7).astype(int),
-                                    #"estimator__n_estimators": np.linspace(100, max_estims, 3).astype(int),
-                                        }
-                                    }
-                    else:
-                        c_params = {
-                                    "XGBoost": {
-                                    #'estimator__learning_rate': sp.stats.uniform(scale=1),
-                                    #'estimator__gamma': sp.stats.randint(0, 32),
-                                    #'estimator__n_estimators': sp.stats.randint(100,max_estims),
-                                    }
-                                }
+                    xgbm = XGBRegressor(base_score=0.5, booster='gbtree', n_estimators=200,
+                        n_jobs=-1, nthread=-1, objective=objective, random_state=1,
+                        seed=1)
                 else:
                     ##### For Single-label, it is better to keep the XGBoost complex ##########
                     xgbm = XGBRegressor( n_estimators=100,subsample=subsample,objective=objective,
-                                            booster='gbtree',
+                                            booster='gbtree', learning_rate=0.1,
                                             colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
                                              gamma=1, seed=1,n_jobs=-1,random_state=1)
                     xgbm.set_params(**param)
@@ -1475,11 +1461,24 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if Boosting_Flag.lower() == 'chain':
                         ### Regressor Chain a stacking algorithm - it predicts one target and
                         ###  uses it to predict other targets in a daisy chain. Neat!
-                        xgbm = RegressorChain(xgbm, order= np.arange(len(target)).tolist())
+                        xgbm = RegressorChain(xgbm, order= np.arange(len(target)).tolist(),
+                                    random_state=99)
+                        print('Using multi-output Regressor Chain model - make sure target columns are in correct order...')
                 else:
-                    xgbm = MultiOutputRegressor(xgbm)
+                    ### This seems to work best for XGBRegressor and CatBoostRegressor only ####
+                    xgbm = MultiOutputRegressor(xgbm, n_jobs=-1)
+                    print('Using multi-output Regressor model')
+            elif Boosting_Flag:
+                ### if Boosting Flag is true, it means XGBoost which can use this ######
+                xgbm = MultiOutputRegressor(xgbm, n_jobs=-1)
+                print('Using multi-output Regressor model')
+            elif Boosting_Flag is None:
+                ### if Boosting Flag is None, it means Linear Model which can use this ######
+                xgbm = MultiOutputRegressor(xgbm, n_jobs=-1)
+                print('Using multi-output Regressor model')
             else:
-                xgbm = MultiOutputRegressor(xgbm)
+                ### For all others we can use the models as they are: RFR, Linear are both Multi Output ###
+                print('Using single-label models for multi-output processing... ')
     else:
         #### This is for Binary Classification ##############################
         classes = label_dict[each_target]['classes']
@@ -1823,10 +1822,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 #### I have set the Verbose to be False here since it produces too much output ###
                 gs = GridSearchCV(xgbm,param_grid=r_params[model_name],
                                                scoring = scorer,
-                                               n_jobs=-1,
                                                cv = scv,
                                                refit = refit_metric,
                                                return_train_score = True,
+                                               n_jobs=-1,
                                                 verbose=0)
             elif hyper_param == 'RS':
                 gs = RandomizedSearchCV(xgbm,
@@ -1843,7 +1842,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
                 gs = copy.deepcopy(xgbm)
         else:
-            #### For Multilabel Regressors you need to do some hyper parameter tuning ####
+            #### For Multilabel Regressors you need to do some hyper parameter tuning but not too much!  ####
+            #### Better to reduce the number of iterations and no hyper-param searching since it takes too long #########
+            #scorer = 'neg_mean_squared_error'
+            no_iter = 5
             if hyper_param == 'GS':
                 #### I have set the Verbose to be False here since it produces too much output ###
                 gs = GridSearchCV(xgbm,param_grid=r_params[model_label][model_name],
@@ -2149,7 +2151,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             print('Best Model selected and its attributes are:\n    %s' %model)
     else:
         ######## If this is a multi-label model, print the following
-        print('    %s typically takes time to train models...' %model_label)
+        print('    Using Multi-Output version of %s' %model)
     ##############   These are settings for making sure predictions as same type as target ################
     ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
     performed_ensembling = False
@@ -2212,7 +2214,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     if model_label == 'Single_Label':
         if modeltype == 'Regression':
             rmsle_calculated_m = rmse(y_cv, y_pred)
-            print_regression_model_stats(y_cv, y_pred,'%s Model: Predicted vs Actual for %s'%(model_name,each_target))
+            print_regression_model_stats(y_cv, y_pred,target)
         else:
             if model_name == 'Forests':
                 if calibrator_flag:
@@ -2230,8 +2232,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print(classification_report(y_cv,y_pred))
                 print(confusion_matrix(y_cv, y_pred))
     else:
+        #### This is for Multi-Label Regression ################################
         if modeltype == 'Regression':
-            print_regression_model_stats(y_cv, y_pred,'%s Model: Predicted vs Actual for %s'%(model_name,each_target))
+            print_regression_model_stats(y_cv, y_pred,target)
         else:
             print('Multi-Label Classification Report:')
             print(classification_report(y_cv, y_pred ))
@@ -2269,9 +2272,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     performed_ensembling = True
                     #### Since we have a new ensembled y_pred, make sure it is an array before printing it!
                     if isinstance(ensem_pred,pd.Series) or isinstance(ensem_pred,pd.DataFrame):
-                        print_regression_model_stats(y_cv, ensem_pred.values,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
+                        print_regression_model_stats(y_cv, ensem_pred.values, target)
                     else:
-                        print_regression_model_stats(y_cv, ensem_pred,'Ensemble Model: Model Predicted vs Actual for %s' %each_target)
+                        print_regression_model_stats(y_cv, ensem_pred, target)
                 except:
                     print('Could not complete Ensembling predictions on held out data due to Error')
         else:
@@ -2333,24 +2336,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     print('    ROC AUC Score = %0.1f%%' %(roc_auc_score(y_cv, y_proba[:,rare_class])*100))
                 else:
                     print('    No ROC AUC score for multi-class problems')
-            elif scoring_parameter == 'jaccard':
-                accu_all = jaccard_singlelabel(y_cv, y_pred)
-                print('        Mean Jaccard Similarity  = {:,.1f}%'.format(
-                                        accu_all*100))
-                ## This is for multi-label problems ##
-                if count == 0:
-                    zipped = copy.deepcopy(y_pred)
-                    count += 1
-                else:
-                    zipped = zip(zipped,y_pred)
-                    count += 1
-            elif scoring_parameter == 'basket_recall':
-                if count == 0:
-                    zipped = copy.deepcopy(y_pred)
-                    count += 1
-                else:
-                    zipped = zip(zipped,y_pred)
-                    count += 1
         if not Stacking_Flag and performed_ensembling:
             if modeltype == 'Regression':
                 rmsle_calculated_f = rmse(y_cv, y_pred)
@@ -2395,6 +2380,26 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 except:
                     print('Could not plot Cross Validation Parameters')
         print('    Time taken for this Target (in seconds) = %0.0f' %(time.time()-start_time))
+    else:
+        #### You can use Jaccard Similarity for Multi-Label Problems ###########
+        if scoring_parameter == 'jaccard':
+            accu_all = jaccard_singlelabel(y_cv, y_pred)
+            print('        Mean Jaccard Similarity  = {:,.1f}%'.format(
+                                    accu_all*100))
+            ## This is for multi-label problems ##
+            if multilabel_count == 0:
+                zipped = copy.deepcopy(y_pred)
+                multilabel_count += 1
+            else:
+                zipped = zip(zipped,y_pred)
+                multilabel_count += 1
+        elif scoring_parameter == 'basket_recall':
+            if multilabel_count == 0:
+                zipped = copy.deepcopy(y_pred)
+                multilabel_count += 1
+            else:
+                zipped = zip(zipped,y_pred)
+                multilabel_count += 1
         print('Training model on complete Train data and Predicting using give Test Data...')
     ################        I M P O R T A N T: C O M B I N I N G  D A T A ######################
     #### This is Second time: we combine train and CV into Train and Test Sets #################
@@ -4956,7 +4961,7 @@ def plot_regression_scatters(df, df2, num_vars, kind='scatter'):
                         counter += 1
     print('Plot completed in %0.3f seconds' %(time.time()-start_time))
 ################################################################################
-def print_regression_model_stats(actuals, predicted, title='Model'):
+def print_regression_model_stats(actuals, predicted, targets=''):
     """
     This program prints and returns MAE, RMSE, MAPE.
     If you like the MAE and RMSE to have a title or something, just give that
@@ -4971,8 +4976,9 @@ def print_regression_model_stats(actuals, predicted, title='Model'):
         predicted = predicted.values
     if len(actuals) != len(predicted):
         print('Error: Number of actuals and predicted dont match. Continuing...')
-    else:
+    if targets == "":
         try:
+            ### This is for Multi_Label Problems ###
             assert actuals.shape[1]
             multi_label = True
             if isinstance(actuals,pd.Series):
@@ -4982,6 +4988,7 @@ def print_regression_model_stats(actuals, predicted, title='Model'):
             else:
                 cols = ['target_'+str(i) for i in range(actuals.shape[1])]
         except:
+            #### THis is for Single Label problems #####
             multi_label = False
             if isinstance(actuals,pd.Series):
                 cols = [actuals.name]
@@ -4989,24 +4996,33 @@ def print_regression_model_stats(actuals, predicted, title='Model'):
                 cols = actuals.columns.tolist()
             else:
                 cols = ['target_1']
-        try:
-            if multi_label:
-                plot_regression_scatters(actuals,predicted,cols)
-            else:
-                dfplot = pd.DataFrame([actuals,predicted]).T
-                dfplot.columns = ['Actuals','Predicted']
-                plot_dfplot(dfplot)
-        except:
-            print('Could not draw regression plot but continuing...')
-        if multi_label:
-            for i in range(actuals.shape[1]):
-                actuals_x = actuals[:,i]
-                predicted_x = predicted[:,i]
-                print('Regression Metrics for Target=%s' %cols[i])
-                mae, mae_asp, rmse_asp = print_reg_metrics(actuals_x, predicted_x)
+    else:
+        cols = copy.deepcopy(targets)
+        if isinstance(targets, str):
+            cols = [targets]
+        if len(cols) == 1:
+            multi_label = False
         else:
-            mae, mae_asp, rmse_asp = print_reg_metrics(actuals, predicted)
-        return mae, mae_asp, rmse_asp
+            multi_label = True
+    try:
+        if multi_label:
+            plot_regression_scatters(actuals,predicted,cols)
+        else:
+            ### If Single Label, just print one chart
+            dfplot = pd.DataFrame([actuals,predicted]).T
+            dfplot.columns = ['Actuals','Predicted']
+            plot_dfplot(dfplot,cols)
+    except:
+        print('Could not draw regression plot but continuing...')
+    if multi_label:
+        for i in range(actuals.shape[1]):
+            actuals_x = actuals[:,i]
+            predicted_x = predicted[:,i]
+            print('Regression Metrics for Target=%s' %cols[i])
+            mae, mae_asp, rmse_asp = print_reg_metrics(actuals_x, predicted_x)
+    else:
+        mae, mae_asp, rmse_asp = print_reg_metrics(actuals, predicted)
+    return mae, mae_asp, rmse_asp
 ################################################################################
 def print_reg_metrics(actuals, predicted):
     mae = mean_absolute_error(actuals, predicted)
@@ -5057,7 +5073,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from itertools import cycle
 import pdb
 import matplotlib.pyplot as plt
-def plot_dfplot(dfplot,plot_title='Predicted vs Actuals'):
+def plot_dfplot(dfplot,plot_title=""):
     figsize = (10, 10)
     colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk')
     plt.figure(figsize=figsize)
@@ -5072,7 +5088,7 @@ def plot_dfplot(dfplot,plot_title='Predicted vs Actuals'):
     plt.xlabel('Actual')
     plt.ylabel('Predicted')
     plt.legend()
-    plt.title(plot_title, fontsize=12)
+    plt.title('Predicted vs Actuals for Target = %s' %plot_title, fontsize=12)
     plt.show();
 ###############################################################################
 from collections import defaultdict

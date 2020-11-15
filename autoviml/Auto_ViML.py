@@ -44,6 +44,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import RepeatedKFold, RepeatedStratifiedKFold
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.neighbors import KNeighborsRegressor
 
 from autoviml.QuickML_Stacking import QuickML_Stacking
 from autoviml.Transform_KM_Features import Transform_KM_Features
@@ -460,9 +461,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     max_class_length = 1 ### It turns out the number of classes is directly correlated to Estimated Time. Hence this!
     perform_scaling_flag = True #### For linear models, scaling is a must but for other models, its not necessary but okay.
     xgb_booster = 'dart'  ### you can set this to either of dart, gbtree or gblinear
+    max_neighbors = 100 #### this is max number of neighbors used in k_neighbors for RandomizedSearchCV algo
+    n_jobs = -1 #### In case of KNN, having n_jobs=-1 gives an error on Windows environments. Hence avoid.
+    chain_flag = False
     print('##############  D A T A   S E T  A N A L Y S I S  #######################')
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
-
+    if hyper_param is not None:
+        if hyper_param.lower() == 'chain':
+            chain_flag = True
     if isinstance(Boosting_Flag,str):
         if Boosting_Flag.lower() == 'catboost':
             try:
@@ -475,12 +481,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     if not Boosting_Flag:  ### there is also a chance Boosting_Flag is None - This is to eliminate that chance!
         if orig_train.shape[0] >= 10000:
             hyper_param = 'RS'
-            print('Changing hyperparameter search to RS. Otherwise, Random Forests will take too long for 10,000+ rows')
+            print('ALERT! Changing hyperparameter search to RS. Otherwise, Random Forests will take too long for 10,000+ rows')
     elif Boosting_Flag: ### there is also a chance Boosting_Flag is None - This is to eliminate that chance!
         if not isinstance(Boosting_Flag, str):
             if orig_train.shape[0] >= 10000:
                 hyper_param = 'RS'
-                print('Changing hyperparameter search to RS. Otherwise XGBoost will take too long for 10,000+ rows.')
+                print('ALERT! Changing hyperparameter search to RS. Otherwise XGBoost will take too long for 10,000+ rows.')
     ###########    T H I S   I S  W H E R E   H Y P E R O P T    P A R A M S  A R E   S E T #########
     if hyper_param == 'HO':
         ########### HyperOpt related objective functions are defined here #################
@@ -508,6 +514,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ####   Hence to speed it up you need to change the tolerance threshold to something bigger
     if hyper_param == 'GS':
             tolerance = 0.01 #### This tolerance is bigger to speed up Logistic Regression. Otherwise, SAGA takes too long!!
+    if chain_flag:
+        hyper_param = 'Chain' ### In some cases, Hyper Param gets reset above to RS. Hence changing it back here.
     ### Make target into a list so that we can uniformly process the target label
     if not isinstance(target, list):
         target = [target]
@@ -611,10 +619,23 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #################    You can use label_binarize here but I have decided to use Label Encoding instead ####
     ### This is for Classification Problems Only ########
     if modeltype != 'Regression':
-        print('Shuffling the data set before training')
+        print('Random shuffling the data set before training')
         start_train = orig_train.sample(frac=1.0, random_state=seed)
     else:
+        print('No shuffling of data set before training...')
         start_train = copy.deepcopy(orig_train)
+    ####    Choosing Hyper Parameter Tuning Options here ##############################################
+    if hyper_param == 'GS':
+        print('    Using GridSearchCV for Hyper Parameter Tuning. This is slow. Switch to RS for faster tuning...')
+    elif hyper_param == 'RS':
+        print('    Using RandomizedSearchCV for Hyper Parameter Tuning. This is 3X faster than GridSearchCV...')
+    elif hyper_param == 'HO':
+        print('    Using HyperOpt which is approximately 3X Faster than GridSearchCV but results vary...')
+    elif hyper_param == 'Chain':
+        print('    Using MultiOutput Chain Regressor model - make sure your target columns are in correct order...')
+    elif hyper_param is None:
+        print('    Using CatBoost which is very fast and hence not using GridSearchCV or RandomizedSearchCV...')
+    ##################   L A B E L    TARGET    T R A N S F O R M A T I O N     #################################
     for each_target in target:
         #### Make sure you don't move these 2 lines: they need to be reset for every target!
         ####   HyperOpt will not do Trials beyond max_evals - so only if you reset here, it will do it again.
@@ -657,12 +678,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ### Perfrom Label Transformation only for Classification Problems ####
             classes = np.unique(orig_train[each_target])
             if first_time:
-                if hyper_param == 'GS':
-                    print('Using GridSearchCV for Hyper Parameter Tuning. This is slow. Switch to RS for faster tuning...')
-                elif hyper_param == 'RS':
-                    print('Using RandomizedSearchCV for Hyper Parameter Tuning. This is 3X faster than GridSearchCV...')
-                else:
-                    print('Using HyperOpt which is approximately 3X Faster than GridSearchCV but results vary...')
                 first_time = False
             if len(classes) > 2:
                 ##### If Boosting_Flag = True, change it to False here since Multi-Class XGB is VERY SLOW!
@@ -1337,12 +1352,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             rmse_scorer = make_scorer(gini_rmse, greater_is_better=False)
             scorer = rmse_scorer
         ###### You need to change the string used in hyper-params based on model selected ####
-        estimator_string = 'estimator'
-        if Boosting_Flag:
-            if isinstance(Boosting_Flag, str):
-                if Boosting_Flag.lower() == 'chain':
-                    estimator_string = 'base_estimator'
-                    print('Using Multi-Output Regressor, this will take time to train...')
+        estimator_string = 'estimator__'
+        if hyper_param is not None:
+            if hyper_param.lower() == 'chain':
+                estimator_string = 'base_estimator__'
         ####      HYPER PARAMETERS FOR REGRESSION TUNING ARE SETUP HERE      ###
         if hyper_param == 'GS':
             r_params = {
@@ -1366,15 +1379,16 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             },
                     "Multi_Label": {
                             "Linear": {
-                            estimator_string+'__C': [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3]
+                            #estimator_string+'C': [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3]
+                            estimator_string+'n_neighbors': [1,3,5,7,11]
                                     },
                             "Forests": {
                             'n_estimators':  np.linspace(100, max_estims, n_steps, dtype = "int"),
                             },
                             "XGBoost": {
-                            estimator_string+'__n_estimators':  np.linspace(100, max_estims, n_steps, dtype = "int"),
-                            estimator_string+'__learning_rate': np.linspace(0.1,0.5,5),
-                            estimator_string+'__gamma': np.linspace(0, 32,7).astype(int),
+                            estimator_string+'n_estimators':  np.linspace(100, max_estims, n_steps, dtype = "int"),
+                            estimator_string+'learning_rate': np.linspace(0.1,0.5,5),
+                            estimator_string+'gamma': np.linspace(0, 32,7).astype(int),
                             },
                             "CatBoost": {
                             }
@@ -1405,16 +1419,17 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             },
                     "Multi_Label": {
                         "Linear": {
-                            estimator_string+'__C': sp.stats.uniform(scale=1)
+                            #estimator_string+'C': sp.stats.uniform(scale=1)
+                            estimator_string+'n_neighbors': sp.stats.randint(1,max_neighbors)
                                 },
                         "Forests": {
                             #estimator_string+'__n_estimators': sp.stats.randint(100,max_estims)
-                            'n_estimators': sp.stats.randint(100,max_estims)
+                            estimator_string+'n_estimators': sp.stats.randint(100,max_estims)
                                 },
                         "XGBoost": {
-                            estimator_string+'__learning_rate': sp.stats.uniform(scale=1),
-                           estimator_string+'__n_estimators': sp.stats.randint(100,max_estims),
-                           estimator_string+'__gamma': sp.stats.randint(0, 32),
+                            estimator_string+'learning_rate': sp.stats.uniform(scale=1),
+                           estimator_string+'n_estimators': sp.stats.randint(100,max_estims),
+                           estimator_string+'gamma': sp.stats.randint(0, 32),
                                 },
                         "CatBoost": {
                                 }
@@ -1445,7 +1460,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         elif Boosting_Flag is None:
             #xgbm = Lasso(max_iter=max_iter,random_state=seed)
             #xgbm = Lasso(max_iter=max_iter,random_state=seed)
-            xgbm = LinearSVR(epsilon=0.0, tol=0.001, C=1.0,max_iter=max_iter, random_state=seed)
+            if model_label == 'Single_Label':
+                xgbm = LinearSVR(epsilon=0.0, tol=0.001, C=1.0,max_iter=max_iter, random_state=seed)
+            else:
+                xgbm = KNeighborsRegressor(n_neighbors=5, weights = 'distance') ### don't use n_jobs=-1 gives error!!
+                #### n_jobs = None in case of KNN since it gives error if you use -1 anywhere in the process
+                n_jobs = None
         else:
             xgbm = RandomForestRegressor(
                             **{
@@ -1457,28 +1477,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ###  INTO THIS MULTI_LABEL FORMAT. SO LEAVE IT ALONE - AS-IS !!!
         if model_label != 'Single_Label':
             #### For Multi-Label Problems = you have to change the model to a multi-output model
-            if Boosting_Flag and isinstance(Boosting_Flag, str):
-                if Boosting_Flag.lower() == 'chain':
-                        ### Regressor Chain a stacking algorithm - it predicts one target and
-                        ###  uses it to predict other targets in a daisy chain. Neat!
-                        xgbm = RegressorChain(xgbm, order= np.arange(len(target)).tolist(),
-                                    random_state=99)
-                        print('Using multi-output Regressor Chain model - make sure target columns are in correct order...')
-                else:
-                    ### This seems to work best for XGBRegressor and CatBoostRegressor only ####
-                    xgbm = MultiOutputRegressor(xgbm, n_jobs=-1)
-                    print('Using multi-output Regressor model')
-            elif Boosting_Flag:
-                ### if Boosting Flag is true, it means XGBoost which can use this ######
-                xgbm = MultiOutputRegressor(xgbm, n_jobs=-1)
-                print('Using multi-output Regressor model')
-            elif Boosting_Flag is None:
-                ### if Boosting Flag is None, it means Linear Model which can use this ######
-                xgbm = MultiOutputRegressor(xgbm, n_jobs=-1)
-                print('Using multi-output Regressor model')
+            if chain_flag:
+                    ### Regressor Chain a stacking algorithm - it predicts one target and
+                    ###  uses it to predict other targets in a daisy chain. Neat!
+                    xgbm = RegressorChain(xgbm, order= np.arange(len(target)).tolist(),
+                                random_state=99)
             else:
-                ### For all others we can use the models as they are: RFR, Linear are both Multi Output ###
-                print('Using single-label models for multi-output processing... ')
+                ### This seems to work best for XGBRegressor and CatBoostRegressor only ####
+                xgbm = MultiOutputRegressor(xgbm, n_jobs=n_jobs)
+                print('Using MultiOutput Regressor model')
+            if not Boosting_Flag:
+                ### RandomForest is a special model: we can use the model as is: RFR is Multi Output! ###
+                if not chain_flag:
+                    print('    Using %s model for multi-output processing... ' %model_name)
     else:
         #### This is for Binary Classification ##############################
         classes = label_dict[each_target]['classes']
@@ -1825,7 +1836,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                                cv = scv,
                                                refit = refit_metric,
                                                return_train_score = True,
-                                               n_jobs=-1,
+                                               n_jobs=n_jobs,
                                                 verbose=0)
             elif hyper_param == 'RS':
                 gs = RandomizedSearchCV(xgbm,
@@ -1836,7 +1847,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                                return_train_score = True,
                                                random_state = seed,
                                                cv = scv,
-                                               n_jobs=-1,
+                                               n_jobs=n_jobs,
                                                 verbose = 0)
             else:
                 #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
@@ -1850,7 +1861,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 #### I have set the Verbose to be False here since it produces too much output ###
                 gs = GridSearchCV(xgbm,param_grid=r_params[model_label][model_name],
                                                scoring = scorer,
-                                               n_jobs=-1,
+                                               n_jobs=n_jobs,
                                                cv = scv,
                                                refit = refit_metric,
                                                return_train_score = True,
@@ -1864,7 +1875,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                                return_train_score = True,
                                                random_state = seed,
                                                cv = scv,
-                                               n_jobs=-1,
+                                               n_jobs=n_jobs,
                                                 verbose = 0)
             else:
                 #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
@@ -1877,7 +1888,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 gs = GridSearchCV(xgbm,param_grid=c_params[model_name],
                                                scoring = scorer,
                                                return_train_score = True,
-                                               n_jobs=-1,
+                                               n_jobs=n_jobs,
                                                refit = refit_metric,
                                                cv = scv,
                                                 verbose=0)
@@ -1890,7 +1901,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                                refit = refit_metric,
                                                return_train_score = True,
                                                random_state = seed,
-                                               n_jobs=-1,
+                                               n_jobs=n_jobs,
                                                cv = scv,
                                                 verbose = 0)
             else:
@@ -1907,7 +1918,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ### Do this only for Binary Classes and Multi-Classes, both are okay
         baseline_accu = 1-(train[each_target].value_counts(1).sort_values())[rare_class]
         print('    Baseline Accuracy Needed for Model = %0.2f%%' %(baseline_accu*100))
-    print('CPU Count = %s in this device' %CPU_count)
+    print('    CPU Count = %s in this device' %CPU_count)
     if modeltype == 'Regression':
         if Boosting_Flag:
             if model_name.lower() == 'catboost':
@@ -1927,7 +1938,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     data_dim = data_dim*one_hot_size/len(preds)
                     print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(300000.*CPU_count)))
                 else:
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*(max_class_length**2)*len(target)/(10000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*(max_class_length**2)*len(target)/(100000.*CPU_count)))
             elif Boosting_Flag is None:
                 #### A Linear model is usually the fastest ###########
                 print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(50000.*CPU_count)))
@@ -2010,7 +2021,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             if model_label == 'Single_Label':
                 if hyper_param == 'RS' or hyper_param == 'GS':
                     best_score = model.best_score_
-                else:
+                elif hyper_param is None:
                     val_keys = list(model.best_score_.keys())
                     best_score = model.best_score_[val_keys[-1]][validation_metric]
         except:
@@ -2018,7 +2029,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             Imbalanced_Flag = False
             best_score = 0
     ################################################################################################################################
-    #######   Though this next step looks like it is a Coding Mistake by Me, don't change it!!! ###################
+    #######   Though this next step looks like it is a Coding Mistake by me, don't change it!!! ###################
     #######   This is for case when Imbalanced with Classification succeeds, this next step is skipped ############
     ################################################################################################################################
     ### The model blows up when you use average-precision in Multi-Classes -> needs checking!
@@ -2070,7 +2081,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 if hyper_param == 'RS' or hyper_param == 'GS':
                     best_score = model.best_score_
                     validation_metric = copy.deepcopy(scoring_parameter)
-                else:
+                elif hyper_param is None:
                     val_keys = list(model.best_score_.keys())
                     if 'validation' in val_keys:
                         validation_metric = list(model.best_score_['validation'].keys())[0]
@@ -2107,7 +2118,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         if hyper_param == 'RS' or hyper_param == 'GS':
             best_params= model.best_params_
             print('    Best Parameters for Model = %s' %model.best_params_)
-        else:
+        elif hyper_param is None:
             #### CatBoost does not need Hyper Parameter tuning => it's great out of the box!
             #### CatBoost does not need too many iterations. Just make sure you set the iterations low after the first time!
             if model.get_best_iteration() == 0:
@@ -2150,7 +2161,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         else:
             print('Best Model selected and its attributes are:\n    %s' %model)
     else:
-        ######## If this is a multi-label model, print the following
+        ######## If this is a multi-label model, try to see if it went throgh GS or RS, if not, use it as is
+        try:
+            gs = copy.deepcopy(model)
+            model = gs.best_estimator_
+        except:
+            gs = copy.deepcopy(model)
         print('    Using Multi-Output version of %s' %model)
     ##############   These are settings for making sure predictions as same type as target ################
     ### Make sure you set this flag as False so that when ensembling is completed, this flag is True ##
@@ -2621,6 +2637,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print('Training model second time is Erroring: Check if Input is correct...')
                 return
     else:
+        ### This is for Multi-Label Training #########
         model.fit(X, y)
     print('     Actual Training time taken in seconds = %0.0f' %(time.time()-model_start_time))
     print('Training of models completed. Now starting predictions on test data...')
@@ -4911,13 +4928,12 @@ def plot_regression_scatters(df, df2, num_vars, kind='scatter'):
     """
     Great way to plot continuous variables fast. Just sent them in and it will take care of the rest!
     """
+    figsize = (10, 10)
+    colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk')
     num_vars_len = len(num_vars)
     col = 2
     start_time = time.time()
-    if num_vars_len % 2 == 0:
-        row = num_vars_len//col
-    else:
-        row = num_vars_len//col + 1
+    row = len(num_vars)
     fig, ax = plt.subplots(row, col)
     if col < 2:
         fig.set_size_inches(min(15,8),row*5)
@@ -4932,34 +4948,52 @@ def plot_regression_scatters(df, df2, num_vars, kind='scatter'):
     if row == 1:
         ax = ax.reshape(-1,1).T
     for k in np.arange(row):
+        row_color = next(colors)
         for l in np.arange(col):
-            if counter < len(num_vars):
-                try:
-                    if col==1:
-                        x = df[:,counter]
-                        y = df2[:,counter]
+            try:
+                if col==1:
+                    if row == 1:
+                        x = df[:]
+                        y = df2[:]
+                    else:
+                        x = df[:,k]
+                        y = df2[:,k]
+                    ax1 = ax[k][l]
+                    lineStart = x.min()
+                    lineEnd = x.max()
+                    ax1.scatter(x, y, color=row_color)
+                    ax1.plot([lineStart, lineEnd], [lineStart, lineEnd], 'k-', color=row_color)
+                    ax1.set_xlabel('Actuals')
+                    ax1.set_ylabel('Predicted')
+                    ax1.set_title('Predicted vs Actuals Plot for Target = %s' %num_vars[k])
+                else:
+                    if row == 1:
+                        x = df[:]
+                        y = df2[:]
+                    else:
+                        x = df[:,k]
+                        y = df2[:,k]
+                    lineStart = x.min()
+                    lineEnd = x.max()
+                    if l == 0:
                         ax1 = ax[k][l]
-                        ax1.scatter(x, y)
+                        ax1.scatter(x, y,  color = row_color)
+                        ax1.plot([lineStart, lineEnd], [lineStart, lineEnd], 'k-', color = row_color)
                         ax1.set_xlabel('Actuals')
                         ax1.set_ylabel('Predicted')
-                        ax1.set_title('Target = %s' %num_vars[counter])
-                        counter += 1
+                        ax1.set_title('Predicted vs Actuals Plot for Target = %s' %num_vars[k])
                     else:
-                        x = df[:,counter]
-                        y = df2[:,counter]
                         ax1 = ax[k][l]
-                        ax1.scatter(x, y)
-                        ax1.set_xlabel('Actuals')
-                        ax1.set_ylabel('Predicted')
-                        ax1.set_title('Target = %s' %num_vars[counter])
-                        counter += 1
-                except:
-                    if col == 1:
-                        counter += 1
-                    else:
-                        ax[k][l].set_title('No plot as %s is not numeric' %num_vars[counter])
-                        counter += 1
-    print('Plot completed in %0.3f seconds' %(time.time()-start_time))
+                        ax1.hist((x-y), density=True,color = row_color)
+                        ax1.axvline(color='k')
+                        ax1.set_title('Residuals Plot for Target = %s' %num_vars[k])
+            except:
+                if col == 1:
+                    counter += 1
+                else:
+                    ax[k][l].set_title('No Predicted vs Actuals Plot for plot as %s is not numeric' %num_vars[k])
+                    counter += 1
+    print('Regression Plots completed in %0.3f seconds' %(time.time()-start_time))
 ################################################################################
 def print_regression_model_stats(actuals, predicted, targets=''):
     """
@@ -4968,8 +5002,6 @@ def print_regression_model_stats(actuals, predicted, targets=''):
     in the input as "title" and it will print that title on the MAE and RMSE as a
     chart for that model. Returns MAE, MAE_as_percentage, and RMSE_as_percentage
     """
-    figsize = (10, 10)
-    colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk')
     if isinstance(actuals,pd.Series) or isinstance(actuals,pd.DataFrame):
         actuals = actuals.values
     if isinstance(predicted,pd.Series) or isinstance(predicted,pd.DataFrame):
@@ -5005,13 +5037,7 @@ def print_regression_model_stats(actuals, predicted, targets=''):
         else:
             multi_label = True
     try:
-        if multi_label:
-            plot_regression_scatters(actuals,predicted,cols)
-        else:
-            ### If Single Label, just print one chart
-            dfplot = pd.DataFrame([actuals,predicted]).T
-            dfplot.columns = ['Actuals','Predicted']
-            plot_dfplot(dfplot,cols)
+        plot_regression_scatters(actuals,predicted,cols)
     except:
         print('Could not draw regression plot but continuing...')
     if multi_label:
@@ -5071,7 +5097,6 @@ def print_mape(y, y_hat):
 ################################################################################
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from itertools import cycle
-import pdb
 import matplotlib.pyplot as plt
 def plot_dfplot(dfplot,plot_title=""):
     figsize = (10, 10)

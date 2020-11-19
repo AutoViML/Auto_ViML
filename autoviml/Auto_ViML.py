@@ -2156,10 +2156,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             elif model_label == 'Multi_Label' and modeltype == 'Binary_Classification':
                 print('    No GridSearch or RandomizedSearch for %s %s since it takes too long' %(
                                     model_label,modeltype))
-        if model_name.lower() == 'catboost':
-            print('Best Model selected and its parameters are:\n    %s' %model.get_all_params())
-        else:
-            print('Best Model selected and its attributes are:\n    %s' %model)
+        #if model_name.lower() == 'catboost':
+        #    print('Best Model selected and its parameters are:\n    %s' %model.get_all_params())
+        #else:
+        #    print('Best Model selected and its attributes are:\n    %s' %model)
     else:
         ######## If this is a multi-label model, try to see if it went throgh GS or RS, if not, use it as is
         try:
@@ -2244,15 +2244,17 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 rmsle_calculated_m = print_classification_model_stats(y_cv, y_probas, m_thresh)
             else:
                 ###### Use a nice classification matrix printing module here #########
-                print('    Balanced Accuracy Score = %0.1f%%' %(rmsle_calculated_m*100))
+                y_probas = model.predict_proba(X_cv)
+                print_classification_metrics(y_cv, y_probas)
                 print(classification_report(y_cv,y_pred))
                 print(confusion_matrix(y_cv, y_pred))
     else:
+        y_probas = model.predict_proba(X_cv)
         #### This is for Multi-Label Regression ################################
         if modeltype == 'Regression':
             print_regression_model_stats(y_cv, y_pred,target)
         else:
-            print('Multi-Label Classification Report:')
+            print_classification_metrics(y_cv, y_probas)
             print(classification_report(y_cv, y_pred ))
     ######      SET BEST PARAMETERS HERE ######
     ### Find what the order of best params are and set the same as the original model ###
@@ -2354,7 +2356,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     print('    No ROC AUC score for multi-class problems')
         if not Stacking_Flag and performed_ensembling:
             if modeltype == 'Regression':
-                rmsle_calculated_f = rmse(y_cv, y_pred)
+                rmsle_calculated_f = rmse(y_cv, ensem_pred)
                 print('After multiple models, Ensemble Model Results:')
                 print('    RMSE Score = %0.5f' %(rmsle_calculated_f,))
                 print('#############################################################################')
@@ -2365,13 +2367,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     print('Single Model is better than Ensembling Models for this data set.')
                     error_rate.append(rmsle_calculated_m)
             else:
-                rmsle_calculated_f = balanced_accuracy_score(y_cv,y_pred)
+                rmsle_calculated_f = balanced_accuracy_score(y_cv,ensem_pred)
                 print('After multiple models, Ensemble Model Results:')
                 rare_pct = y_cv[y_cv==rare_class].shape[0]/y_cv.shape[0]
-                print('    Balanced Accuracy Score = %0.3f%%' %(
-                        rmsle_calculated_f*100))
-                print(classification_report(y_cv,y_pred))
-                print(confusion_matrix(y_cv,y_pred))
+                #print('    Balanced Accuracy Score = %0.3f%%' %(
+                #        rmsle_calculated_f*100))
+                print_classification_metrics(y_cv, ensem_pred, False)
+                print(classification_report(y_cv,ensem_pred))
+                print(confusion_matrix(y_cv,ensem_pred))
                 print('#############################################################################')
                 if rmsle_calculated_f > rmsle_calculated_m:
                     print('Ensembling Models is better than Single Model for this data set.')
@@ -2823,14 +2826,21 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     except:
                         print('Error: Sample submission file is incorrect. Please check it. continuing...')
             else:
-            #########    T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
+                #########    T R A N S F O R M E R   L O G I C  B E G I N S    H E R E ! #####################
                 ### if there is a transformer, then you must convert the predicted classes to orig classes
                 classes = label_dict[each_target]['classes']
                 dic = label_dict[each_target]['dictionary']
                 transformer = label_dict[each_target]['transformer']
                 class_nums = label_dict[each_target]['class_nums']
                 ##### If there is a transformer, you must convert predictions to original classes
-                testm[each_target+'_predictions'] = pd.Series(y_pred).map(transformer).values
+                ### In some cases such as CatBoost, the output for multi-class is 2-D with shape (,1)
+                try:
+                    assert y_pred.shape[1]
+                    y_pred = y_pred.ravel()
+                except:
+                    pass
+                ###### Once you get the above right, you can do the rest easy ######
+                testm[each_target+'_predictions'] = pd.Series(y_pred).map(transformer).values                
                 for each_class in classes:
                     if isinstance(each_class, str):
                         proba_col = each_target+'_proba_'+each_class
@@ -3681,6 +3691,78 @@ def marthas_columns(data,verbose=0):
                     ))
             print('--------------------------------------------------------------------')
 ##################################################################################
+from sklearn import metrics
+import matplotlib.pyplot as plt
+import copy
+def print_classification_metrics(y_test, y_probs, proba_flag=True):
+    """
+    #######  Send in the actual_values and prediction_probabilities for binary classes
+    This will return back metrics and print them all in a neat format  
+    """
+    y_test = copy.deepcopy(y_test)
+    multi_class_flag = False
+    if len(np.unique(y_test)) > 2:
+        multi_class_flag = True
+        print('Multi Class Model Metrics Report')
+        print('#####################################################')
+    else:
+        print('Binary Class Model Metrics Report')
+        print('#####################################################')
+    #### for some cases, you won't get proba, so check the proba_flag
+    if proba_flag:
+        y_preds = y_probs.argmax(axis=1)
+    else:
+        y_preds = copy.deepcopy(y_probs)
+    if not multi_class_flag:
+        # Calculate comparison metrics for Binary classification results.    
+        accuracy = metrics.accuracy_score(y_test, y_preds)
+        balanced_accuracy = metrics.balanced_accuracy_score(y_test, y_preds)
+        precision = metrics.precision_score(y_test, y_preds)
+        f1_score = metrics.f1_score(y_test, y_preds)
+        recall = metrics.recall_score(y_test, y_preds)
+        print('    Accuracy          = %0.1f%%' %(accuracy*100))
+        print('    Balanced Accuracy = %0.1f%%' %(balanced_accuracy*100))
+        print('    Precision         = %0.1f%%' %(precision*100))
+        if proba_flag:
+            average_precision = metrics.average_precision_score(y_test, y_probs[:,1])
+            print('    Average Precision = %0.1f%%' %(average_precision*100))
+        else:
+            average_precision = 0
+        print('    f1_score          = %0.1f%%' %(f1_score*100))
+        print('    Recall            = %0.1f%%' %(recall*100))
+        if proba_flag:
+            fpr, tpr, threshold = metrics.roc_curve(y_test, y_probs[:,1])
+            roc_auc = metrics.auc(fpr, tpr)
+            print('    ROC AUC           = %0.1f%%' %(roc_auc*100))
+        else:
+            roc_auc = 0
+        print('#####################################################')
+        return [accuracy, balanced_accuracy, precision, average_precision, f1_score, recall, roc_auc]
+    else:
+        # Calculate comparison metrics for Multi-Class classification results.    
+        accuracy = metrics.accuracy_score(y_test, y_preds)
+        balanced_accuracy = metrics.balanced_accuracy_score(y_test, y_preds)
+        precision = metrics.precision_score(y_test, y_preds, average = None)
+        average_precision = metrics.precision_score(y_test, y_preds,average='macro')
+        f1_score = metrics.f1_score(y_test, y_preds, average = None)
+        recall = metrics.recall_score(y_test, y_preds, average = None)
+        print('    Accuracy          = %0.1f%%' %(accuracy*100))
+        print('    Balanced Accuracy = %0.1f%%' %(balanced_accuracy*100))
+        print('    Average Precision (macro) = %0.1f%%' %(average_precision*100))
+        ### these are basically one for each class #####
+        print('    Precisions by class:')
+        for precisions in precision:
+            print('    %0.1f%%  ' %(precisions*100),end="")
+        print('\n    F1 Scores by class:')
+        for f1_scores in f1_score:
+            print('    %0.1f%%  ' %(f1_scores*100),end="")
+        print('\n    Recall Scores by class:')
+        for recalls in recall:
+            print('    %0.1f%%  ' %(recalls*100), end="")
+        # Return list of metrics to be added to a Dataframe to compare models.
+        print('\n#####################################################')
+        return [accuracy, balanced_accuracy, precision, average_precision, f1_score, recall, 0]
+##################################################################################################
 def left_subtract(l1,l2):
     lst = []
     for i in l1:
@@ -5216,7 +5298,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.669'
+version_number = '0.1.671'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -5227,6 +5309,6 @@ print("""Imported Auto_ViML version: %s. Call using:
                             verbose=1)
             """ %version_number)
 print("To remove previous versions, perform 'pip uninstall autoviml'")
-print('    NEW! Auto_ViML can solve multi-label, multi-output problems!')
+print('    The new Auto_ViML can solve multi-label, multi-output problems - check your version is > 0.1.669')
 print('To get the latest version, perform "pip install autoviml --no-cache-dir --ignore-installed"')
 ###########################################################################################

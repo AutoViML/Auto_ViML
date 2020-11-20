@@ -2660,7 +2660,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         print('Since there is no Test file, we will do a final prediction on Train itself as return it as testm dataframe')
         orig_index = orig_train.index
         trainm = train.reindex(index = orig_index)
-        X_test = pd.DataFrame(SS.transform(trainm[important_features]),
+        if not perform_scaling_flag:
+            X_test = trainm[important_features]
+        else:
+            X_test = pd.DataFrame(SS.transform(trainm[important_features]),
                     index=orig_index, columns=important_features)
         testm = orig_train[id_cols].join(X_test)
     ############  This is where we start predictions on test data if available #############
@@ -5128,12 +5131,12 @@ def print_regression_model_stats(actuals, predicted, targets=''):
             actuals_x = actuals[:,i]
             predicted_x = predicted[:,i]
             print('Regression Metrics for Target=%s' %cols[i])
-            mae, mae_asp, rmse_asp = print_reg_metrics(actuals_x, predicted_x)
+            mae, mae_asp, rmse_asp = print_regression_metrics(actuals_x, predicted_x)
     else:
-        mae, mae_asp, rmse_asp = print_reg_metrics(actuals, predicted)
+        mae, mae_asp, rmse_asp = print_regression_metrics(actuals, predicted)
     return mae, mae_asp, rmse_asp
 ################################################################################
-def print_reg_metrics(actuals, predicted):
+def print_regression_metrics(actuals, predicted):
     mae = mean_absolute_error(actuals, predicted)
     mae_asp = (mean_absolute_error(actuals, predicted)/actuals.std())*100
     rmse_asp = (np.sqrt(mean_squared_error(actuals,predicted))/actuals.std())*100

@@ -1837,7 +1837,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 else:
                     ##### This is for Multi-Label: Both Binary and Multi-class Classification ######################
                     xgbm = OneVsRestClassifier(estimator=xgbm)
-        print('Using Mult-Label %s model' %(str(xgbm).split("(")[0]))
+        print('Using Multi-Label %s model' %(str(xgbm).split("(")[0]))
     ######   Now do RandomizedSearchCV  using # Early-stopping ################
     if modeltype == 'Regression':
         if model_label == 'Single_Label':
@@ -2263,11 +2263,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print(classification_report(y_cv,y_pred))
                 print(confusion_matrix(y_cv, y_pred))
     else:
-        y_probas = model.predict_proba(X_cv)
         if modeltype == 'Regression':
             #### This is for Multi-Label Regression ################################
             print_regression_model_stats(y_cv, y_pred,target)
         else:
+            y_probas = model.predict_proba(X_cv)
             #### This is for Multi-Label Classification ################################
             print_classification_metrics(y_cv, y_pred, False)
             print(classification_report(y_cv, y_pred ))

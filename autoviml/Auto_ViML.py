@@ -645,11 +645,17 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ############    THIS IS WHERE OTHER DEFAULT PARAMS ARE SET ###############
         c_params = dict()
         r_params = dict()
+        if orig_train[each_target].isnull().sum() > 0:
+            ### If there are Null values in target columns, drop those rows that contain nulls ##
+            train = train.dropna(subset=[each_target],axis=0)
+            print('Dropping rows in target column: %s that contain null values...' %each_target)
         if modeltype == 'Regression':
             if len(target) == 1:
+                ### This is only for Single_Label Problems ###############
                 scv = RepeatedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=seed)
             else:
-                scv = n_splits ##### Stratified K Fold does not work in Multi-Label problems. Gives error.
+                ##### Stratified K Fold does not work in Multi-Label problems. Gives error.
+                scv = n_splits
             eval_metric = 'rmse'
             objective = 'reg:squarederror'
             model_class = 'Regression'
@@ -950,15 +956,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ####################################################################################
         if type(orig_test) != str:
             if start_test[copy_preds].isnull().sum().sum() > 0:
-                print('Test data still has some missing values. Fix it. Exiting...')
+                print('    Test data still has some missing values. Fix it. Exiting...')
                 return
             else:
-                print('Test data has no missing values. Continuing...')
+                print('    Test data has no missing values. Continuing...')
     else:
         print('    Could not find any variables in your data set. Please check your dataset and try again')
         return
     ###########################################################################################
-    print('Completed Label Encoding and Filling of Missing Values for Train and Test Data')
+    print('    Completed Label Encoding and Filling of Missing Values for Train and Test Data')
     ### This is a minor test to make sure that Boolean vars are Integers if they are Numeric!
     if len(num_bool_vars) > 0:
         ### Just make sure that numeric Boolean vars are set as Integer type -> otherwise CatBoost will blow up
@@ -1188,7 +1194,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ###   To avoid Model Leakage, we will now split the Data into Train and CV so that Held Out Data
     ##     is Pure and is unadulterated by learning from its own Target. This is known as Data Leakage.
     ###################################################################################################
-    print('Performing limited feature engineering for binning, add_poly and KMeans_Featurizer flags  ...')
+    print('    Performing limited feature engineering for binning, add_poly and KMeans_Featurizer flags  ...')
     ################     I  M  P  O  R  T  A  N  T  ##################################################
     ### The reason we don't use train_test_split is because we want only a partial train entropy binned
     ### If we use the whole of Train for entropy binning then there will be data leakage and our
@@ -1325,6 +1331,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     print('  Features in Train data set = %d' %X_train.shape[1])
     print('    Rows in held-out data set = %d' %X_cv.shape[0])
     data_dim = X_train.shape[0]*X_train.shape[1]*len(target)
+    ###### You need to change the string used in hyper-params based on model selected ####
+    estimator_string = 'estimator__'
+    if hyper_param is not None:
+        if hyper_param.lower() == 'chain':
+            estimator_string = 'base_estimator__'
     ###   Setting up the Estimators for Single Label and Multi Label targets only
     if modeltype == 'Regression':
         metrics_list = ['neg_mean_absolute_error' ,'neg_mean_squared_error',
@@ -1351,11 +1362,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             scoring_parameter = 'rmse'
             rmse_scorer = make_scorer(gini_rmse, greater_is_better=False)
             scorer = rmse_scorer
-        ###### You need to change the string used in hyper-params based on model selected ####
-        estimator_string = 'estimator__'
-        if hyper_param is not None:
-            if hyper_param.lower() == 'chain':
-                estimator_string = 'base_estimator__'
         ####      HYPER PARAMETERS FOR REGRESSION TUNING ARE SETUP HERE      ###
         if hyper_param == 'GS':
             r_params = {
@@ -1383,6 +1389,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             estimator_string+'n_neighbors': [1,3,5,7,11]
                                     },
                             "Forests": {
+                            #### No estimator string for Random Forests since it is already Multi-Label
                             'n_estimators':  np.linspace(100, max_estims, n_steps, dtype = "int"),
                             },
                             "XGBoost": {
@@ -1473,23 +1480,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             'random_state':seed,'min_samples_leaf':2,
                             'max_features': "sqrt"
                             })
-        #### DON'T MODIFY THE NEXT LINE!!! IT MAY APPEAR STUPID BUT IT IS NEEDED TO GET MODELS ABOVE
-        ###  INTO THIS MULTI_LABEL FORMAT. SO LEAVE IT ALONE - AS-IS !!!
-        if model_label != 'Single_Label':
-            #### For Multi-Label Problems = you have to change the model to a multi-output model
-            if chain_flag:
-                    ### Regressor Chain a stacking algorithm - it predicts one target and
-                    ###  uses it to predict other targets in a daisy chain. Neat!
-                    xgbm = RegressorChain(xgbm, order= np.arange(len(target)).tolist(),
-                                random_state=99)
-            else:
-                ### This seems to work best for XGBRegressor and CatBoostRegressor only ####
-                xgbm = MultiOutputRegressor(xgbm, n_jobs=n_jobs)
-                print('Using MultiOutput Regressor model')
-            if not Boosting_Flag:
-                ### RandomForest is a special model: we can use the model as is: RFR is Multi Output! ###
-                if not chain_flag:
-                    print('    Using %s model for multi-output processing... ' %model_name)
     else:
         #### This is for Binary Classification ##############################
         classes = label_dict[each_target]['classes']
@@ -1526,7 +1516,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 #"criterion":['gini','entropy'],
                                         }
             c_params["Multi_Label"] = {
-                        'estimator__C': [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3]
+                        estimator_string+'C': [1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3]
                         }
         else:
             import scipy as sp
@@ -1541,14 +1531,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             }
             if Imbalanced_Flag:
                 c_params['Linear'] = {
-                                'C': sp.stats.uniform(scale=100),
+                                'C': sp.stats.uniform.rvs(loc=0.01,scale=10,size=1000),
                             'solver' : solvers,
                             'penalty' : penalties,
                             #'class_weight':[None, 'balanced'],
                                 }
             else:
                 c_params['Linear'] = {
-                                'C': sp.stats.uniform(scale=100),
+                                'C': sp.stats.uniform.rvs(loc=0.01,scale=10,size=1000),
                                 'penalty' : penalties,
                                 'solver' : solvers,
                                 }
@@ -1562,7 +1552,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                                 #'class_weight':[None,'balanced']
                                         }
             c_params["Multi_Label"] = {
-                        'estimator__C': sp.stats.uniform(scale=1)
+                        ### this is the best params for logistic regression
+                        estimator_string+'C': sp.stats.uniform.rvs(loc=0.01,scale=10,size=1000)
                         }
         # Create regularization hyperparameter distribution using uniform distribution
         if len(classes) == 2:
@@ -1634,13 +1625,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             **{
                             'bootstrap': bootstrap, 'n_jobs': -1, 'warm_start': warm_start,
                             'random_state':seed,'min_samples_leaf':2,'oob_score':True,
-                            'max_features': "sqrt"
+                            'max_features': "sqrt", 'n_estimators': 200
                             })
-            #### NEXT LINE IS NEEDED TO GET MODELS ABOVE INTO A WRAPPER
-            ###  WRAPPER IS THIS MULTI_LABEL FORMAT. SO LEAVE IT ALONE - AS-IS !!!
-            if model_label != 'Single_Label':
-                ##### This is for Multi-Label but Binary Classification ######################
-                xgbm = OneVsRestClassifier(estimator=xgbm)
         else:
             #####   This is for MULTI Classification ##########################
             objective = 'multi:softmax'
@@ -1767,8 +1753,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             #'class_weight':[None,'balanced']
                                         }
                 c_params["Multi_Label"] = {
-                            'estimator__C': sp.stats.uniform(scale=1)
-                            }
+                            ### this is the best params for logistic regression
+                            estimator_string+'C': sp.stats.uniform.rvs(loc=0.01,scale=10,size=1000)
+                        }
             ###################################################################
             if Boosting_Flag:
                 # Create regularization hyperparameter distribution using uniform distribution
@@ -1778,52 +1765,79 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             loss_function=loss_function, eval_metric=catboost_scoring,
                             subsample=subsample,bootstrap_type='Bernoulli',
                             metric_period = 500,
-                           early_stopping_rounds=250,boosting_type='Plain')
+                           early_stopping_rounds=25,boosting_type='Plain')
                 else:
-                    xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
-                                colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
-                        max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
-                        n_jobs=-1, nthread=-1, objective=objective,
-                        random_state=1, reg_alpha=0.5, reg_lambda=0.5,
-                        num_class= len(classes),
-                        seed=1)
+                    #xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
+                    #            colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
+                    #    max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
+                    #    n_jobs=-1, nthread=-1, objective=objective,
+                    #    random_state=1, reg_alpha=0.5, reg_lambda=0.5,
+                    #    num_class= len(classes),
+                    #    seed=1)
                     #xgbm.set_params(**param)
-                    xgbm = OneVsRestClassifier(estimator=XGBClassifier(booster='gbtree',
-                                                n_estimators=200,random_state=99,nthread=-1,
-                                                n_jobs=-1,)
+                    if model_label == 'Single_Label':
+                        #### Found XGB too slow for multi-class - hence better to use One Vs Rest against it
+                        xgbm = OneVsRestClassifier(estimator=XGBClassifier(booster='gbtree',
+                                                n_estimators=200,random_state=99,nthread=n_jobs,
+                                                n_jobs=n_jobs)
                                                     )
+                    else:
+                        ### This will be automatically wrapped around by a MultiOutputClassifier later ###
+                        XGBClassifier(booster='gbtree',
+                                                n_estimators=200,random_state=99,nthread=n_jobs,
+                                                n_jobs=n_jobs)
                     if hyper_param == 'GS':
                         c_params = {
                                     "XGBoost": {
-                                #'estimator__learning_rate': np.linspace(0.1,0.5,5),
-                                #'estimator__gamma': np.linspace(0, 32,7).astype(int),
-                                #"estimator__n_estimators": np.linspace(100, max_estims, 3).astype(int),
                                         }
                                     }
                     else:
                         c_params = {
                                     "XGBoost": {
-                                    #'estimator__learning_rate': sp.stats.uniform(scale=1),
-                                    #'estimator__gamma': sp.stats.randint(0, 32),
-                                    #'estimator__n_estimators': sp.stats.randint(100,max_estims),
                                     }
                                 }
             elif Boosting_Flag is None:
                 #### I have set the Verbose to be False here since it produces too much output ###
                 xgbm = LogisticRegression(random_state=seed,verbose=False,n_jobs=-1,solver=solver,
-                                            fit_intercept=True, tol=tolerance, multi_class='auto',
-                                          max_iter=max_iter, warm_start=False,
+                                            fit_intercept=True, tol=tolerance, multi_class='ovr',
+                                          max_iter=10000, warm_start=False,
                                           )
             else:
                 xgbm = RandomForestClassifier(bootstrap=bootstrap, oob_score=True,warm_start=warm_start,
-                                        n_estimators=100,max_depth=3,
+                                        n_estimators=200,max_depth=None,
                                         min_samples_leaf=2,max_features='auto',
                                       random_state=seed,n_jobs=-1)
-            #### NEXT LINE IS NEEDED TO GET MODELS ABOVE INTO A WRAPPER
-            ###  WRAPPER IS THIS MULTI_LABEL FORMAT. SO LEAVE IT ALONE - AS-IS !!!
-            if model_label != 'Single_Label':
-                ##### This is for Multi-Label and Multi-class Classification ######################
-                xgbm = OneVsRestClassifier(estimator=xgbm)
+    #### NEXT LINE IS NEEDED TO GET MODELS ABOVE INTO A WRAPPER
+    ###  WRAPPER IS THIS MULTI_LABEL FORMAT. SO LEAVE IT ALONE - AS-IS !!!
+    ####### Now we add another wrapper for Multi-Output Problems ##############
+    #### DON'T MODIFY THE NEXT LINE!!! IT MAY APPEAR STUPID BUT IT IS NEEDED TO GET MODELS ABOVE
+    ###  INTO THIS MULTI_LABEL FORMAT. SO LEAVE IT ALONE - AS-IS !!!
+    if model_label != 'Single_Label':
+        #### For Multi-Label Problems = you have to change the model to a multi-output model
+        if chain_flag:
+            if modeltype == 'Regression':
+                ### Regressor Chain a stacking algorithm - it predicts one target and
+                ###  uses it to predict other targets in a daisy chain. Neat!
+                xgbm = RegressorChain(xgbm, order= np.arange(len(target)).tolist(),
+                            random_state=99)
+            else:
+                xgbm = ClassifierChain(xgbm, order= np.arange(len(target)).tolist(),
+                            random_state=99)
+        else:
+            if modeltype == 'Regression':
+                ### This seems to work best for XGBRegressor and CatBoostRegressor only ####
+                xgbm = MultiOutputRegressor(xgbm, n_jobs=n_jobs)
+            else:
+                if Boosting_Flag is None:
+                    ##### This is for Multi-Label: Both Binary and Multi-class Classification ######################
+                    xgbm = OneVsRestClassifier(estimator=xgbm)
+                elif not Boosting_Flag:
+                    ### RandomForest is a special model: we can use the model as is: RFR is Multi Output! ###
+                        print('    Using %s model for multi-output processing... ' %model_name)
+                else:
+                    ##### This is for Multi-Label: Both Binary and Multi-class Classification ######################
+                    xgbm = OneVsRestClassifier(estimator=xgbm)
+        print('Using Mult-Label %s model' %(str(xgbm).split("(")[0]))
     ######   Now do RandomizedSearchCV  using # Early-stopping ################
     if modeltype == 'Regression':
         if model_label == 'Single_Label':
@@ -2250,11 +2264,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 print(confusion_matrix(y_cv, y_pred))
     else:
         y_probas = model.predict_proba(X_cv)
-        #### This is for Multi-Label Regression ################################
         if modeltype == 'Regression':
+            #### This is for Multi-Label Regression ################################
             print_regression_model_stats(y_cv, y_pred,target)
         else:
-            print_classification_metrics(y_cv, y_probas)
+            #### This is for Multi-Label Classification ################################
+            print_classification_metrics(y_cv, y_pred, False)
             print(classification_report(y_cv, y_pred ))
     ######      SET BEST PARAMETERS HERE ######
     ### Find what the order of best params are and set the same as the original model ###
@@ -2419,7 +2434,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             else:
                 zipped = zip(zipped,y_pred)
                 multilabel_count += 1
-        print('Training model on complete Train data and Predicting using give Test Data...')
+        print('Training model on complete Train data and Predicting using given Test Data...')
     ################        I M P O R T A N T: C O M B I N I N G  D A T A ######################
     #### This is Second time: we combine train and CV into Train and Test Sets #################
     train = part_train.append(part_cv)
@@ -2843,7 +2858,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 except:
                     pass
                 ###### Once you get the above right, you can do the rest easy ######
-                testm[each_target+'_predictions'] = pd.Series(y_pred).map(transformer).values                
+                testm[each_target+'_predictions'] = pd.Series(y_pred).map(transformer).values
                 for each_class in classes:
                     if isinstance(each_class, str):
                         proba_col = each_target+'_proba_'+each_class
@@ -3697,13 +3712,21 @@ def marthas_columns(data,verbose=0):
 from sklearn import metrics
 import matplotlib.pyplot as plt
 import copy
+import pdb
 def print_classification_metrics(y_test, y_probs, proba_flag=True):
     """
     #######  Send in the actual_values and prediction_probabilities for binary classes
-    This will return back metrics and print them all in a neat format  
+    This will return back metrics and print them all in a neat format
     """
     y_test = copy.deepcopy(y_test)
+    multi_label_flag = False
     multi_class_flag = False
+    try:
+        if y_test.shape[1] > 0:
+            multi_label_flag = True
+    except:
+        pass
+    ######## This is where you start printing metrics ###############
     if len(np.unique(y_test)) > 2:
         multi_class_flag = True
         print('Multi Class Model Metrics Report')
@@ -3713,11 +3736,14 @@ def print_classification_metrics(y_test, y_probs, proba_flag=True):
         print('#####################################################')
     #### for some cases, you won't get proba, so check the proba_flag
     if proba_flag:
-        y_preds = y_probs.argmax(axis=1)
+        if multi_label_flag:
+            y_preds = (y_probs>0.5).astype(int)
+        else:
+            y_preds = y_probs.argmax(axis=1)
     else:
         y_preds = copy.deepcopy(y_probs)
-    if not multi_class_flag:
-        # Calculate comparison metrics for Binary classification results.    
+    if not multi_class_flag  and not multi_label_flag:
+        # Calculate comparison metrics for Binary classification results.
         accuracy = metrics.accuracy_score(y_test, y_preds)
         balanced_accuracy = metrics.balanced_accuracy_score(y_test, y_preds)
         precision = metrics.precision_score(y_test, y_preds)
@@ -3727,12 +3753,12 @@ def print_classification_metrics(y_test, y_probs, proba_flag=True):
         print('    Balanced Accuracy = %0.1f%%' %(balanced_accuracy*100))
         print('    Precision         = %0.1f%%' %(precision*100))
         if proba_flag:
-            average_precision = metrics.average_precision_score(y_test, y_probs[:,1])
-            print('    Average Precision = %0.1f%%' %(average_precision*100))
+            average_precision = np.mean(metrics.precision_score(y_test, y_preds, average=None))
         else:
-            average_precision = 0
-        print('    f1_score          = %0.1f%%' %(f1_score*100))
+            average_precision = metrics.precision_score(y_test, y_preds, average='macro')
+        print('    Average Precision = %0.1f%%' %(average_precision*100))
         print('    Recall            = %0.1f%%' %(recall*100))
+        print('    F1 Score          = %0.1f%%' %(f1_score*100))
         if proba_flag:
             fpr, tpr, threshold = metrics.roc_curve(y_test, y_probs[:,1])
             roc_auc = metrics.auc(fpr, tpr)
@@ -3742,29 +3768,38 @@ def print_classification_metrics(y_test, y_probs, proba_flag=True):
         print('#####################################################')
         return [accuracy, balanced_accuracy, precision, average_precision, f1_score, recall, roc_auc]
     else:
-        # Calculate comparison metrics for Multi-Class classification results.    
-        accuracy = metrics.accuracy_score(y_test, y_preds)
-        balanced_accuracy = metrics.balanced_accuracy_score(y_test, y_preds)
-        precision = metrics.precision_score(y_test, y_preds, average = None)
-        average_precision = metrics.precision_score(y_test, y_preds,average='macro')
-        f1_score = metrics.f1_score(y_test, y_preds, average = None)
-        recall = metrics.recall_score(y_test, y_preds, average = None)
+        # Calculate comparison metrics for Multi-Class classification results.
+        accuracy = np.mean((y_test==y_preds))
+        if multi_label_flag:
+            balanced_accuracy = np.mean(metrics.recall_score(y_test, y_preds, average=None))
+            precision = metrics.precision_score(y_test, y_preds, average=None)
+            average_precision = metrics.precision_score(y_test, y_preds, average='macro')
+            f1_score = metrics.f1_score(y_test, y_preds, average=None)
+            recall = metrics.recall_score(y_test, y_preds, average=None)
+        else:
+            balanced_accuracy = metrics.balanced_accuracy_score(y_test, y_preds)
+            precision = metrics.precision_score(y_test, y_preds, average = None)
+            average_precision = metrics.precision_score(y_test, y_preds,average='macro')
+            f1_score = metrics.f1_score(y_test, y_preds, average = None)
+            recall = metrics.recall_score(y_test, y_preds, average = None)
         print('    Accuracy          = %0.1f%%' %(accuracy*100))
-        print('    Balanced Accuracy = %0.1f%%' %(balanced_accuracy*100))
+        print('    Balanced Accuracy (average recall) = %0.1f%%' %(balanced_accuracy*100))
         print('    Average Precision (macro) = %0.1f%%' %(average_precision*100))
         ### these are basically one for each class #####
         print('    Precisions by class:')
         for precisions in precision:
             print('    %0.1f%%  ' %(precisions*100),end="")
-        print('\n    F1 Scores by class:')
-        for f1_scores in f1_score:
-            print('    %0.1f%%  ' %(f1_scores*100),end="")
         print('\n    Recall Scores by class:')
         for recalls in recall:
             print('    %0.1f%%  ' %(recalls*100), end="")
+        print('\n    F1 Scores by class:')
+        for f1_scores in f1_score:
+            print('    %0.1f%%  ' %(f1_scores*100),end="")
         # Return list of metrics to be added to a Dataframe to compare models.
         print('\n#####################################################')
         return [accuracy, balanced_accuracy, precision, average_precision, f1_score, recall, 0]
+##################################################################################################
+
 ##################################################################################################
 def left_subtract(l1,l2):
     lst = []
@@ -3810,7 +3845,7 @@ def remove_variables_using_fast_correlation(df, numvars, modeltype, target,
     ##############  YOU MUST INCLUDE THE ABOVE MESSAGE IF YOU COPY THIS CODE IN YOUR LIBRARY #####
     """
     df = copy.deepcopy(df)
-    print('Searching for and removing highly correlated variables among (%d) numeric variables' %len(numvars))
+    print('Removing highly correlated variables using SULA method among (%d) numeric variables' %len(numvars))
     correlation_dataframe = df[numvars].corr()
     a = correlation_dataframe.values
     col_index = correlation_dataframe.columns.tolist()
@@ -3925,9 +3960,12 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         lm = Lasso(alpha=0.001, max_iter=2000,
                  fit_intercept=True, normalize=False)
     else:
-        lm = LogisticRegression(C=0.01,fit_intercept=True,tol=tolerance,
-                            max_iter=2000,solver='liblinear',n_jobs=-1,
-                          penalty='l2',dual=False, random_state=0)
+        if modeltype == 'Binary_Classification':
+            lm = LogisticRegression(C=0.01,fit_intercept=True,tol=tolerance,
+                                max_iter=2000,solver='liblinear',n_jobs=-1,
+                              penalty='l2',dual=False, random_state=0)
+        else:
+            lm = LogisticRegression(multi_class='ovr', max_iter=10000) ## logistic seems best among all
     predictors = copy.deepcopy(numvars)
     #### number of original features in data set ####
     n_orig_features = len(predictors)
@@ -3983,9 +4021,12 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         lm = Lasso(alpha=0.001, max_iter=max_iter,
                  fit_intercept=True, normalize=False)
     else:
-        lm = LogisticRegression(C=0.01,fit_intercept=True, tol=tolerance,
+        if modeltype == 'Binary_Classification':
+            lm = LogisticRegression(C=0.01,fit_intercept=True, tol=tolerance,
                             max_iter=max_iter,solver='liblinear',n_jobs=-1,
                           penalty='l2',dual=False, random_state=0)
+        else:
+            lm = LogisticRegression(multi_class='ovr', max_iter=10000) ## logistic seems best among all
     ########### Here starts the conversion of X variables into Text feature variable names #####################
     XP1 = pd.DataFrame(XP,index=orig_data_index, columns=xnames) ## XP1 has all the Xvars:incl orig+poly+intxn vars
     x_vars = xnames[:n_orig_features]  ### x_vars contain x_variables such as 'x1'
@@ -4446,14 +4487,14 @@ def split_data_new(trainfile, testfile, target,sep, modeltype='Regression', rand
             cvdata = traindf.iloc[trainindex[1]]
             try:
                 if len(testdf[target].value_counts() >= 2):
-                    print('Number of Target Rows in Test Data: %d' %len(testdf[testdf[target]==1]))
+                    print('    Number of Target Rows in Test Data: %d' %len(testdf[testdf[target]==1]))
                     tsdata = testdf[:]
                 else:
-                    print('Test data has single class. Overwriting predictions on Test Target column.')
+                    print('    Test data has single class. Overwriting predictions on Test Target column.')
                     predictors = [x for x in list(traindf) if x not in target]
                     tsdata = testdf[:]
             except:
-                print('No Target column in Test data')
+                print('    No Target column in Test data')
                 testdf[target] = 0
                 tsdata = testdf[cols+[target]]
         else:
@@ -5301,7 +5342,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.671'
+version_number = '0.1.672'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

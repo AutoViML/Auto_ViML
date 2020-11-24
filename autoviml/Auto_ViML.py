@@ -133,48 +133,37 @@ def modify_array_to_integer(y_pred, negative_flag=False):
         y_pred[y_pred<0] = 0
     return y_pred
 ##########################################################################
-def analyze_problem_type(train, targ,verbose=0):
-    """
-    This module analyzes a Target Variable and finds out whether it is a
-    Regression or Classification type problem
-    """
-    if train[targ].dtype != 'int64' and train[targ].dtype != float :
-        if train[targ].dtype == object:
-                if len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 2:
-                    model_class = 'Binary_Classification'
-                else:
-                    model_class = 'Multi_Classification'
-        else:
-            if len(train[targ].unique()) == 2:
-                model_class = 'Binary_Classification'
-            elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 30:
-                    model_class = 'Multi_Classification'
-    elif train[targ].dtype == 'int64' or train[targ].dtype == float :
-        if len(train[targ].unique()) == 1:
-            print('Error in data set: Only one class in Target variable. Check input and try again')
-            sys.exit()
-        elif len(train[targ].unique()) == 2:
+def analyze_problem_type(train, target, verbose=0) :
+    target = copy.deepcopy(target)
+    cat_limit = 30 ### this determines the number of categories to name integers as classification ##
+    float_limit = 15 ### this limits the number of float variable categories for it to become cat var
+    if len(target) == 1:
+        targ = target[0]
+    else:
+        targ = target[0]
+    ####  This is where you detect what kind of problem it is #################
+    if  train[targ].dtype in ['int64', 'int32','int16']:
+        if len(train[targ].unique()) <= 2:
             model_class = 'Binary_Classification'
-        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 30:
-                model_class = 'Multi_Classification'
+        elif len(train[targ].unique()) > 2 and len(train[targ].unique()) <= cat_limit:
+            model_class = 'Multi_Classification'
         else:
             model_class = 'Regression'
-    elif train[targ].dtype == object:
-            if len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 2:
-                model_class = 'Binary_Classification'
-            else:
-                model_class = 'Multi_Classification'
-    elif train[targ].dtype == bool:
-                model_class = 'Binary_Classification'
-    elif train[targ].dtype == 'int64':
-        if len(train[targ].unique()) == 2:
+    elif  train[targ].dtype in ['float']:
+        if len(train[targ].unique()) <= 2:
             model_class = 'Binary_Classification'
-        elif len(train[targ].unique()) > 1 and len(train[targ].unique()) <= 30:
-                model_class = 'Multi_Classification'
+        elif len(train[targ].unique()) > 2 and len(train[targ].unique()) <= float_limit:
+            model_class = 'Multi_Classification'
         else:
             model_class = 'Regression'
-    else :
-        model_class = 'Regression'
+    else:
+        if len(train[targ].unique()) <= 2:
+            model_class = 'Binary_Classification'
+        else:
+            model_class = 'Multi_Classification'
+    ########### print this for the start of next step ###########
+    if verbose <= 1:
+        print('''\n################ %s VISUALIZATION Started #####################''' %model_class)
     return model_class
 ###################################################################################
 from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, TimeSeriesSplit
@@ -610,7 +599,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     print('%s Target: %s' %(model_label,target))
     ###### Now analyze what problem we have here ####
     try:
-        modeltype = analyze_problem_type(train, target[0],verbose)
+        modeltype = analyze_problem_type(train, target,verbose)
     except:
         print('Cannot find the Target variable in data set. Please check input and try again')
         return
@@ -647,7 +636,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         r_params = dict()
         if orig_train[each_target].isnull().sum() > 0:
             ### If there are Null values in target columns, drop those rows that contain nulls ##
-            train = train.dropna(subset=[each_target],axis=0)
+            start_train = start_train.dropna(subset=[each_target],axis=0)
             print('Dropping rows in target column: %s that contain null values...' %each_target)
         if modeltype == 'Regression':
             if len(target) == 1:
@@ -2741,14 +2730,24 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ###### This applies to Single_Label as well as Multi_Label problems ##########
         if model_label == 'Single_Label':
             if not isinstance(sample_submission, str):
-                sample_submission[each_target] = y_pred
+                try:
+                    sample_submission[each_target] = y_pred
+                except:
+                    ### if for some reason, the sample submission file has a different shape than y_pred,
+                    ###  this may cause an error and you can just skip that step!
+                    print('Error: Sample submission file is incorrect. Please check it. continuing...')
             #### If there is a test file, it probably doesn't have target, so add predictions to it!
             testm[each_target+'_predictions'] = y_pred
         else:
             if not isinstance(sample_submission, str):
                 for predict_col, i in zip(target, range(len(target))):
-                    sample_submission[predict_col] = y_pred[:,i]
-            #### If there is a test file, it probably doesn't have target, so add predictions to it!
+                    try:
+                        sample_submission[predict_col] = y_pred[:,i]
+                    except:
+                        ### if for some reason, the sample submission file has a different shape than y_pred,
+                        ###  this may cause an error and you can just skip that step!
+                        print('Error: Sample submission file is incorrect. Please check it. continuing...')
+        #### If there is a test file, it probably doesn't have target, so add predictions to it!
             for predict_col, i in zip(target, range(len(target))):
                 testm[predict_col+'_predictions'] = y_pred[:,i]
     else:
@@ -2913,7 +2912,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 testm[new_col] = pd.Series(ensem_pred).map(transformer).values
                 new_cols.append(new_col)
                 if not isinstance(sample_submission, str):
-                    sample_submission[each_target] = pd.Series(y_pred).map(transformer).values
+                    try:
+                        sample_submission[each_target] = pd.Series(y_pred).map(transformer).values
+                    except:
+                        print('Error: Sample submission file is incorrect. Please check it. continuing...')
     #####################   P L O T   F E A T U R E   I M P O R T A N C E S   H E R E ###################
     if model_label == 'Single_Label':
         if calibrator_flag:
@@ -3527,10 +3529,10 @@ def classify_columns(df_preds, verbose=0):
             train[col] = train[col].fillna('  ')
             if train[col].map(lambda x: len(x) if type(x)==str else 0).mean(
                 ) >= max_nlp_char_size and len(train[col].value_counts()
-                        ) <= len(train) and col not in string_bool_vars:
+                        ) <= int(0.9*len(train)) and col not in string_bool_vars:
                 var_df.loc[var_df['index']==col,'nlp_strings'] = 1
             elif len(train[col].value_counts()) > cat_limit and len(train[col].value_counts()
-                        ) <= len(train) and col not in string_bool_vars:
+                        ) <= int(0.9*len(train)) and col not in string_bool_vars:
                 var_df.loc[var_df['index']==col,'discrete_strings'] = 1
             elif len(train[col].value_counts()) > cat_limit and len(train[col].value_counts()
                         ) == len(train) and col not in string_bool_vars:
@@ -5342,7 +5344,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.672'
+version_number = '0.1.673'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -137,6 +137,8 @@ def analyze_problem_type(train, target, verbose=0) :
     target = copy.deepcopy(target)
     cat_limit = 30 ### this determines the number of categories to name integers as classification ##
     float_limit = 15 ### this limits the number of float variable categories for it to become cat var
+    if isinstance(target, str):
+        target = [target]
     if len(target) == 1:
         targ = target[0]
     else:

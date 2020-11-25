@@ -1449,7 +1449,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 else:
                     ##### For Single-label, it is better to keep the XGBoost complex ##########
                     xgbm = XGBRegressor( n_estimators=100,subsample=subsample,objective=objective,
-                                            booster='gbtree', learning_rate=0.1,
+                                            booster='gbtree', learning_rate=0.1,nthread=-1,
                                             colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
                                              gamma=1, seed=1,n_jobs=-1,random_state=1)
                     xgbm.set_params(**param)
@@ -1556,7 +1556,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             elif scoring_parameter == 'auc' or scoring_parameter == 'roc_auc' or scoring_parameter == 'roc_auc_score':
                 roc_scorer = make_scorer(gini_roc, greater_is_better=True, needs_threshold=True)
                 scorer =roc_scorer
-            elif scoring_parameter == 'log_loss' or scoring_parameter == 'logloss':
+            elif scoring_parameter in ['log_loss','logloss','neg_log_loss','log-loss']:
                 scoring_parameter = 'neg_log_loss'
                 logloss_scorer = make_scorer(gini_log_loss, greater_is_better=False, needs_proba=False)
                 scorer =logloss_scorer
@@ -1598,7 +1598,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                         colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
                         max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
-                        n_jobs=-1, nthread=None, objective=objective,
+                        n_jobs=n_jobs, nthread=n_jobs, objective=objective,
                         random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                         seed=1)
                     xgbm.set_params(**param)
@@ -3214,7 +3214,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
         objective = 'reg:squarederror'
         model_xgb = XGBRegressor( n_estimators=100,subsample=subsample,objective=objective,
                                 colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
-                                 seed=1,n_jobs=-1,random_state=1)
+                                 seed=1,random_state=1,n_jobs=-1, nthread=-1)
         eval_metric = 'rmse'
     else:
         #### This is for Classifiers only
@@ -3223,7 +3223,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
             model_xgb = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                 colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
                 max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
-                n_jobs=-1, nthread=None, objective='binary:logistic',
+                n_jobs=-1, nthread=-1, objective='binary:logistic',
                 random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                 seed=1)
             eval_metric = 'logloss'
@@ -3231,7 +3231,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
             model_xgb = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                         colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
                 max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
-                n_jobs=-1, nthread=None, objective='multi:softmax',
+                n_jobs=-1, nthread=-1, objective='multi:softmax',
                 random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                 seed=1)
             eval_metric = 'mlogloss'

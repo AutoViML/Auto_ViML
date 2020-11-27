@@ -997,8 +997,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     print('############# R E M O V I N G   H I G H L Y  C O R R E L A T E D    V A R S #################')
     ### Make sure you remove variables that are highly correlated within data set first
     if len(numvars) > 0 and feature_reduction:
-        numvars = remove_variables_using_fast_correlation(start_train,orig_numvars, modeltype,
+        try:
+            numvars = remove_variables_using_fast_correlation(start_train,orig_numvars, modeltype,
                                 each_target, corr_limit, verbose)
+        except:
+            #### if for some reason, the above blows up due to memory error, then try this
+            #### Dropping highly correlated Features fast using simple linear correlation ###
+            remove_list = remove_highly_correlated_vars_fast(start_train[numvars],corr_limit)
+            numvars = left_subtract(numvars, remove_list)
     ### Reduced Preds are now free of correlated variables and hence can be used for Poly adds
     rem_vars = left_subtract(orig_red_preds,numvars)
     red_preds = rem_vars + numvars
@@ -1150,8 +1156,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     num_vars = train.select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
     #########     SELECT IMPORTANT FEATURES HERE   #############################
     if feature_reduction:
-        train_sel = remove_variables_using_fast_correlation(train,red_preds, modeltype,
+        try:
+            train_sel = remove_variables_using_fast_correlation(train,red_preds, modeltype,
                                     each_target, corr_limit, verbose)
+        except:
+            #### if for some reason, the above blows up due to memory error, then try this
+            #### Dropping highly correlated Features fast using simple linear correlation ###
+            remove_list = remove_highly_correlated_vars_fast(train[num_vars],corr_limit)
+            train_sel = left_subtract(num_vars, remove_list)
         num_vars = train[train_sel].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
         print('    Selected (%d) float variables from remove_correlated_features method ...' %len(num_vars))
         rem_vars = left_subtract(list(train), num_vars+target)
@@ -3753,7 +3765,10 @@ def print_classification_metrics(y_test, y_probs, proba_flag=True):
         precision = metrics.precision_score(y_test, y_preds)
         f1_score = metrics.f1_score(y_test, y_preds)
         recall = metrics.recall_score(y_test, y_preds)
-        print('    Accuracy          = %0.1f%%' %(accuracy*100))
+        if type(np.mean((y_test==y_preds))) == pd.Series:
+            print('    Accuracy          = %0.1f%%' %(np.mean(accuracy)*100))
+        else:
+            print('    Accuracy          = %0.1f%%' %(accuracy*100))
         print('    Balanced Accuracy = %0.1f%%' %(balanced_accuracy*100))
         print('    Precision         = %0.1f%%' %(precision*100))
         if proba_flag:
@@ -3786,7 +3801,10 @@ def print_classification_metrics(y_test, y_probs, proba_flag=True):
             average_precision = metrics.precision_score(y_test, y_preds,average='macro')
             f1_score = metrics.f1_score(y_test, y_preds, average = None)
             recall = metrics.recall_score(y_test, y_preds, average = None)
-        print('    Accuracy          = %0.1f%%' %(accuracy*100))
+        if type(np.mean((y_test==y_preds))) == pd.Series:
+            print('    Accuracy          = %0.1f%%' %(np.mean(accuracy)*100))
+        else:
+            print('    Accuracy          = %0.1f%%' %(accuracy*100))
         print('    Balanced Accuracy (average recall) = %0.1f%%' %(balanced_accuracy*100))
         print('    Average Precision (macro) = %0.1f%%' %(average_precision*100))
         ### these are basically one for each class #####
@@ -3803,7 +3821,6 @@ def print_classification_metrics(y_test, y_probs, proba_flag=True):
         print('\n#####################################################')
         return [accuracy, balanced_accuracy, precision, average_precision, f1_score, recall, 0]
 ##################################################################################################
-
 ##################################################################################################
 def left_subtract(l1,l2):
     lst = []
@@ -3850,7 +3867,7 @@ def remove_variables_using_fast_correlation(df, numvars, modeltype, target,
     """
     df = copy.deepcopy(df)
     print('Removing highly correlated variables using SULA method among (%d) numeric variables' %len(numvars))
-    correlation_dataframe = df[numvars].corr()
+    correlation_dataframe = df[numvars].corr().astype(np.float16)
     a = correlation_dataframe.values
     col_index = correlation_dataframe.columns.tolist()
     index_triupper = list(zip(np.triu_indices_from(a,k=1)[0],np.triu_indices_from(a,k=1)[1]))
@@ -3881,13 +3898,11 @@ def remove_variables_using_fast_correlation(df, numvars, modeltype, target,
         if modeltype == 'Regression':
             sel_function = mutual_info_regression
             fs = SelectKBest(score_func=sel_function, k=max_feats)
-            fs.fit(df[corr_list], df[target])
-            mutual_info = dict(zip(corr_list,fs.scores_))
         else:
             sel_function = mutual_info_classif
             fs = SelectKBest(score_func=sel_function, k=max_feats)
-            fs.fit(df[corr_list], df[target])
-            mutual_info = dict(zip(corr_list,fs.scores_))
+        fs.fit(df[corr_list].astype(np.float16), df[target])
+        mutual_info = dict(zip(corr_list,fs.scores_))
         #### The first variable in list has the highest correlation to the target variable ###
         sorted_by_mutual_info =[key for (key,val) in sorted(mutual_info.items(), key=lambda kv: kv[1],reverse=True)]
         #####   Now we select the final list of correlated variables ###########
@@ -5256,7 +5271,24 @@ def return_list_matching_keys(dicto,list_keys):
     for each in list_keys:
         results.append(dicto[each])
     return results
-###########################################
+##################################################################################
+def remove_highly_correlated_vars_fast(df, corr_limit=0.70):
+    """
+    This is a simple method to remove highly correlated features fast using Pearson's Correlation.
+    Use this only for float and integer variables. It will automatically select those only.
+    It can be used for very large data sets where featurewiz has trouble with memory
+    """
+    # Creating correlation matrix
+    cor_matrix = df.corr().abs().astype(np.float16)
+    # Selecting upper triangle of correlation matrix
+    upper_tri = cor_matrix.where(np.triu(np.ones(cor_matrix.shape),
+                                  k=1).astype(np.bool))
+    # Finding index of feature columns with correlation greater than 0.95
+    to_drop = [column for column in upper_tri.columns if any(upper_tri[column] > corr_limit)]
+    print();
+    print('Highly correlated columns to remove: %s' %to_drop)
+    return to_drop
+#####################################################################################
 def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_test,
                        modeltype, entropy_binning,verbose=0):
     """

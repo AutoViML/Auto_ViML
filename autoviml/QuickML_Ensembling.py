@@ -200,8 +200,13 @@ def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, m
                     k = 'Linear_Regression'
                     from sklearn.linear_model import LinearRegression
                     v = LinearRegression()
-                v.fit(X_train, y_train)
-                y_pred = v.predict(X_test)
+        try:
+            v.fit(X_train, y_train)
+            y_pred = v.predict(X_test)
+        except:
+            print('Error in ensemble models. Returning...')
+            stacks = np.array([])
+            return model_name, stacks
         if iteration == 0:
             stacks = copy.deepcopy(y_pred)
             iteration += 1

@@ -994,17 +994,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ###    The reason is sometimes, you can ~200 labels in multi-labels and going thru selecting vars
     ####   for each label might take time. Hence to simplify we use each_target as the first column.
     each_target = target[0]
-    print('############# R E M O V I N G   H I G H L Y  C O R R E L A T E D    V A R S #################')
-    ### Make sure you remove variables that are highly correlated within data set first
-    if len(numvars) > 0 and feature_reduction:
-        try:
-            numvars = remove_variables_using_fast_correlation(start_train,orig_numvars, modeltype,
-                                each_target, corr_limit, verbose)
-        except:
-            #### if for some reason, the above blows up due to memory error, then try this
-            #### Dropping highly correlated Features fast using simple linear correlation ###
-            remove_list = remove_highly_correlated_vars_fast(start_train[numvars],corr_limit)
-            numvars = left_subtract(numvars, remove_list)
     ### Reduced Preds are now free of correlated variables and hence can be used for Poly adds
     rem_vars = left_subtract(orig_red_preds,numvars)
     red_preds = rem_vars + numvars
@@ -1156,6 +1145,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     num_vars = train.select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
     #########     SELECT IMPORTANT FEATURES HERE   #############################
     if feature_reduction:
+        print('############# R E M O V I N G   H I G H L Y  C O R R E L A T E D    V A R S #################')
+        ### Make sure you remove variables that are highly correlated within data set first
         try:
             train_sel = remove_variables_using_fast_correlation(train,red_preds, modeltype,
                                     each_target, corr_limit, verbose)
@@ -1165,7 +1156,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             remove_list = remove_highly_correlated_vars_fast(train[num_vars],corr_limit)
             train_sel = left_subtract(num_vars, remove_list)
         num_vars = train[train_sel].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
-        print('    Selected (%d) float variables from remove_correlated_features method ...' %len(num_vars))
+        print('Splitting features into float and categorical (integer) variables:')
+        print('    (%d) float variables ...' %len(num_vars))
         rem_vars = left_subtract(list(train), num_vars+target)
         important_features,num_vars, imp_cats = find_top_features_xgb(train,train_sel,num_vars,
                                                      each_target,
@@ -3202,14 +3194,8 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     #        print('Time taken for reducing highly correlated Categorical vars was %0.0f seconds' %(time.time()-start_time))
     #else:
     important_cats = copy.deepcopy(catvars)
-    print('No categorical feature reduction done. All (%d) categorical vars selected ' %(len(catvars)))
-    if len(numvars) > 1:
-        final_list = remove_variables_using_fast_correlation(train,numvars,modeltype,
-                             target, corr_limit,verbose)
-    else:
-        final_list = copy.deepcopy(numvars)
-    print('    Adding (%s) categorical variables to reduced (%d) numeric variables ' %(
-                            len(important_cats),len(final_list)))
+    print('    (%d) categorical vars...' %(len(catvars)))
+    final_list = copy.deepcopy(numvars)
     if  isinstance(final_list,np.ndarray):
         final_list = final_list.tolist()
     preds = final_list+important_cats
@@ -3918,7 +3904,13 @@ def remove_variables_using_fast_correlation(df, numvars, modeltype, target,
         ##### Now we combine the uncorrelated list to the selected correlated list above
         rem_col_list = left_subtract(list(correlation_dataframe),corr_list)
         final_list = rem_col_list + selected_corr_list
-        print('    After removing highly correlated variables, following (%d) numeric vars selected: %s' %(len(final_list),final_list))
+        removed_cols = left_subtract(numvars, final_list)
+        if len(removed_cols) > 0:
+            print('    Removing (%d) highly correlated variables:' %(len(removed_cols)))
+            if len(removed_cols) <= 30:
+                print('    %s' %removed_cols)
+            if len(final_list) <= 30:
+                print('    Following (%d) vars selected: %s' %(len(final_list),final_list))
     return final_list
 ###############################################################################################
 def count_freq_in_list(lst):
@@ -4170,19 +4162,6 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
                 final_df[each_pred] = final_df[each_pred].astype(int)
         final_df[targetvar] = data[targetvar].values
         #####################################################
-        #New_XP = XP1[final_x_vars]
-        #New_XP.columns = final_text_vars
-        #New_XP[targetvar] = data[targetvar].values
-        #### New_XP will be the final dataframe that we will send with orig and poly/intxn variables
-        ########## R E M O V E    C O R R E L A T E D   V A R I A B L E S ################
-        final_text_vars = remove_variables_using_fast_correlation(final_df,final_text_vars,
-                                modeltype,targetvar,
-                                corr_limit,verbose)
-        final_x_vars = [feature_textvar_dict[x] for x in final_text_vars]
-        if verbose >= 1:
-            print('Finally selecting %d variables after high-correlation test' %len(final_text_vars))
-            if len(final_text_vars) <= 30:
-                print('    Selected variables are: %s' %final_text_vars)
         return final_text_vars, lm_p, final_df, md, final_x_vars,feature_xvar_dict
     else:
         #### Just return the transformed dataframe with all orig+poly+intxn vars

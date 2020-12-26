@@ -991,7 +991,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     orig_red_preds = copy.deepcopy(preds)
     #######    ALERT! #############################################################################
     ####   We use the first target variable to select variables even in multi-label Settings
-    ###    The reason is sometimes, you can ~200 labels in multi-labels and going thru selecting vars
+    ###    The reason is sometimes, you can have ~200 labels in multi-labels and going thru selecting vars
     ####   for each label might take time. Hence to simplify we use each_target as the first column.
     each_target = target[0]
     ### Reduced Preds are now free of correlated variables and hence can be used for Poly adds
@@ -1967,84 +1967,40 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
     ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
     model_start_time = time.time()
-    ################################################################################################################################
-    #####   BE VERY CAREFUL ABOUT MODIFYING THIS NEXT LINE JUST BECAUSE IT APPEARS TO BE A CODING MISTAKE. IT IS NOT!! #############
-    ################################################################################################################################
+    ############################################################################
+    #####   BE VERY CAREFUL ABOUT MODIFYING THIS SECTION JUST BECAUSE ##########
+    ####    IT APPEARS LIKE DUPLICATED CODE!!  IT IS NOT !!        #############
+    ############################################################################
     ##### This is where you start training the model for FIRST TIME  ############
-    if Imbalanced_Flag:
-        ####### Imbalanced with Classification #################
-        try:
-            print('##############  I M B A L A N C E D   T R A I N I N G with   S M O T E   O V E R S A M P L I N G  #######')
-            #### The model is the downsampled model Trained on downsampled data sets. ####
-            if modeltype == 'Regression':
-                ### Since rare class is needed in the next step, just setting the rare_class as artificially 0.
-                rare_class = 0
-            model, X_train, y_train = training_with_SMOTE(X_train,y_train,eval_set, gs,
-                                   Boosting_Flag, eval_metric,
-                                   modeltype, model_name, training=True,
-                                   minority_class=rare_class,imp_cats=imp_cats,
-                                   calibrator_flag=calibrator_flag,
-                                   GPU_exists=GPU_exists, params = cpu_params,
-                                   model_label=model_label, verbose=verbose)
-            if isinstance(model, str):
-                model = copy.deepcopy(gs)
-                #### If d_model failed, it will just be an empty string, so you try the regular model ###
-                print('Error in training Imbalanced model first time. Trying regular model..')
-                Imbalanced_Flag = False
-                if model_label == 'Single_Label':
-                    if Boosting_Flag:
-                        if model_name == 'XGBoost':
-                            #### Set the Verbose to 0 since we don't want too much output ##
-                            try:
-                                if modeltype == 'Multi_Classification':
-                                    model.fit(X_train, y_train)
-                                else:
-                                    model.fit(X_train, y_train, early_stopping_rounds=early_stopping,
-                                        eval_metric=eval_metric,eval_set=eval_set,verbose=0)
-                            except:
-                                #### On Colab, even though GPU exists, many people don't turn it on.
-                                ####  In that case, XGBoost blows up when gpu_predictor is used.
-                                ####  This is to turn it back to cpu_predictor in case GPU errors!
-                                if GPU_exists:
-                                    print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
-                                    model.estimator.set_params(**cpu_params)
-                                    if modeltype == 'Multi_Classification':
-                                        model.fit(X_train,y_train)
-                                    else:
-                                        model.fit(X_train,y_train, early_stopping_rounds=early_stopping,
-                                            eval_metric=eval_metric,eval_set=eval_set,verbose=False)
-                                else:
-                                    model.fit(X_train,y_train)
-                        else:
-                            ######### This is for CatBoost #############
-                            try:
-                                model.fit(X_train, y_train,
-                                    cat_features=imp_cats,eval_set=(X_cv,y_cv), use_best_model=True,plot=True)
-                            except:
-                                model.fit(X_train, y_train, cat_features=imp_cats,use_best_model=False,plot=False)
-                    else:
-                            model.fit(X_train, y_train)
-                else:
-                    model.fit(X_train, y_train)
-            #### If downsampling succeeds, it will be used to get the best score and can become model again ##
-            if model_label == 'Single_Label':
-                if hyper_param == 'RS' or hyper_param == 'GS':
-                    best_score = model.best_score_
-                elif hyper_param is None:
-                    val_keys = list(model.best_score_.keys())
-                    best_score = model.best_score_[val_keys[-1]][validation_metric]
-        except:
-            print('Error in training Imbalanced model first time. Trying regular model..')
-            Imbalanced_Flag = False
-            best_score = 0
-    ################################################################################################################################
-    #######   Though this next step looks like it is a Coding Mistake by me, don't change it!!! ###################
-    #######   This is for case when Imbalanced with Classification succeeds, this next step is skipped ############
-    ################################################################################################################################
+    if model_label == 'Single_Label':
+        if Imbalanced_Flag:
+            try:
+                print('##################  Imbalanced Model Training  ############################')
+                print('Imbalanced Training using SMOTE Rare Class Oversampling method...')
+                if modeltype == 'Regression':
+                    ### Since rare class is needed in the next step, just setting the rare_class as artificially 0.
+                    rare_class = 0
+                ### Since it is a single label problem, we use each_target instead of target
+                model = training_with_SMOTE(X_train,y_train,each_target,eval_set, gs,
+                                       Boosting_Flag, eval_metric,
+                                       modeltype, model_name, training=True,
+                                       minority_class=rare_class,imp_cats=imp_cats,
+                                       calibrator_flag=calibrator_flag,
+                                       GPU_exists=GPU_exists, params = cpu_params,
+                                       model_label=model_label, verbose=verbose)
+            except:
+                print('Training model first time with SMOTE erroring. Continuing...')
+                Imbalanced_Flag =  False
+                best_score = 0
+    #########   IMPORTANT    IMPORTANT #####################################
+    ##   Though this next step looks like it is a Coding Mistake, don't change it!
+    ##   This is for case when Imbalanced with Classification succeeds,
+    ##   this next step is skipped ##
+    #########################################################################
     ### The model blows up when you use average-precision in Multi-Classes -> needs checking!
     if not Imbalanced_Flag:
-        ########### This is for both regular Regression and regular Classification Model Training. It is not a Mistake #############
-        ########### In case Imbalanced training fails, this method is also tried. That's why we test the Flag here!!  #############
+        #### This is for both regular Regression and regular Classification Model Training. It is not a Mistake #############
+        ### In case Imbalanced training fails, this method is also tried. That's why we test the Flag here!!  #############
         try:
             model = copy.deepcopy(gs)
             if model_label == 'Single_Label':
@@ -2085,24 +2041,26 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         except:
             print('Training regular model first time is Erroring: Check if your Input is correct...')
             return
-        try:
-            if model_label == 'Single_Label':
-                if hyper_param == 'RS' or hyper_param == 'GS':
-                    best_score = model.best_score_
-                    validation_metric = copy.deepcopy(scoring_parameter)
-                elif hyper_param is None:
-                    val_keys = list(model.best_score_.keys())
-                    if 'validation' in val_keys:
-                        validation_metric = list(model.best_score_['validation'].keys())[0]
-                        best_score = model.best_score_['validation'][validation_metric]
-                    else:
-                        validation_metric = list(model.best_score_['learn'].keys())[0]
-                        best_score = model.best_score_['learn'][validation_metric]
-        except:
-            print('Error: Not able to print validation metrics. Continuing...')
-    ##   TRAINING OF MODELS COMPLETED. NOW GET METRICS on CV DATA ################
+    ###########   FIRST TIME MODEL TRAINING COMPLETED ##########################
+    ##   TRAINING OF MODELS COMPLETED. NOW GET METRICS on CV DATA ###############
     print('    Actual training time (in seconds): %0.0f' %(time.time()-model_start_time))
     print('###########  %s  M O D E L   R E S U L T S #################' %model_label)
+    try:
+        if model_label == 'Single_Label':
+            if hyper_param == 'RS' or hyper_param == 'GS':
+                best_score = model.best_score_
+                validation_metric = copy.deepcopy(scoring_parameter)
+            elif hyper_param is None:
+                val_keys = list(model.best_score_.keys())
+                if 'validation' in val_keys:
+                    validation_metric = list(model.best_score_['validation'].keys())[0]
+                    best_score = model.best_score_['validation'][validation_metric]
+                else:
+                    validation_metric = list(model.best_score_['learn'].keys())[0]
+                    best_score = model.best_score_['learn'][validation_metric]
+    except:
+        print('Error: Not able to print validation metrics. Continuing...')
+        best_score = 0
     if model_label == 'Single_Label':
         if modeltype != 'Regression':
             ############## This is for Classification Only !! ########################
@@ -2575,80 +2533,40 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ##### ############      TRAINING MODEL SECOND TIME WITH FULL_TRAIN AND PREDICTING ON TEST ############
     model_start_time = time.time()
     if model_label == 'Single_Label':
-        if modeltype != 'Regression':
-            if Imbalanced_Flag:
-                try:
-                    print('##################  Imbalanced Flag Set  ############################')
-                    print('Imbalanced Class Training using SMOTE Rare Class Oversampling method...')
-                    model, X, y = training_with_SMOTE(X,y, eval_set, model,
-                                      Boosting_Flag, eval_metric,modeltype, model_name,
-                                      training=False, minority_class=rare_class,
-                                      imp_cats=imp_cats, calibrator_flag=calibrator_flag,
-                                      GPU_exists=GPU_exists, params=cpu_params,
-                                      model_label=model_label, verbose=verbose)
-                    ## This is where we test if the previous training with SMOTE went smoothly. If not, we  try with a different method here.
-                    if isinstance(model, str):
-                        #### If downsampling model failed, it will just be an empty string, so you can try regular model ###
-                        model = copy.deepcopy(best_model)
-                        print('Error in training Imbalanced model second time. Trying regular model..')
-                        Imbalanced_Flag = False
-                        if calibrator_flag:
-                            model.fit(X, y)
-                        else:
-                            if Boosting_Flag:
-                                    #### Set the Verbose to 0 since we don't want too much output ##
-                                if model_name == 'XGBoost':
-                                    #### Set the Verbose to 0 since we don't want too much output ##
-                                    model.fit(X, y)
-                                else:
-                                    model.fit(X, y, cat_features=imp_cats, plot=False)
-                            else:
-                                    model.fit(X, y)
-                except:
-                    print('Error in training Imbalanced model second time. Trying regular model..')
-                    Imbalanced_Flag = False
-                    if calibrator_flag:
-                        model.fit(X, y)
-                    else:
-                        if Boosting_Flag:
-                                if model_name == 'XGBoost':
-                                    #### Set the Verbose to 0 since we don't want too much output ##
-                                    model.fit(X, y)
-                                else:
-                                    model.fit(X, y, cat_features=imp_cats, plot=False)
-                        else:
-                                model.fit(X, y)
-            else:
-                try:
-                    if calibrator_flag:
-                        model.fit(X, y)
-                    else:
-                        if Boosting_Flag:
-                            if model_name == 'XGBoost':
-                                ### Since second time we don't have X_cv, we remove it
-                                    model.fit(X, y)
-                            else:
-                                model.fit(X, y, cat_features=imp_cats, plot=False)
-                        else:
-                                model.fit(X, y)
-                except:
-                    print('Training regular model second time erroring: Check if Input is correct...')
-                    return
-        else:
+        if Imbalanced_Flag:
             try:
-                if calibrator_flag:
-                    model.fit(X, y)
-                else:
-                    if Boosting_Flag:
-                        if model_name == 'XGBoost':
-                            model.fit(X, y)
-                        else:
-                            model.fit(X, y, cat_features=imp_cats, use_best_model=False, plot=False)
-                    else:
-                            model.fit(X, y)
+                print('##################  Imbalanced Model Training  ############################')
+                print('Imbalanced Training using SMOTE Rare Class Oversampling method...')
+                ### Since it is a single label problem, we use each_target instead of target
+                model = training_with_SMOTE(X,y, each_target, eval_set, model,
+                                  Boosting_Flag, eval_metric,modeltype, model_name,
+                                  training=False, minority_class=rare_class,
+                                  imp_cats=imp_cats, calibrator_flag=calibrator_flag,
+                                  GPU_exists=GPU_exists, params=cpu_params,
+                                  model_label=model_label, verbose=verbose)
             except:
-                print('Training model second time is Erroring: Check if Input is correct...')
-                return
+                print('Error in training Imbalanced model second time. Trying regular model..')
+                Imbalanced_Flag =  False
+    #########   IMPORTANT    IMPORTANT #####################################
+    #### This is not a mistake! In case, Imbalanced Training Fails
+    ####   or if there is no flag, we must still train the model!!
+    ####   DO NOT TOUCH THIS NEXT LINE THINKING IT IS A MISTAKE!
+    if not Imbalanced_Flag:
+        ## This is where we test if the previous training with SMOTE went smoothly. If not, we  try with a different method here.
+        #### If downsampling model failed, it will just be an empty string, so you can try regular model ###
+        if model_label == 'Single_Label':
+            if calibrator_flag:
+                model.fit(X, y)
+            else:
+                if Boosting_Flag:
+                        #### Set the Verbose to 0 since we don't want too much output ##
+                    if model_name == 'XGBoost':
+                        #### Set the Verbose to 0 since we don't want too much output ##
+                        model.fit(X, y)
+                    else:
+                        model.fit(X, y, cat_features=imp_cats, plot=False)
+                else:
+                        model.fit(X, y)
     else:
         ### This is for Multi-Label Training #########
         model.fit(X, y)
@@ -2929,6 +2847,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         else:
             plot_model = copy.deepcopy(model)
         try:
+            ####### This is where plot feature_importances_ for the models ######
             if Boosting_Flag is None:
                     if modeltype == 'Regression':
                         ### If you use LinearSVR  then use all absolute values, so you can plot them in decreasing order of importance
@@ -2968,11 +2887,17 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                          ascending=False)
                 elif model_name.lower() == 'catboost':
                     from catboost import Pool
-                    imp_features_df = pd.DataFrame(plot_model.get_feature_importance(
+                    try:
+                        imp_features_df = pd.DataFrame(plot_model.get_feature_importance(
                                     Pool(X_cv, label=y_cv,cat_features=imp_cats)),
                                     columns=['Feature Importances'],
                                     index=important_features).sort_values(
                                     'Feature Importances',ascending=False)
+                    except:
+                        imp_features_df = pd.DataFrame(plot_model.get_feature_importance(),
+                                        columns=['Feature Importances'],
+                                        index=important_features).sort_values(
+                                        'Feature Importances',ascending=False)
             ### Now draw the feature importances using the data frame above!
             height_size = 5
             width_size = 10
@@ -2991,7 +2916,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         import shap
                         from catboost import Pool
                         shap.initjs()
-                        shap_values = plot_model.get_feature_importance(Pool(X_cv, label=y_cv,cat_features=imp_cats),type="ShapValues")
+                        try:
+                            shap_values = plot_model.get_feature_importance(Pool(X_cv, label=y_cv,
+                                            cat_features=imp_cats),type="ShapValues")
+                        except:
+                            shap_values = plot_model.get_feature_importance(type="ShapValues")
                         shap_df = pd.DataFrame(np.c_[X_cv.values,y_cv],columns=[list(X_cv)+[each_target]])
                         if modeltype == 'Multi_Classification':
                             for each_i in range(len(classes)):
@@ -3174,7 +3103,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
     seed = 1
     early_stopping = 5
     ####### All the default parameters are set up now #########
-    kf = KFold(n_splits=n_splits, random_state=33)
+    kf = KFold(n_splits=n_splits)
     rem_vars = left_subtract(preds,numvars)
     catvars = copy.deepcopy(rem_vars)
     ############   I  M P O R T A N T ! I M P O R T A N T ! ######################
@@ -4647,7 +4576,15 @@ warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
 warnings.filterwarnings(action='ignore', category=DataConversionWarning)
 ####################################################################################
-def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
+from sklearn.utils.class_weight import compute_class_weight
+from imblearn.over_sampling import SMOTE, SMOTENC
+from collections import Counter
+import copy
+import pdb
+# Regression_Resampler is a neat library that returns a numpy list of classes for each
+#  corresponding sample. from target data. It also automatically merges classes if they are small
+from reg_resampler import resampler
+def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval_metric,
                                         modeltype, model_name,
                                      training=True,minority_class=1,imp_cats=[],
                                      calibrator_flag=False,
@@ -4664,128 +4601,172 @@ def training_with_SMOTE(X_df,y_df,eval_set,model,Boosting_Flag,eval_metric,
     """
     X_df = copy.deepcopy(X_df)
     y_df = copy.deepcopy(y_df)
-    from imblearn.over_sampling import SMOTE
-    from collections import Counter
-    seed = 99
+    model_copy = copy.deepcopy(model_input)
     start_time = time.time()
-    df_target = y_df.name
-    train_preds = X_df.columns.tolist()
-    model = copy.deepcopy(model)
-    ###### THIS IS WHERE SMOTE PROCESSING  BEGINS #####################
-    if modeltype != 'Regression':
-        ### This smallest_kn is needed because if the number of samples is less than KN, then it blows up!
-        rare_samples = pd.Series(Counter(y_df)).min()
-        print('    Number of Rare Class samples = %d' %rare_samples)
-        rare_pct = rare_samples/y_df.shape[0]
-        smallest_kn =  rare_samples - 1
-        if smallest_kn > 10:
-            smallest_kn = 10
-        elif smallest_kn > 2:
-            smallest_kn = 2
-        else :
-            smallest_kn = 1
-        print('    Number of K Neighbors selected for SMOTE = %d' %smallest_kn)
-        smote = SMOTE(random_state=seed,sampling_strategy='all', k_neighbors=smallest_kn, n_jobs=-1)
-        print('    Pct of Rare Class in data = %0.2f%%' %(rare_pct*100))
-        if rare_pct > 0.10:
-            print('This is not an Imbalanced data set. No need to use SMOTE but continuing...')
-        else:
-            print("Using SMOTE's over-sampling techniques to make the %d classes balanced..." %len(np.unique(y_df)))
+    if modeltype == 'Regression':
+        print("Using Regression Resampler library to make skewed target variable more balanced...")
     else:
-        print("Using SMOTE's over-sampling techniques to make target data more balanced...")
+        print("Using SMOTE's over-sampling techniques to make the %d classes balanced..." %len(np.unique(y_df)))
+    try:
+        print('    Performing 5-fold cross-validation with SMOTE in each fold...Be patient...')
+        # Initialize the resampler object
+        rs = resampler()
+        df_train = X_df.join(y_df)
+        # Generate classes
         #### Get the cluster labels for the data  - transform y_df into labels. Then send it to SMOTE.
         num_clusters = int(np.round(max(2,np.log10(y_df.shape[0]))))
-        #### Make the number of clusters as the same as log10 of number of rows in Train
-        from sklearn.cluster import KMeans
-        # No target variable, just do plain k-means
-        km_model = KMeans(n_clusters=num_clusters,
-                              n_init=20,
-                              random_state=99)
-        train_clusters_SMOTE = km_model.fit_predict(y_df.values.reshape(-1,1))
-        print('    SMOTE performed using KMeans clusters below using Target data only:')
-        find_rare_class(train_clusters_SMOTE, verbose=1)
-        #train_clusters_SMOTE, _ = Transform_KM_Features(X_df, y_df, X_df, num_clusters)
-        y_index = y_df.index
-        smote_df = pd.DataFrame(index=y_index)
-        smote_df[df_target] = train_clusters_SMOTE
-        smote = SMOTE(random_state=seed)
-    # Identify minority and majority classes
-    # Get indices of each class
-    #### With SMOTE Oversampling, just one batch of training is enough and gives great results!
-    try:
-        if modeltype != 'Regression':
-            X_train_ovr, y_train_ovr = smote.fit_resample(X_df, y_df)
-            train_ovr = pd.DataFrame(X_train_ovr, columns=train_preds)
-            train_ovr[df_target] = y_train_ovr
-        else:
-            #### For Regression, we have to use the existing target data to create new target data
-            #### That's why we use the existing y_df to come up with smote_df
-            SMOTE_X, SMOTE_Y = smote.fit_resample(X_df.join(y_df), smote_df)
-            SMOTE_Y = SMOTE_X[df_target]
-            print('    Samples in old Train before SMOTE = %d' %X_df.shape[0])
-            train_ovr = SMOTE_X[train_preds].join(SMOTE_Y)
-            print('    Samples in new Train after SMOTE = %d' %train_ovr.shape[0])
+        Y_classes = rs.fit(df_train, target=target, bins=num_clusters, verbose=verbose)
+        # Create the actual target variable
+        Y = df_train[target]
+        #### Select the right SMOTE algorithm based on whether there are any imp_cats in data
+        cat_vars_index = [i for i, j in enumerate(X_df.columns) if j in imp_cats]
+        #######################################################################
+        # Perform Stratified K-Fold  - It's the same for both since you use SMOTE for both!
+        kfold, scores = StratifiedKFold(n_splits=5, shuffle=True, random_state=27), list()
+        for train_index, test_index in kfold.split(df_train, Y_classes):
+            # Split into train and test
+            x_train, y_train = df_train.iloc[train_index], Y_classes[train_index]
+            x_test, y_test = df_train.iloc[test_index], Y.iloc[test_index]
+
+            # Remove the target variable from x_test
+            x_test = x_test.drop(target, axis=1)
+
+            # Get the class distriubtion for perfoming relative sampling in the next line
+            class_weighted_rows = get_class_distribution(y_train)
+            ### get the number of K_Neighbors using this calculation
+            rare_samples = pd.Series(Counter(y_train)).min()
+            #print('    Number of Rare Class samples = %d' %rare_samples)
+            rare_pct = rare_samples/y_train.shape[0]
+            smallest_kn =  rare_samples - 1
+            if smallest_kn > 5:
+                smallest_kn = 5
+            elif smallest_kn > 2 and smallest_kn < 5:
+                smallest_kn = 2
+            else :
+                smallest_kn = 1
+            #print('    Number of K Neighbors selected for SMOTE = %d' %smallest_kn)
+            #print('    Pct of Rare Class in data = %0.2f%%' %(rare_pct*100))
+            if rare_pct > 0.10:
+                print('This is not an Imbalanced data set. No need to use SMOTE but continuing...')
+            if len(imp_cats) > 0:
+                # Your favourite oversampler = SMOTENC is better than SMOTE in most cases!
+                smote = SMOTENC(categorical_features=cat_vars_index,
+                            sampling_strategy=class_weighted_rows,
+                            random_state=42, k_neighbors=smallest_kn, n_jobs=-1)
+            else:
+                # Your favourite oversampler = SMOTE is better than SMOTEENN in most cases!
+                smote = SMOTE(random_state=27, sampling_strategy=class_weighted_rows, n_jobs=-1)
+            # Generate the over-sampled data
+            x_train, y_train = rs.resample(smote, x_train, y_train)
+            model = copy.deepcopy(model_input)
+            # Fit the model
+            model = model_training_smote(model, x_train, y_train, eval_set, eval_metric,
+                                 params, imp_cats, modeltype,
+                                calibrator_flag, model_name, Boosting_Flag, model_label,
+                                 GPU_exists)
+            #Now make predictions on held out data
+            y_preds = model.predict(x_test)
+
+            # Check the score
+            score = model.score(x_test,y_test)
+            print('    Model Score = %s' %score)
+            scores.append(score)
+        print("Average Score = ", sum(scores)/len(scores))
     except:
         print('    SMOTE is erroring. Continuing without SMOTE...')
         return model, X_df, y_df
-    print('    SMOTE completed. Actual time taken = %0.0f seconds' %(time.time()-start_time))
+    ### now train the model on full train data #################################
+    class_weighted_rows = get_class_distribution(Y_classes)
+    if len(imp_cats) > 0:
+        # Your favourite oversampler = SMOTENC is better than SMOTE in most cases!
+        smote = SMOTENC(categorical_features=cat_vars_index,
+                    sampling_strategy=class_weighted_rows,
+                    random_state=42, k_neighbors=smallest_kn, n_jobs=-1)
+    else:
+        # Your favourite oversampler = SMOTE is better than SMOTEENN in most cases!
+        smote = SMOTE(random_state=27, sampling_strategy=class_weighted_rows, n_jobs=-1)
+    #### Now we must re-sample the data using reg resampler to train full model
+    print('    Training model now on resampled train data...this will take time')
+    X_df_res, y_df_res = rs.resample(smote, df_train, Y_classes)
+    model = copy.deepcopy(model_copy)
+    # Fit the model using x_train and y_train full data sent in
+    model = model_training_smote(model, X_df_res, y_df_res, eval_set, eval_metric,
+                         params, imp_cats, modeltype,
+                        calibrator_flag, model_name, Boosting_Flag, model_label,
+                         GPU_exists)
+    print('    Resampling Training time taken = %0.0f seconds' %(time.time()-start_time))
     model_str = str(model).split("(")[0]
-    print('##################  Training %s on Imbalanced data...  ################' %model_str)
+    print('##################  Completed Imbalanced Training using %s ################' %model_str)
     if not training:
         if verbose >= 1:
             fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True,figsize=(12,5))
             if modeltype == 'Regression':
                 y_df.plot(kind='hist',title='Distribution of target before SMOTE', ax=ax1, color='r')
-                train_ovr[df_target].plot(kind='hist',title='Distribution of target after SMOTE', ax=ax2, color='b')
+                y_df_res.plot(kind='hist',title='Distribution of target after SMOTE', ax=ax2, color='b')
             else:
                 y_df.value_counts(1).plot(kind='bar',title='Distribution of classes before SMOTE', ax=ax1, color='r')
-                train_ovr[df_target].value_counts(1).plot(kind='bar',title='Distribution of classes after SMOTE', ax=ax2, color='b')
+                y_df_res.value_counts(1).plot(kind='bar',title='Distribution of classes after SMOTE', ax=ax2, color='b')
+    return model
+##############################################################################################
+def get_class_distribution(y_input):
+    classes = np.unique(y_input)
+    xp = Counter(y_input)
+    class_weights = compute_class_weight('balanced', classes=np.unique(y_input), y=y_input)
+    class_weights[(class_weights<1)]=1
+    class_weights = class_weights.astype(int)
+    class_rows = class_weights*[xp[x] for x in classes]
+    class_weighted_rows = dict(zip(classes,class_rows))
+    return class_weighted_rows
+######################################################################################
+def model_training_smote(model, x_train, y_train, eval_set, eval_metric,
+                         params, imp_cats, modeltype,
+                        calibrator_flag, model_name, Boosting_Flag, model_label,
+                         GPU_exists):
+    early_stopping = 5
     if model_label == 'Single_Label':
         if Boosting_Flag:
             if model_name == 'XGBoost':
-                early_stopping = 5
                 try:
                     if calibrator_flag:
                         model.base_estimator.set_params(**params)
-                        model.fit(train_ovr[train_preds], train_ovr[df_target])
+                        model.fit(x_train, y_train)
                     else:
                         if eval_set==[()] or modeltype == 'Multi_Classification':
-                            model.fit(train_ovr[train_preds], train_ovr[df_target])
+                            model.fit(x_train, y_train)
                         else:
-                            model.fit(train_ovr[train_preds], train_ovr[df_target],early_stopping_rounds=early_stopping,
+                            model.fit(x_train, y_train,early_stopping_rounds=early_stopping,
                                 eval_metric=eval_metric,eval_set=eval_set,verbose=False)
                 except:
                     #### On Colab, even though GPU exists, many people don't turn it on.
                     ####  In that case, XGBoost blows up when gpu_predictor is used.
                     ####  This is to turn it back to cpu_predictor in case GPU errors!
                     if GPU_exists:
-                        print('Error: GPU exists but it is not turned on. Using CPU for predictions...')
+                        print('Warning: GPU exists but it is not turned on. Using CPU for predictions...')
                         if calibrator_flag:
                             model.base_estimator.set_params(**params)
-                            model.fit(train_ovr[train_preds], train_ovr[df_target])
+                            model.fit(x_train, y_train)
                         else:
                             model.estimator.set_params(**params)
-                            model.fit(train_ovr[train_preds], train_ovr[df_target])
+                            model.fit(x_train, y_train)
                     else:
                         if eval_set==[()] or modeltype == 'Multi_Classification':
-                            model.fit(train_ovr[train_preds], train_ovr[df_target])
+                            model.fit(x_train, y_train)
                         else:
-                            model.fit(train_ovr[train_preds], train_ovr[df_target], early_stopping_rounds=early_stopping,
+                            model.fit(x_train, y_train, early_stopping_rounds=early_stopping,
                                 eval_metric=eval_metric,eval_set=eval_set,verbose=False)
             else:
                 early_stopping = 20
                 if eval_set == [()]:
-                    model.fit(train_ovr[train_preds], train_ovr[df_target], cat_features=imp_cats,plot=False)
+                    model.fit(x_train, y_train, cat_features=imp_cats,plot=False, verbose=0)
                 else:
-                    model.fit(train_ovr[train_preds], train_ovr[df_target], cat_features=imp_cats,
-                                eval_set=eval_set, use_best_model=True, plot=True)
+                    model.fit(x_train, y_train, cat_features=imp_cats, verbose=0,
+                                eval_set=eval_set, use_best_model=True, plot=False)
         else:
-            model.fit(train_ovr[train_preds], train_ovr[df_target])
+            model.fit(x_train, y_train)
     else:
-        model.fit(train_ovr[train_preds], train_ovr[df_target])
-    print('Imbalanced class training completed.')
-    return model, train_ovr[train_preds], train_ovr[df_target]
-##############################################################################################
+        model.fit(x_train, y_train)
+    return model
+#################################################################################
 from sklearn.model_selection import train_test_split
 import numpy as np
 from sklearn.metrics import f1_score
@@ -5357,7 +5338,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.673'
+version_number = '0.1.674'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

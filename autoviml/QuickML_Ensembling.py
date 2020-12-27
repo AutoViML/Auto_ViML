@@ -7,7 +7,6 @@ sns.set(style="white", color_codes=True)
 import warnings
 warnings.filterwarnings("ignore")
 from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, TimeSeriesSplit
-from sklearn.model_selection import ShuffleSplit,StratifiedKFold,KFold
 from sklearn.svm import LinearSVC, LinearSVR
 from sklearn.linear_model import SGDRegressor, SGDClassifier
 from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, TimeSeriesSplit
@@ -23,7 +22,7 @@ from sklearn.linear_model import Lasso, LassoCV, Ridge, RidgeCV, LassoLarsCV
 from sklearn.model_selection import cross_val_predict
 from sklearn.ensemble import ExtraTreesRegressor, ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV, LinearRegression
-from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit,KFold,ShuffleSplit
+from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.multiclass import OneVsRestClassifier
@@ -54,11 +53,12 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
         except:
             pass
         NUMS = 200
+    ###### This is where we start performing ensembling of multiple simpler models ###
     if modeltype == 'Regression':
         if scoring == '':
             scoring = 'neg_mean_squared_error'
         #scv = ShuffleSplit(n_splits=FOLDS,random_state=seed)
-        scv = KFold(n_splits=FOLDS, shuffle=False, random_state=seed)
+        scv = KFold(n_splits=FOLDS, shuffle=False)
         if Boosting_Flag is None:
             ## Create an ensemble model ####
             model5 = AdaBoostRegressor(base_estimator=DecisionTreeRegressor(

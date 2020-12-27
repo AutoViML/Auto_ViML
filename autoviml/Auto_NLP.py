@@ -59,8 +59,6 @@ from sklearn.calibration import CalibratedClassifierCV
 import copy
 from itertools import cycle
 from collections import Counter
-import nltk
-nltk.download("popular")
 ############################################################################
 from collections import OrderedDict, Counter
 def print_rare_class(classes, verbose=0):
@@ -1333,6 +1331,8 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     #### You can use top_num_features (default = 200) to control how many features to add.
     ##################################################################################
     """
+    import nltk
+    nltk.download("popular")
     calibrator_flag = False
     import time
     seed = 99
@@ -2200,9 +2200,9 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
 ########################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
 version_number = '0.0.45'
-print("""\nImported Auto_NLP version: %s.. Call using:
+print("""%s Auto_NLP version: %s.. Call using:
      train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
                 nlp_column, train, test, target, score_type='balanced_accuracy',
                 modeltype='Classification',top_num_features=200, verbose=0,
-                build_model=True)""" %version_number)
+                build_model=True)""" %(module_type, version_number))
 ########################################################################

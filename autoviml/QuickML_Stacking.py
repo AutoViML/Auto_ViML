@@ -18,7 +18,6 @@ from sklearn.linear_model import LogisticRegression, LogisticRegressionCV, Linea
 from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit,ShuffleSplit
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import KFold, StratifiedKFold
 import time
 import pdb
 import time
@@ -75,7 +74,7 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
         if modeltype == 'Regression':
             if scoring == '':
                 scoring = 'neg_mean_squared_error'
-            scv = KFold(n_splits=FOLDS, random_state=seed, shuffle=True)
+            scv = KFold(n_splits=FOLDS, shuffle=False)
             if Boosting_Flag:
                 ######    Bagging models if Bagging is chosen ####
                 #model4 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
@@ -145,7 +144,7 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
         if modeltype == 'Regression':
             if scoring == '':
                 scoring = 'neg_mean_squared_error'
-            scv = KFold(n_splits=FOLDS, random_state=seed, shuffle=True)
+            scv = KFold(n_splits=FOLDS, shuffle=False)
             if Boosting_Flag:
                 ######    Bagging models if Bagging is chosen ####
                 #model4 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),

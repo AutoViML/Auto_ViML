@@ -751,6 +751,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     else:
         print('    %d variables removed since they were ID or low-information variables'
                                 %len(id_cols+del_cols+date_cols))
+        if verbose >= 1:
+            print('        %s' %(id_cols+del_cols+date_cols))
     ################## This is where real code begins ###################################################
     GPU_exists = check_if_GPU_exists()
     ###### This is where we set the CPU and GPU parameters for XGBoost
@@ -2917,6 +2919,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ###########   D R A W  SHAP  VALUES USING TREE BASED MODELS. THE REST WILL NOT GET SHAP ############
         if verbose >= 2:
             print('Trying to plot SHAP values if SHAP is installed in this machine...')
+            X_plot = X_cv[:1000]
+            y_plot = y_cv[:1000]
             try:
                 if model_name.lower() == 'catboost':
                     if verbose > 0:
@@ -2924,11 +2928,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         from catboost import Pool
                         shap.initjs()
                         try:
-                            shap_values = plot_model.get_feature_importance(Pool(X_cv, label=y_cv,
+                            shap_values = plot_model.get_feature_importance(Pool(X_plot, label=y_plot,
                                             cat_features=imp_cats),type="ShapValues")
                         except:
                             shap_values = plot_model.get_feature_importance(type="ShapValues")
-                        shap_df = pd.DataFrame(np.c_[X_cv.values,y_cv],columns=[list(X_cv)+[each_target]])
+                        shap_df = pd.DataFrame(np.c_[X_plot.values,y_plot],columns=[list(X_plot)+[each_target]])
                         if modeltype == 'Multi_Classification':
                             for each_i in range(len(classes)):
                                 ### This is needed for Catboost models but it is very cumbersome!
@@ -2940,44 +2944,45 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             plt.figure()
                             shap.summary_plot(shap_values, shap_df, plot_type="violin")
                 else:
+                    X_plot = X_test[:1000]
                     import shap
                     shap.initjs()
                     #### This works well for RFC and XGBoost for multiclass problems #####
                     #### This plots a violin plot that is different from the bar chart above!
                     #### This does not work for CatBoost so try something else!
                     if model_name.lower() == 'linear':
-                        explainer = shap.LinearExplainer(plot_model, X_test, feature_dependence="independent")
-                        shap_values = explainer.shap_values(X_test)
+                        explainer = shap.LinearExplainer(plot_model, X_plot, feature_dependence="independent")
+                        shap_values = explainer.shap_values(X_plot)
                         plt.figure()
-                        shap.summary_plot(shap_values, X_test, plot_type="bar")
+                        shap.summary_plot(shap_values, X_plot, plot_type="bar")
                         if modeltype != 'Regression':
                             plt.figure()
-                            shap.summary_plot(shap_values, X_test)
+                            shap.summary_plot(shap_values, X_plot)
                     elif model_name.lower() == 'forests':
                         #### This works well for RFC and XGBoost for multiclass problems #####
                         ### It works for both binary and multi-class problems ########
                         ### However, it does NOT work for CatBoost models!
                         explainer = shap.TreeExplainer(plot_model)
-                        shap_values = explainer.shap_values(X_test)
+                        shap_values = explainer.shap_values(X_plot)
                         plt.figure()
-                        shap.summary_plot(shap_values, X_test, plot_type="bar")
+                        shap.summary_plot(shap_values, X_plot, plot_type="bar")
                         ### There is no single violin plot for Random Forests in SHAP
                         #### It actually has multiple outputs so you can loop through it for each class
                         if modeltype != 'Regression':
                             for each_i in range(len(classes)):
                                 plt.figure()
-                                shap.summary_plot(shap_values[each_i], X_test)
+                                shap.summary_plot(shap_values[each_i], X_plot)
                     elif model_name.lower() == 'xgboost':
                         #### This works well for RFC and XGBoost for multiclass problems #####
                         ### It works for both binary and multi-class problems ########
                         ### However, it does NOT work for CatBoost models!
                         explainer = shap.TreeExplainer(plot_model)
-                        shap_values = explainer.shap_values(X_test)
+                        shap_values = explainer.shap_values(X_plot)
                         plt.figure()
-                        shap.summary_plot(shap_values, X_test, plot_type="bar")
+                        shap.summary_plot(shap_values, X_plot, plot_type="bar")
                         if modeltype != 'Regression':
                             plt.figure()
-                            shap.summary_plot(shap_values, X_test)
+                            shap.summary_plot(shap_values, X_plot)
             except:
                 print('Could not plot SHAP values since SHAP is not installed or could not import SHAP in this machine')
     else:
@@ -4623,9 +4628,11 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
         df_train = X_df.join(y_df)
         # Generate classes
         if modeltype == 'Regression':
+            num_samples = max(10, int(df_train.shape[0]/1000))
             #### Get the cluster labels for the data  - transform y_df into labels. Then send it to SMOTE.
             num_clusters = int(np.round(max(2,np.log10(y_df.shape[0]))))
-            Y_classes = rs.fit(df_train, target=target, bins=num_clusters, verbose=verbose)
+            Y_classes = rs.fit(df_train, target=target, bins=num_clusters,
+                                min_n_samples=num_samples, verbose=2)
         else:
             # Create the actual target variable if this is Classification
             Y_classes = df_train[target]

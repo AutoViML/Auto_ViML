@@ -446,7 +446,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     bootstrap = True #### Set this flag to control whether to bootstrap variables or not.
     n_repeats = 3 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
     Bins = 30 ### This is for plotting probabilities in a histogram. For small data sets, 30 is enough.
-    top_nlp_features = 100 ### This sets a limit on the number of features added by each NLP transformer!
+    top_nlp_features = 300 ### This sets a limit on the number of features added by each NLP transformer!
     removed_features_threshold = 5 #### This triggers the Truncated_SVD if number of removed features from XGB exceeds this!
     calibrator_flag = False  ### In Multi-class data sets, a CalibratedClassifier works better than regular classifiers!
     max_class_length = 1 ### It turns out the number of classes is directly correlated to Estimated Time. Hence this!
@@ -2101,6 +2101,17 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     best_params = dict(zip(['iterations','learning_rate'],[model.get_best_iteration(),model.get_all_params()['learning_rate']]))
                 print('    %s Best Parameters for Model: Iterations = %s, learning_rate = %0.2f' %(
                                     model_name, model.get_best_iteration(), model.get_all_params()['learning_rate']))
+            elif Imbalanced_Flag and modeltype == 'Regression':
+                ## this means regression resampler is being used
+                if model.get_best_iteration() == 0:
+                    ### In some small data sets, the number of iterations becomes zero, hence we set it as a default number
+                    best_params = dict(zip(['iterations','learning_rate'],[1000,model.get_all_params()['learning_rate']]))
+                else:
+                    best_params = dict(zip(['iterations','learning_rate'],[model.get_best_iteration(),model.get_all_params()['learning_rate']]))
+                print('    %s Best Parameters for Model: Iterations = %s, learning_rate = %0.2f' %(
+                                    model_name, model.get_best_iteration(), model.get_all_params()['learning_rate']))
+            else:
+                best_params = {}
         if hyper_param == 'RS' or hyper_param == 'GS':
             #### In the case of CatBoost, we don't do any Hyper Parameter tuning #########
             if not Imbalanced_Flag:
@@ -2604,7 +2615,15 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     index=orig_index, columns=important_features)
         testm = orig_train[id_cols].join(X_test)
     ############  This is where we start predictions on test data if available #############
-    y_pred = model.predict(X_test)
+    try:
+        y_pred = model.predict(X_test)
+    except:
+        if (X_train.dtypes == X_test.dtypes).values.all():
+            print('Model erroring on predictions. Check if test data has any differences from train data')
+        else:
+            erroring_column = X_train.columns[~(X_train.dtypes == X_test.dtypes).values][0]
+            print('Model erroring since %s has a different dtype in test compared to train. Fix it and re-run.' %erroring_column)
+            return model, important_features, trainm, testm
     ##### This next step is very important since some models give series, others give arrays. Very painful!
     if isinstance(y_pred,pd.Series) or isinstance(y_pred,pd.DataFrame) :
         y_pred = y_pred.values
@@ -3464,6 +3483,7 @@ def classify_columns(df_preds, verbose=0):
     var_df['cat'] = 0
     var_df['id_col'] = 0
     discrete_or_nlp_vars = var_df.loc[discrete_or_nlp==1]['index'].values.tolist()
+    ##### This is complicated logic - do not touch #############################
     if len(var_df.loc[discrete_or_nlp==1]) != 0:
         for col in discrete_or_nlp_vars:
             #### first fill empty or missing vals since it will blowup ###
@@ -3472,14 +3492,20 @@ def classify_columns(df_preds, verbose=0):
                 ) >= max_nlp_char_size and len(train[col].value_counts()
                         ) <= int(0.9*len(train)) and col not in string_bool_vars:
                 var_df.loc[var_df['index']==col,'nlp_strings'] = 1
-            elif len(train[col].value_counts()) > cat_limit and len(train[col].value_counts()
+            elif len(train[col].value_counts()) >= cat_limit and len(train[col].value_counts()
                         ) <= int(0.9*len(train)) and col not in string_bool_vars:
                 var_df.loc[var_df['index']==col,'discrete_strings'] = 1
-            elif len(train[col].value_counts()) > cat_limit and len(train[col].value_counts()
+            elif len(train[col].value_counts()) >= cat_limit and len(train[col].value_counts()
                         ) == len(train) and col not in string_bool_vars:
                 var_df.loc[var_df['index']==col,'id_col'] = 1
-            else:
+            elif len(train[col].value_counts()) < cat_limit and col not in string_bool_vars:
                 var_df.loc[var_df['index']==col,'cat'] = 1
+            else:
+                if train[col].map(lambda x: len(x) if type(x)==str else 0).mean() >= max_nlp_char_size:
+                    var_df.loc[var_df['index']==col,'nlp_strings'] = 1
+                else:
+                    var_df.loc[var_df['index']==col,'discrete_strings'] = 1
+    ##### This is complicated logic - do not touch #############################
     nlp_vars = list(var_df[(var_df['nlp_strings'] ==1)]['index'])
     sum_all_cols['nlp_vars'] = nlp_vars
     discrete_string_vars = list(var_df[(var_df['discrete_strings'] ==1) ]['index'])
@@ -4631,7 +4657,13 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
             num_samples = max(10, int(df_train.shape[0]/1000))
             #### Get the cluster labels for the data  - transform y_df into labels. Then send it to SMOTE.
             num_clusters = int(np.round(max(2,np.log10(y_df.shape[0]))))
-            Y_classes = rs.fit(df_train, target=target, bins=num_clusters,
+            try:
+                Y_classes = rs.fit(df_train, target=target, bins=num_clusters,
+                                min_n_samples=num_samples, verbose=2)
+            except:
+                print('Min number of samples %s is too high. Resetting it to 1 and continuing...' %num_samples)
+                num_samples = 1
+                Y_classes = rs.fit(df_train, target=target, bins=num_clusters,
                                 min_n_samples=num_samples, verbose=2)
         else:
             # Create the actual target variable if this is Classification
@@ -4655,7 +4687,7 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
             print('    This is not an Imbalanced data set. No need to use SMOTE but continuing...')
     except:
         print('    SMOTE is erroring. Continuing without SMOTE...')
-        return model, X_df, y_df
+        return model
         #######################################################################
     ### now train the model on full train data #################################
     class_weighted_rows = get_class_distribution(Y_classes)
@@ -4667,12 +4699,21 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
     else:
         # Your favourite oversampler = SMOTE is better than SMOTEENN in most cases!
         smote = SMOTE(random_state=27, sampling_strategy=class_weighted_rows, n_jobs=-1)
-    if modeltype == 'Regression':
-        #### Now we must re-sample the data using reg resampler to train full model
-        X_df_res, y_df_res = rs.resample(smote, df_train, Y_classes)
-    else:
-        #### For classification problems simply using the original data will do
-        X_df_res, y_df_res = smote.fit_resample(X_df, y_df)
+    try:
+        if modeltype == 'Regression':
+            #### Now we must re-sample the data using reg resampler to train full model
+            X_df_res, y_df_res = rs.resample(smote, df_train, Y_classes)
+        else:
+            #### For classification problems simply using the original data will do
+            X_df_res, y_df_res = smote.fit_resample(X_df, y_df)
+    except:
+        print('Regression-resampler is erroring. Continuing...')
+        model = model_training_smote(model, X_df, y_df, eval_set, eval_metric,
+                             params, imp_cats, modeltype,
+                            calibrator_flag, model_name, Boosting_Flag, model_label,
+                             GPU_exists)
+        print('    Model Training time taken = %0.0f seconds' %(time.time()-start_time))
+        return model
     print('Training model now on resampled train data: %s. This will take time...' %(X_df_res.shape,))
     # Fit the model using x_train and y_train full data sent in
     model = model_training_smote(model, X_df_res, y_df_res, eval_set, eval_metric,
@@ -5329,7 +5370,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.675'
+version_number = '0.1.676'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

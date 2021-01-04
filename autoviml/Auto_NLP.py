@@ -1498,25 +1498,19 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         select =  SelectKBest(chi2, k=k_best_features)
         params['selectkbest__k'] = sp.stats.randint(k_best_features,max_features_limit)
     print('Performing RandomizedSearchCV across 30 params. Optimizing for %s' %score_type)
-    print('    Using train data = %s and Cross Validation data = %s' %(X_train.shape, X_test.shape))
+    print('    Using train data = %s and Cross Validation data = %s' %(X_train.shape, X_test.shape,))
+    ######   This is where we choose one model vs another based on problem type ##
     if modeltype == 'Regression':
-        scv = KFold(n_splits=n_splits, random_state=seed)
-        if top_num_features < top_num_features_limit:
-            from sklearn.svm import LinearSVR
-            model_name = 'Linear SVR'
-            nlp_model = LinearSVR(epsilon=0.0, tol=0.001, C=1.0,random_state=99)
-            params['linearsvr__epsilon'] = sp.stats.uniform(scale=1)
-            params['linearsvr__C'] = sp.stats.uniform(scale=100)
-        else:
-            model_name = 'Random Forest Regressor'
-            nlp_model = RandomForestRegressor(random_state=seed)
-            #params['randomforestregressor__max_depth'] = sp.stats.randint(2,10),
-            #params['randomforestregressor__n_estimators'] = sp.stats.randint(200,500)
+        scv = KFold(n_splits=n_splits)
+        model_name = 'Random Forest Regressor'
+        nlp_model = RandomForestRegressor(n_estimators = 100, n_jobs=-1, random_state=seed)
+        #params['randomforestregressor__max_depth'] = sp.stats.randint(2,10),
+        #params['randomforestregressor__n_estimators'] = sp.stats.randint(200,500)
     else:
         if isinstance(target, list):
-            scv = KFold(n_splits=n_splits, random_state=seed)
+            scv = KFold(n_splits=n_splits)
             model_name = 'Random Forest Classifier'
-            nlp_model = RandomForestClassifier(random_state=seed)
+            nlp_model = RandomForestClassifier(n_estimators = 100, n_jobs=-1, random_state=seed)
         else:
             scv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
             if top_num_features < top_num_features_limit:
@@ -1544,11 +1538,11 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
     ################    B U I L D I N G   A   P I P E L I N E   H E R E  ######################
     if top_num_features < top_num_features_limit:
-        print("""Since top_num_features < %d, %s model selected. If you need different model, increase it >= %d.""" %(
-                            top_num_features_limit,model_name,top_num_features_limit))
+        print("""Since top_num_features = %d, %s model selected. If you need different model, increase it >= %d.""" %(
+                            top_num_features,model_name,top_num_features_limit))
     else:
-        print("""Since top_num_features >= %d, selecting %s model. If you need different model, decrease it <%d.""" %(
-                            top_num_features_limit,model_name,top_num_features_limit))
+        print("""Since top_num_features = %d, selecting %s model. If you need different model, decrease it <%d.""" %(
+                            top_num_features,model_name,top_num_features_limit))
     ### The reason we don't add a clean_text function here in pipeline is because it takes too long in online
     ### It is better to clean the data in advance and then use the pipeline here in GS mode to find best params
     from sklearn.preprocessing import FunctionTransformer
@@ -1928,7 +1922,7 @@ def NLP_select_best_model_fit_predict(X, y, test, modeltype, score_type):
     print('    Train Vectorized data shape = %s, Cross Validation data shape = %s' %(X_train.shape, X_test.shape))
     if modeltype == 'Regression':
         model_name = 'XGB Regressor'
-        scv = KFold(n_splits=n_splits, random_state=seed)
+        scv = KFold(n_splits=n_splits)
         nlp_model = XGBRegressor(learning_rate=0.1,subsample=subsample,max_depth=10,
                             colsample_bytree=col_sub_sample,reg_alpha=0.5, reg_lambda=0.5,
                             seed=1,n_jobs=-1,random_state=seed)

@@ -118,7 +118,7 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
             model5 = LinearDiscriminantAnalysis()
             model_tuples.append(('Linear_Discriminant',model5))
         else:
-            model5 = LogisticRegressionCV(Cs=[0.001,0.01,0.1,1,10,100],
+            model5 = LogisticRegressionCV(Cs=[0.001,0.01,0.1,1,10,100], tol=0.01,
                                           solver='liblinear', random_state=seed)
             model_tuples.append(('Logistic_Regression_CV',model5))
         if Boosting_Flag is None:
@@ -174,35 +174,35 @@ def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regressio
 from sklearn.metrics import balanced_accuracy_score,accuracy_score,precision_score,recall_score,f1_score
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import copy
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LogisticRegression
 def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, modeltype):
     start_time = time.time()
     model_name,  bac_score_list, ac_score_list, p_score_list, r_score_list, f1_score_list = [], [], [], [], [], []
     iteration = 0
     estimators = []
     estim_tuples = []
-    for k,v in model_dict.items():
-        estimator_name = k
-        model_name.append(k)
-        if str(v).split("(")[0] == 'MultinomialNB':
+    for key,val in model_dict.items():
+        estimator_name = key
+        model_name.append(key)
+        if str(val).split("(")[0] == 'MultinomialNB':
             #### Multinomial models need only positive values!!
-            v.fit(abs(X_train), y_train)
-            y_pred = v.predict(abs(X_test))
+            val.fit(abs(X_train), y_train)
+            y_pred = val.predict(abs(X_test))
         else:
             try:
-                v.fit(X_train, y_train)
-                y_pred = v.predict(X_test)
+                val.fit(X_train, y_train)
+                y_pred = val.predict(X_test)
             except:
                 if modeltype != 'Regression':
-                    k = 'Logistic_Regression'
-                    from sklearn.linear_model import LogisticRegression
-                    v = LogisticRegression()
+                    key = 'Logistic_Regression'
+                    val = LogisticRegression()
                 else:
-                    k = 'Linear_Regression'
-                    from sklearn.linear_model import LinearRegression
-                    v = LinearRegression()
+                    key = 'Linear_Regression'
+                    val = LinearRegression()
+                val.fit(X_train, y_train)
         try:
-            v.fit(X_train, y_train)
-            y_pred = v.predict(X_test)
+            y_pred = val.predict(X_test)
         except:
             print('Error in ensemble models. Returning...')
             stacks = np.array([])
@@ -215,7 +215,7 @@ def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, m
         if not isinstance(y_test,str):
             if modeltype == 'Regression':
                 bac_score = np.sqrt(mean_squared_error(y_test, y_pred))
-                estimators.append((estimator_name,v, bac_score))
+                estimators.append((estimator_name,val, bac_score))
                 estim_tuples.append((estimator_name, bac_score))
                 bac_score_list.append(bac_score)
                 ac_score_list.append(mean_squared_error(y_test, y_pred))
@@ -225,7 +225,7 @@ def run_ensemble_models(model_dict, X_train, y_train, X_test, y_test, scoring, m
                 model_comparison_df = model_comparison_df.sort_values(by='RMSE', ascending=True)
             else:
                 bac_score = balanced_accuracy_score(y_test, y_pred)
-                estimators.append((estimator_name,v, bac_score))
+                estimators.append((estimator_name,val, bac_score))
                 estim_tuples.append((estimator_name, bac_score))
                 bac_score_list.append(balanced_accuracy_score(y_test, y_pred))
                 ac_score_list.append(accuracy_score(y_test, y_pred))

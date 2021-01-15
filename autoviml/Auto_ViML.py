@@ -5181,7 +5181,10 @@ def print_regression_model_stats(actuals, predicted, targets='', plot_name=''):
     if multi_label:
         for i in range(actuals.shape[1]):
             actuals_x = actuals[:,i]
-            predicted_x = predicted[:,i]
+            try:
+                predicted_x = predicted[:,i]
+            except:
+                predicted_x = predicted[:]
             print('Regression Metrics for Target=%s' %cols[i])
             mae, mae_asp, rmse_asp = print_regression_metrics(actuals_x, predicted_x)
     else:
@@ -5370,7 +5373,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.676'
+version_number = '0.1.677'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',
@@ -5380,7 +5383,6 @@ print("""Imported Auto_ViML version: %s. Call using:
                             Add_Poly=0, Stacking_Flag=False,Imbalanced_Flag=False,
                             verbose=1)
             """ %version_number)
-print("To remove previous versions, perform 'pip uninstall autoviml'")
-print('    The new Auto_ViML can solve multi-label, multi-output problems - check your version is > 0.1.669')
+print('The new Auto_ViML can solve multi-label, multi-output problems. Check if your version is >= 0.1.669')
 print('To get the latest version, perform "pip install autoviml --no-cache-dir --ignore-installed"')
 ###########################################################################################

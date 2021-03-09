@@ -31,7 +31,8 @@ setuptools.setup(
     	"beautifulsoup4",
         "shap>=0.36.0",
         "reg_resampler",
-        "emoji"
+        "emoji",
+        "xlrd"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

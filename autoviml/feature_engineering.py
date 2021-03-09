@@ -242,3 +242,73 @@ def add_aggregate_primitive_features(dft, agg_types, id_column, ignore_variables
     dft_full = dft_full.iloc[:, list_unique_col_ids]
     return dft_full
 ################################################################################################################################
+import copy
+import time
+import pdb
+def FE_create_groupby_features(dft, groupby_columns, numeric_columns, agg_types):
+    """
+    FE means FEATURE ENGINEERING - That means this function will create new features
+    Beware: this function will return a smaller dataframe than what you send in since it groups rows by keys.
+    #########################################################################################################
+    Function groups rows in a dft dataframe by the groupby_columns and returns multiple columns for the numeric column aggregated.
+    Do not send in more than one column in the numeric column since beyond the first column it will be ignored!
+    agg_type can be any numpy function such as mean, median, sum, count, etc.
+    ##########################################################################################################
+    Returns: a smaller dataframe with rows grouped by groupby_columns and aggregated for the numeric_column
+    """
+    start_time = time.time()
+    grouped_sep = pd.DataFrame()
+    print('Autoviml Feature Engineering: creating groupby features using %s' %groupby_columns)
+    ##########  This is where we create new columns by each numeric column grouped by group-by columns given.
+    if isinstance(numeric_columns, list):
+        pass
+    elif isinstance(numeric_column, str):
+        numeric_columns = [numeric_columns]
+    else:
+        print('    Numeric column must be a string not a number Try again')
+        return pd.DataFrame()
+    grouped_list = pd.DataFrame()
+    for iteration, numeric_column in zip(range(len(numeric_columns)),numeric_columns):
+        grouped = dft.groupby(groupby_columns)[[numeric_column]]
+        try:
+            agg_type = agg_types[iteration]
+        except:
+            print('    No aggregation type given, hence mean is chosen by default')
+            agg_type = 'mean'
+        try:
+            prefix = numeric_column + '_'
+            if agg_type in ['Sum', 'sum']:
+                grouped_agg = grouped.sum()
+            elif agg_type in ['Mean', 'mean','Average','average']:
+                grouped_agg = grouped.mean()
+            elif agg_type in ['count', 'Count']:
+                grouped_agg = grouped.count()
+            elif agg_type in ['Median', 'median']:
+                grouped_agg = grouped.median()
+            elif agg_type in ['Maximum', 'maximum','max', 'Max']:
+                ## maximum of the amounts
+                grouped_agg = grouped.max()
+            elif agg_type in ['Minimum', 'minimum','min', 'Min']:
+                ## maximum of the amounts
+                grouped_agg = grouped.min()
+            else:
+                grouped_agg = grouped.mean()
+            grouped_sep = grouped_agg.unstack().add_prefix(prefix).fillna(0)
+        except:
+            print('    Error in creating groupby features...returning with null dataframe')
+            grouped_sep = pd.DataFrame()
+        if iteration == 0:
+            grouped_list = copy.deepcopy(grouped_sep)
+        else:
+            grouped_list = pd.concat([grouped_list,grouped_sep],axis=1)
+        print('    After grouped features added by %s, number of columns = %d' %(numeric_column, grouped_list.shape[1]))
+    #### once everything is done, you can close it here
+    print('Time taken for creation of groupby features (in seconds) = %0.0f' %(time.time()-start_time))
+    try:
+        grouped_list.columns = grouped_list.columns.get_level_values(1)
+        grouped_list.columns.name = None ## make sure the name on columns is removed
+        grouped_list = grouped_list.reset_index() ## make sure the ID column comes back
+    except:
+        print('   Error in setting column names. Please reset column names after this step...')
+    return grouped_list
+################################################################################

@@ -16,3 +16,4 @@ beautifulsoup4
 shap>=0.36.0
 emoji
 reg_resampler
+xlrd

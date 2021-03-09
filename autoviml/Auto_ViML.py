@@ -106,10 +106,13 @@ def check_if_GPU_exists():
     try:
         from tensorflow.python.client import device_lib
         dev_list = device_lib.list_local_devices()
-        print('Number of GPUs = %d' %len(dev_list))
+        print('Number of Processors on this device = %d' %len(dev_list))
         for i in range(len(dev_list)):
             if 'GPU' == dev_list[i].device_type:
                 GPU_exists = True
+                print('%s available' %dev_list[i].device_type)
+            elif 'CPU' == dev_list[i].device_type:
+                GPU_exists = False
                 print('%s available' %dev_list[i].device_type)
     except:
         print('')
@@ -201,6 +204,69 @@ def split_train_into_two(train_data, target, randomstate, modeltype):
         traindf, testdf = train_data.iloc[training_idx], train_data.iloc[test_idx]
     return traindf, testdf
 #######################################################################################
+from sklearn.base import TransformerMixin
+from collections import defaultdict
+import pdb
+class My_LabelEncoder(TransformerMixin):
+    """
+    ################################################################################################
+    ######  This Label Encoder class works just like sklearn's Label Encoder!  #####################
+    #####  You can label encode any column in a data frame using this new class. But unlike sklearn,
+    the beauty of this function is that it can take care of NaN's and unknown (future) values.
+    It uses the same fit() and fit_transform() methods of sklearn's LabelEncoder class.
+    ################################################################################################
+    Usage:
+          MLB = My_LabelEncoder()
+          train[column] = MLB.fit_transform(train[column])
+          test[column] = MLB.transform(test[column])
+    """
+    def __init__(self):
+        self.transformer = defaultdict(str)
+        self.inverse_transformer = defaultdict(str)
+
+    def fit(self,testx):
+        if isinstance(testx, pd.Series):
+            pass
+        elif isinstance(testx, np.ndarray):
+            testx = pd.Series(testx)
+        else:
+            return testx
+        outs = np.unique(testx.factorize()[0])
+        ins = np.unique(testx.factorize()[1]).tolist()
+        if -1 in outs:
+            ins.insert(0,np.nan)
+        self.transformer = dict(zip(ins,outs.tolist()))
+        self.inverse_transformer = dict(zip(outs.tolist(),ins))
+        return self
+
+    def transform(self, testx):
+        if isinstance(testx, pd.Series):
+            pass
+        elif isinstance(testx, np.ndarray):
+            testx = pd.Series(testx)
+        else:
+            return testx
+        ins = np.unique(testx.factorize()[1]).tolist()
+        missing = [x for x in ins if x not in self.transformer.keys()]
+        if len(missing) > 0:
+            for each_missing in missing:
+                max_val = np.max(list(self.transformer.values())) + 1
+                self.transformer[each_missing] = max_val
+                self.inverse_transformer[max_val] = each_missing
+        ### now convert the input to transformer dictionary values
+        outs = testx.map(self.transformer).values
+        return outs
+
+    def inverse_transform(self, testx):
+        ### now convert the input to transformer dictionary values
+        if isinstance(testx, pd.Series):
+            outs = testx.map(self.inverse_transformer).values
+        elif isinstance(testx, np.ndarray):
+            outs = pd.Series(testx).map(self.inverse_transformer).values
+        else:
+            outs = testx[:]
+        return outs
+#################################################################################
 def fill_missing_values_object_or_number(start_train, start_test, fill_num, col,str_flag=True):
     """
     ####  This is the easiest way to fill missing values using an object in both train and test
@@ -534,7 +600,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         top_nlp_features = 300
         if isinstance(Boosting_Flag,str):
             if Boosting_Flag.lower() == 'catboost':
-                max_estims = 5000
+                max_estims = 10000
             else:
                 max_estims = 400
         else:
@@ -550,7 +616,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             top_nlp_features = 250
             if isinstance(Boosting_Flag,str):
                 if Boosting_Flag.lower() == 'catboost':
-                    max_estims = 3000
+                    max_estims = 5000
                 else:
                     max_estims = 300
             else:
@@ -566,7 +632,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             top_nlp_features = 200
             if isinstance(Boosting_Flag,str):
                 if Boosting_Flag.lower() == 'catboost':
-                    max_estims = 4000
+                    max_estims = 7000
                 else:
                     max_estims = 350
             else:
@@ -835,59 +901,78 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     missing_flag_cols = []
     if len(copy_preds) > 0:
         dict_train = {}
-        for f in copy_preds:
-            if f in missing_cols:
+        for col in copy_preds:
+            if col in missing_cols:
                 continue
             missing_flag = False
-            if f in nlp_columns:
+            if col in nlp_columns:
                 #### YOu have to do missing values for NLP columns. Otherwise leave them as is for Auto_NLP later ##############
                 fill_num = 'missing'
                 start_train, start_test,missing_flag,new_missing_col = fill_missing_values_object_or_number(
-                                                start_train, start_test,fill_num,f,True)
+                                                start_train, start_test,fill_num,col,True)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
                     preds.append(new_missing_col)
                     missing_flag_cols.append(new_missing_col)
-            elif start_train[f].dtype == object:
+            elif start_train[col].dtype == object:
                 ####  This is the easiest way to label encode object variables in both train and test
                 #### This takes care of some categories that are present in train and not in test
                 ###     and vice versa
-                start_train, start_test,missing_flag,new_missing_col = convert_train_test_cat_col_to_numeric(start_train, start_test,f,True)
-                if missing_flag:
-                    cat_vars.append(new_missing_col)
-                    num_bool_vars.append(new_missing_col)
-                    preds.append(new_missing_col)
-                    missing_flag_cols.append(new_missing_col)
-            elif start_train[f].dtype in [np.int64, np.int32, np.int16, np.int8]:
-                ### if there are integer variables, don't scale them. Leave them as is.
-                fill_num = int(start_train[f].min() - 1)
-                start_train, start_test,missing_flag,new_missing_col = fill_missing_values_object_or_number(
-                                                start_train, start_test,fill_num,f,True)
-                start_train[f] = start_train[f].astype(int)
-                if type(orig_test) != str:
-                    start_test[f] = start_test[f].astype(int)
-                if missing_flag:
-                    cat_vars.append(new_missing_col)
-                    num_bool_vars.append(new_missing_col)
-                    preds.append(new_missing_col)
-                    missing_flag_cols.append(new_missing_col)
-            elif is_datetime(start_train[f]):
-                ### if it is a date time variable then you need to fill any missing values with ffill method
-                if start_train[f].isnull().sum() > 0:
+                MLB = My_LabelEncoder()
+                new_missing_col = ''
+                if start_train[col].isnull().sum() > 0:
                     missing_flag = True
-                    new_missing_col = f + '_Missing_Flag'
+                    new_missing_col = col + '_Missing_Flag'
                     start_train[new_missing_col] = 0
-                    start_train.loc[start_train[f].isnull(),new_missing_col]=1
-                    start_train[f] = start_train[f].fillna(method='ffill')
+                    start_train.loc[start_train[col].isnull(),new_missing_col]=1
+                #### This is where you use My_LabelEncoder to transform
+                start_train[col] = MLB.fit_transform(start_train[col])
+                if not isinstance(start_test, str):
+                    if missing_flag:
+                        start_test[new_missing_col] = 0
+                    if start_test[col].isnull().sum() > 0:
+                        new_missing_col = col + '_Missing_Flag'
+                        start_test[new_missing_col] = 0
+                        start_test.loc[start_test[col].isnull(),new_missing_col]=1
+                    #### This is where you use My_LabelEncoder to transform
+                    start_test[col] = MLB.transform(start_test[col])
+                if missing_flag:
+                    cat_vars.append(new_missing_col)
+                    num_bool_vars.append(new_missing_col)
+                    preds.append(new_missing_col)
+                    missing_flag_cols.append(new_missing_col)
+            elif start_train[col].dtype in [np.int64, np.int32, np.int16, np.int8]:
+                ### if there are integer variables, don't scale them. Leave them as is.
+                fill_num = int(start_train[col].min() - 1)
+                start_train, start_test,missing_flag,new_missing_col = fill_missing_values_object_or_number(
+                                                start_train, start_test,fill_num,col,True)
+                start_train[col] = start_train[col].astype(int)
+                if type(orig_test) != str:
+                    start_test[col] = start_test[col].astype(int)
+                if missing_flag:
+                    cat_vars.append(new_missing_col)
+                    num_bool_vars.append(new_missing_col)
+                    preds.append(new_missing_col)
+                    missing_flag_cols.append(new_missing_col)
+            elif is_datetime(start_train[col]):
+                ### if it is a date time variable then you need to fill any missing values with ffill method
+                if start_train[col].isnull().sum() > 0:
+                    missing_flag = True
+                    new_missing_col = col + '_Missing_Flag'
+                    start_train[new_missing_col] = 0
+                    start_train.loc[start_train[col].isnull(),new_missing_col]=1
+                    start_train[col] = start_train[col].fillna(method='ffill')
                 if type(orig_test) != str:
                     if missing_flag:
                         start_test[new_missing_col] = 0
-                    if start_test[f].isnull().sum() > 0:
-                        start_test.loc[start_test[f].isnull(),new_missing_col]=1
-                        start_test[f] = start_test[f].fillna(method='ffill')
-            elif f in factor_cols:
-                start_train, start_test,missing_flag,new_missing_col = convert_train_test_cat_col_to_numeric(start_train, start_test,f,False)
+                    if start_test[col].isnull().sum() > 0:
+                        new_missing_col = col + '_Missing_Flag'
+                        start_test[new_missing_col] = 0
+                        start_test.loc[start_test[col].isnull(),new_missing_col]=1
+                        start_test[col] = start_test[col].fillna(method='ffill')
+            elif col in factor_cols:
+                start_train, start_test,missing_flag,new_missing_col = convert_train_test_cat_col_to_numeric(start_train, start_test,col,False)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
@@ -895,19 +980,21 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     missing_flag_cols.append(new_missing_col)
             else:
                 ### for all numeric variables, fill missing values with 1 less than min.
-                fill_num = start_train[f].min() - 1
-                if start_train[f].isnull().sum() > 0:
+                fill_num = start_train[col].min() - 1
+                if start_train[col].isnull().sum() > 0:
                     missing_flag = True
-                    new_missing_col = f + '_Missing_Flag'
+                    new_missing_col = col + '_Missing_Flag'
                     start_train[new_missing_col] = 0
-                    start_train.loc[start_train[f].isnull(),new_missing_col]=1
-                    start_train[f] = start_train[f].fillna(fill_num)
+                    start_train.loc[start_train[col].isnull(),new_missing_col]=1
+                    start_train[col] = start_train[col].fillna(fill_num)
                 if type(orig_test) != str:
                     if missing_flag:
                         start_test[new_missing_col] = 0
-                    if start_test[f].isnull().sum() > 0:
-                        start_test.loc[start_test[f].isnull(),new_missing_col]=1
-                        start_test[f] = start_test[f].fillna(fill_num)
+                    if start_test[col].isnull().sum() > 0:
+                        new_missing_col = col + '_Missing_Flag'
+                        start_test[new_missing_col] = 0
+                        start_test.loc[start_test[col].isnull(),new_missing_col]=1
+                        start_test[col] = start_test[col].fillna(fill_num)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
@@ -1446,7 +1533,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         loss_function=loss_function, eval_metric=catboost_scoring,
                         subsample=0.7,bootstrap_type='Bernoulli',
                         metric_period = 500,
-                       early_stopping_rounds=250,boosting_type='Plain')
+                       early_stopping_rounds=2000,boosting_type='Plain')
             else:
                 objective = 'reg:squarederror'
                 if model_label == 'Multi_Label':
@@ -1601,7 +1688,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         loss_function=loss_function, eval_metric=catboost_scoring,
                         subsample=subsample,bootstrap_type='Bernoulli',
                         metric_period = 500,
-                       early_stopping_rounds=250,boosting_type='Plain')
+                       early_stopping_rounds=2000,boosting_type='Plain')
                 else:
                     xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                         colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
@@ -1762,7 +1849,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             loss_function=loss_function, eval_metric=catboost_scoring,
                             subsample=subsample,bootstrap_type='Bernoulli',
                             metric_period = 500,
-                           early_stopping_rounds=25,boosting_type='Plain')
+                           early_stopping_rounds=2000,boosting_type='Plain')
                 else:
                     #xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                     #            colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
@@ -5373,7 +5460,7 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     return temp_train, num_vars, important_features, temp_test
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.677'
+version_number = '0.1.678'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

@@ -4706,9 +4706,13 @@ from imblearn.over_sampling import SMOTE, SMOTENC
 from collections import Counter
 import copy
 import pdb
-# Regression_Resampler is a neat library that returns a numpy list of classes for each
-#  corresponding sample. from target data. It also automatically merges classes if they are small
-from reg_resampler import resampler
+#######################################################################################
+### Regression_Resampler is a neat library that returns a numpy list of classes for each
+###  corresponding sample. from target data. It enables regresison problems to use SMOTE.
+###  I have used a similar concept but implemented it my way using K-Means algorithm.
+###  My sincere thanks to the creators of the library:
+###     https://github.com/atif-hassan/Regression_ReSampling/
+#######################################################################################
 def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval_metric,
                                         modeltype, model_name,
                                      training=True,minority_class=1,imp_cats=[],
@@ -4737,30 +4741,14 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
     try:
         #######################################################################
         # Initialize the resampler object
-        rs = resampler()
         df_train = X_df.join(y_df)
         # Generate classes
-        if modeltype == 'Regression':
-            num_samples = max(10, int(df_train.shape[0]/1000))
-            #### Get the cluster labels for the data  - transform y_df into labels. Then send it to SMOTE.
-            num_clusters = int(np.round(max(2,np.log10(y_df.shape[0]))))
-            try:
-                Y_classes = rs.fit(df_train, target=target, bins=num_clusters,
-                                min_n_samples=num_samples, verbose=2)
-            except:
-                print('Min number of samples %s is too high. Resetting it to 1 and continuing...' %num_samples)
-                num_samples = 1
-                Y_classes = rs.fit(df_train, target=target, bins=num_clusters,
-                                min_n_samples=num_samples, verbose=2)
-        else:
-            # Create the actual target variable if this is Classification
-            Y_classes = df_train[target]
         #### Select the right SMOTE algorithm based on whether there are any imp_cats in data
         cat_vars_index = [i for i, j in enumerate(X_df.columns) if j in imp_cats]
         ### get the number of K_Neighbors using this calculation
-        rare_samples = pd.Series(Counter(Y_classes)).min()
+        rare_samples = pd.Series(Counter(y_df)).min()
         #print('    Number of Rare Class samples = %d' %rare_samples)
-        rare_pct = rare_samples/Y_classes.shape[0]
+        rare_pct = rare_samples/y_df.shape[0]
         smallest_kn =  rare_samples - 1
         if smallest_kn > 5:
             smallest_kn = 5
@@ -4776,7 +4764,18 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
         print('    SMOTE is erroring. Continuing without SMOTE...')
         return model
         #######################################################################
-    ### now train the model on full train data #################################
+    ### now train the model on full train data ################################
+    if modeltype == 'Regression':
+        # Regression problem turned into Classification problem
+        n_clusters = max(3, int(np.log10(len(y_df))) + 1)
+        # Use KMeans to find natural clusters in your data
+        km_model = KMeans(n_clusters=n_clusters,
+                          n_init=5,
+                          random_state=99)
+        #### remember you must predict using only predictor variables!
+        Y_classes = km_model.fit_predict(X_df)
+    else:
+        Y_classes = copy.deepcopy(y_df)
     class_weighted_rows = get_class_distribution(Y_classes)
     if len(imp_cats) > 0:
         # Your favourite oversampler = SMOTENC is better than SMOTE in most cases!
@@ -4788,8 +4787,10 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
         smote = SMOTE(random_state=27, sampling_strategy=class_weighted_rows, n_jobs=-1)
     try:
         if modeltype == 'Regression':
-            #### Now we must re-sample the data using reg resampler to train full model
-            X_df_res, y_df_res = rs.resample(smote, df_train, Y_classes)
+            #### Using reg resampler will need target column in df_train train - don't forget!
+            X_df_res, y_df_res = kmeans_resampler(X_df, y_df, target, smote, verbose)
+            ### the x_df_res output of resampler will not have the target since it will have been removed!
+            ### y_df_res will have the target column with now extra rows for regression training!
         else:
             #### For classification problems simply using the original data will do
             X_df_res, y_df_res = smote.fit_resample(X_df, y_df)
@@ -4813,8 +4814,11 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
         x_test = eval_set[0][0]
         y_test = eval_set[0][1]
         # Check the score
-        score = model.score(x_test,y_test)
-        print('    Resampled model score on Held out Validation data = %s' %abs(score))
+        print('    Resampled model results on Held out Validation data:')
+        if modeltype == 'Regression':
+            print_regression_metrics(y_test, model.predict(x_test))
+        else:
+            print(classification_report(y_test, model.predict(x_test)))
     model_str = str(model).split("(")[0]
     print('##################  Completed Imbalanced Training using %s ################' %model_str)
     if not training:
@@ -4822,22 +4826,12 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
             fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True,figsize=(12,5))
             if modeltype == 'Regression':
                 y_df.plot(kind='hist',title='Dist. of target before Regression Resampler', ax=ax1, color='r')
-                y_df_res.plot(kind='hist',title='Dist. of target after Regression Resampler', ax=ax2, color='b')
+                pd.DataFrame(y_df_res).plot(kind='hist',title='Dist. of target after Regression Resampler', ax=ax2, color='b')
             else:
                 y_df.value_counts(1).plot(kind='bar',title='Distribution of classes before SMOTE', ax=ax1, color='r')
                 y_df_res.value_counts(1).plot(kind='bar',title='Distribution of classes after SMOTE', ax=ax2, color='b')
     return model
 ##############################################################################################
-def get_class_distribution(y_input):
-    classes = np.unique(y_input)
-    xp = Counter(y_input)
-    class_weights = compute_class_weight('balanced', classes=np.unique(y_input), y=y_input)
-    class_weights[(class_weights<1)]=1
-    class_weights = class_weights.astype(int)
-    class_rows = class_weights*[xp[x] for x in classes]
-    class_weighted_rows = dict(zip(classes,class_rows))
-    return class_weighted_rows
-######################################################################################
 def model_training_smote(model, x_train, y_train, eval_set, eval_metric,
                          params, imp_cats, modeltype,
                         calibrator_flag, model_name, Boosting_Flag, model_label,
@@ -4876,9 +4870,9 @@ def model_training_smote(model, x_train, y_train, eval_set, eval_metric,
             else:
                 early_stopping = 20
                 if eval_set == [()]:
-                    model.fit(x_train, y_train, cat_features=imp_cats,plot=False, verbose=0)
+                    model.fit(x_train, y_train, cat_features=imp_cats,plot=False, verbose=1)
                 else:
-                    model.fit(x_train, y_train, cat_features=imp_cats, verbose=0,
+                    model.fit(x_train, y_train, cat_features=imp_cats, verbose=1,
                                 eval_set=eval_set, use_best_model=True, plot=False)
         else:
             model.fit(x_train, y_train)
@@ -5458,9 +5452,99 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     if verbose and len(new_bincols) <= 30:
         print('    %s' %new_bincols)
     return temp_train, num_vars, important_features, temp_test
+#############################################################################
+from sklearn.base import BaseEstimator, ClassifierMixin, TransformerMixin
+from imblearn.over_sampling import SMOTE, SVMSMOTE
+from imblearn.over_sampling import ADASYN, SMOTENC
+from sklearn.cluster import KMeans
+def kmeans_resampler(x_train, y_train, target, smote="", verbose=0):
+    """
+    This function converts a Regression problem into a Classification problem to enable SMOTE!
+    It is a very simple way to send your x_train, y_train in and get back an oversampled x_train, y_train.
+    Why is this needed in Machine Learning problems?
+         In Imbalanced datasets, esp. skewed regression problems where the target variable is skewed, this is needed.
+    Try this on your skewed Regression problems and see what results you get. It should be better.
+    ----------
+    Inputs
+    ----------
+    x_train : pandas dataframe: you must send in the data with predictors only.
+    min_n_samples : int, default=5: min number of samples below which you combine bins
+    bins : int, default=3: how many bins you want to split target into
+
+    Outputs
+    ----------
+    n_features_ : int
+        The number of features of the data passed to :meth:`fit`.
+    """
+    x_train_c = copy.deepcopy(x_train)
+    x_train_c[target] = y_train.values
+
+    # Regression problem turned into Classification problem
+    n_clusters = max(3, int(np.log10(len(y_train))) + 1)
+    # Use KMeans to find natural clusters in your data
+    km_model = KMeans(n_clusters=n_clusters,
+                      n_init=5,
+                      random_state=99)
+    #### remember you must predict using only predictor variables!
+    y_train_c = km_model.fit_predict(x_train)
+
+    if verbose >= 1:
+        print('    Number of clusters created = %d' %n_clusters)
+
+    #### Generate the over-sampled data
+    #### ADASYN / SMOTE oversampling #####
+    if isinstance(smote, str):
+        x_train_ext, _ = oversample_SMOTE(x_train_c, y_train_c)
+    else:
+        x_train_ext, _ = smote.fit_resample(x_train_c, y_train_c)
+    y_train_ext = x_train_ext[target].values
+    x_train_ext.drop(target, axis=1, inplace=True)
+    return (x_train_ext, y_train_ext)
+
+##################################################################################
+from sklearn.utils.class_weight import compute_class_weight
+def get_class_distribution(y_input):
+    y_input = copy.deepcopy(y_input)
+    classes = np.unique(y_input)
+    xp = Counter(y_input)
+    class_weights = compute_class_weight('balanced', classes=np.unique(y_input), y=y_input)
+    if len(class_weights[(class_weights> 10)]) > 0:
+        class_weights = (class_weights/10)
+    else:
+        class_weights = (class_weights)
+    print('    class_weights = %s' %class_weights)
+    class_weights[(class_weights<1)]=1
+    class_rows = class_weights*[xp[x] for x in classes]
+    class_rows = class_rows.astype(int)
+    class_weighted_rows = dict(zip(classes,class_rows))
+    print('    class_weighted_rows = %s' %class_weighted_rows)
+    return class_weighted_rows
+
+def oversample_SMOTE(X,y):
+    #input DataFrame
+    #X →Independent Variable in DataFrame\
+    #y →dependent Variable in Pandas DataFrame format
+    # Get the class distriubtion for perfoming relative sampling in the next line
+    class_weighted_rows = get_class_distribution(y)
+    smote = SVMSMOTE( random_state=27,
+                  sampling_strategy=class_weighted_rows)
+    X, y = smote.fit_resample(X, y)
+    return(X,y)
+
+def oversample_ADASYN(X,y):
+    #input DataFrame
+    #X →Independent Variable in DataFrame\
+    #y →dependent Variable in Pandas DataFrame format
+    # Get the class distriubtion for perfoming relative sampling in the next line
+    class_weighted_rows = get_class_distribution(y)
+    # Your favourite oversampler
+    smote = ADASYN(random_state=27,
+                   sampling_strategy=class_weighted_rows)
+    X, y = smote.fit_resample(X, y)
+    return(X,y)
 ###########################################################################################
 module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.678'
+version_number = '0.1.679'
 print("""Imported Auto_ViML version: %s. Call using:
              m, feats, trainm, testm = Auto_ViML(train, target, test,
                             sample_submission='',

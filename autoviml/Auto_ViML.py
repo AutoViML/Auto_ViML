@@ -2139,8 +2139,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     try:
         if model_label == 'Single_Label':
             if hyper_param == 'RS' or hyper_param == 'GS':
-                best_score = model.best_score_
-                validation_metric = copy.deepcopy(scoring_parameter)
+                if modeltype == 'Regression' and Imbalanced_Flag:
+                    ### If you use SMOTE, then no GridSearchCV is done. Hence no best_score_
+                    best_score = 0
+                else:
+                    best_score = model.best_score_
+                    validation_metric = copy.deepcopy(scoring_parameter)
             elif hyper_param is None:
                 val_keys = list(model.best_score_.keys())
                 if 'validation' in val_keys:
@@ -4611,38 +4615,84 @@ def create_ts_features(df, tscol):
     df = copy.deepcopy(df)
     dt_adds = []
     try:
-        df[tscol+'_hour'] = df[tscol].dt.hour.astype(int)
-        df[tscol+'_minute'] = df[tscol].dt.minute.astype(int)
+        df[tscol+'_hour'] = df[tscol].dt.hour.fillna(0).astype(int)
+        df[tscol+'_minute'] = df[tscol].dt.minute.fillna(0).astype(int)
         dt_adds.append(tscol+'_hour')
         dt_adds.append(tscol+'_minute')
     except:
         print('    Error in creating hour-second derived features. Continuing...')
     try:
-        df[tscol+'_dayofweek'] = df[tscol].dt.dayofweek.astype(int)
+        df[tscol+'_dayofweek'] = df[tscol].dt.dayofweek.fillna(0).astype(int)
         dt_adds.append(tscol+'_dayofweek')
-        df[tscol+'_quarter'] = df[tscol].dt.quarter.astype(int)
+        if tscol+'_hour' in dt_adds:
+            DAYS = dict(zip(range(7),['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']))
+            df[tscol+'_dayofweek'] = df[tscol+'_dayofweek'].map(DAYS)
+            df.loc[:,tscol+'_dayofweek_hour_cross'] = df[tscol+'_dayofweek'] +" "+ df[tscol+'_hour'].astype(str)
+            dt_adds.append(tscol+'_dayofweek_hour_cross')
+        df[tscol+'_quarter'] = df[tscol].dt.quarter.fillna(0).astype(int)
         dt_adds.append(tscol+'_quarter')
-        df[tscol+'_month'] = df[tscol].dt.month.astype(int)
+        df[tscol+'_month'] = df[tscol].dt.month.fillna(0).astype(int)
+        MONTHS = dict(zip(range(1,13),['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul',
+                                    'Aug', 'Sep', 'Oct', 'Nov', 'Dec']))
+        df[tscol+'_month'] = df[tscol+'_month'].map(MONTHS)
         dt_adds.append(tscol+'_month')
-        df[tscol+'_year'] = df[tscol].dt.year.astype(int)
+        #### Add some features for months ########################################
+        festives = ['Oct','Nov','Dec']
+        name_col = tscol+"_is_festive"
+        df[name_col] = 0
+        df[name_col] = df[tscol+'_month'].map(lambda x: 1 if x in festives else 0).values
+        df[name_col].fillna(0,inplace=True)
+        dt_adds.append(name_col)
+        summer = ['Jun','Jul','Aug']
+        name_col = tscol+"_is_summer"
+        df[name_col] = 0
+        df[name_col] = df[tscol+'_month'].map(lambda x: 1 if x in summer else 0).values
+        df[name_col].fillna(0,inplace=True)
+        dt_adds.append(name_col)
+        winter = ['Dec','Jan','Feb']
+        name_col = tscol+"_is_winter"
+        df[name_col] = 0
+        df[name_col] = df[tscol+'_month'].map(lambda x: 1 if x in winter else 0).values
+        df[name_col].fillna(0,inplace=True)
+        dt_adds.append(name_col)
+        cold = ['Oct','Nov','Dec','Jan','Feb','Mar']
+        name_col = tscol+"_is_cold"
+        df[name_col] = 0
+        df[name_col] = df[tscol+'_month'].map(lambda x: 1 if x in cold else 0).values
+        df[name_col].fillna(0,inplace=True)
+        dt_adds.append(name_col)
+        warm = ['Apr','May','Jun','Jul','Aug','Sep']
+        name_col = tscol+"_is_warm"
+        df[name_col] = 0
+        df[name_col] = df[tscol+'_month'].map(lambda x: 1 if x in warm else 0).values
+        df[name_col].fillna(0,inplace=True)
+        dt_adds.append(name_col)
+        #########################################################################
+        if tscol+'_dayofweek' in dt_adds:
+            df.loc[:,tscol+'_month_dayofweek_cross'] = df[tscol+'_month'] +" "+ df[tscol+'_dayofweek']
+            dt_adds.append(tscol+'_month_dayofweek_cross')
+        df[tscol+'_year'] = df[tscol].dt.year.fillna(0).astype(int)
         dt_adds.append(tscol+'_year')
         today = date.today()
-        df[tscol+'_age_in_years'] = today.year - df[tscol].dt.year.astype(int)
+        df[tscol+'_age_in_years'] = today.year - df[tscol].dt.year.fillna(0).astype(int)
         dt_adds.append(tscol+'_age_in_years')
-        df[tscol+'_dayofyear'] = df[tscol].dt.dayofyear.astype(int)
+        df[tscol+'_dayofyear'] = df[tscol].dt.dayofyear.fillna(0).astype(int)
         dt_adds.append(tscol+'_dayofyear')
-        df[tscol+'_dayofmonth'] = df[tscol].dt.day.astype(int)
+        df[tscol+'_dayofmonth'] = df[tscol].dt.day.fillna(0).astype(int)
         dt_adds.append(tscol+'_dayofmonth')
-        df[tscol+'_weekofyear'] = df[tscol].dt.weekofyear.astype(int)
+        df[tscol+'_weekofyear'] = df[tscol].dt.weekofyear.fillna(0).astype(int)
         dt_adds.append(tscol+'_weekofyear')
-        weekends = (df[tscol+'_dayofweek'] == 5) | (df[tscol+'_dayofweek'] == 6)
-        df[tscol+'_weekend'] = 0
-        df.loc[weekends, tscol+'_weekend'] = 1
-        df[tscol+'_weekend'] = df[tscol+'_weekend'].astype(int)
-        dt_adds.append(tscol+'_weekend')
+        weekends = (df[tscol+'_dayofweek'] == 'Sat') | (df[tscol+'_dayofweek'] == 'Sun')
+        df[tscol+'_typeofday'] = 'weekday'
+        df.loc[weekends, tscol+'_typeofday'] = 'weekend'
+        dt_adds.append(tscol+'_typeofday')
+        if tscol+'_typeofday' in dt_adds:
+            df.loc[:,tscol+'_month_typeofday_cross'] = df[tscol+'_month'] +" "+ df[tscol+'_typeofday']
+            dt_adds.append(tscol+'_month_typeofday_cross')
     except:
         print('    Error in creating date time derived features. Continuing...')
-    df = df[dt_adds].fillna(0).astype(int)
+    print('    Added %d columns from %s column' %(len(dt_adds),tscol))
+    df = df[dt_adds]
     return df
 ################################################################
 from dateutil.relativedelta import relativedelta
@@ -4785,6 +4835,7 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
     else:
         # Your favourite oversampler = SMOTE is better than SMOTEENN in most cases!
         smote = SMOTE(random_state=27, sampling_strategy=class_weighted_rows, n_jobs=-1)
+    ########################    Regression Resampler    #########################
     try:
         if modeltype == 'Regression':
             #### Using reg resampler will need target column in df_train train - don't forget!
@@ -4814,7 +4865,8 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
         x_test = eval_set[0][0]
         y_test = eval_set[0][1]
         # Check the score
-        print('    Resampled model results on Held out Validation data:')
+        print('########################################################')
+        print('Resampled model results on Held out Validation data:')
         if modeltype == 'Regression':
             print_regression_metrics(y_test, model.predict(x_test))
         else:
@@ -5542,18 +5594,4 @@ def oversample_ADASYN(X,y):
                    sampling_strategy=class_weighted_rows)
     X, y = smote.fit_resample(X, y)
     return(X,y)
-###########################################################################################
-module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.1.679'
-print("""Imported Auto_ViML version: %s. Call using:
-             m, feats, trainm, testm = Auto_ViML(train, target, test,
-                            sample_submission='',
-                            scoring_parameter='', KMeans_Featurizer=False,
-                            hyper_param='RS',feature_reduction=True,
-                             Boosting_Flag='CatBoost', Binning_Flag=False,
-                            Add_Poly=0, Stacking_Flag=False,Imbalanced_Flag=False,
-                            verbose=1)
-            """ %version_number)
-print('The new Auto_ViML can solve multi-label, multi-output problems. Check if your version is >= 0.1.669')
-print('To get the latest version, perform "pip install autoviml --no-cache-dir --ignore-installed"')
 ###########################################################################################

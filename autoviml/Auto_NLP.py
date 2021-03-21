@@ -1674,14 +1674,14 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         nlp_result_columns = left_subtract(list(train_best), cols_excl_nlp_cols)
         train_best = train_best.fillna(0)
         ### train_nlp contains the the TruncatedSVD dimensions along with original train data
-        train_nlp = train.join(train_best,rsuffix='_SVD_Dim_by_Auto_NLP')
+        train_nlp = train.join(train_best,rsuffix='_SVD_Dim_'+nlp_column)
         #################################################################################
         if type(test) != str:
             testm = best_nlp_vect.transform(test[nlp_column])
             test_best, _ = reduce_dimensions_with_Truncated_SVD(test,
                                             testm, is_train=False, trained_svd=trained_svd)
             test_best = test_best.fillna(0)
-            test_nlp = test.join(test_best, rsuffix='_SVD_Dim_by_Auto_NLP')
+            test_nlp = test.join(test_best, rsuffix='_SVD_Dim_'+nlp_column)
         ########################################################################
         ##### C R E A T E   C L U S T E R   L A B E L S    U S I N G   TruncatedSVD
         ########################################################################
@@ -1703,9 +1703,9 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         kme, cluster_labels = return_cluster_labels(km, tfidf_term_array, n_clusters,
                                 is_train=True)
         if isinstance(nlp_column, str):
-            cluster_col = nlp_column + '_word_cluster_label'
+            cluster_col = nlp_column + '_word_cluster_'+nlp_column
         else:
-            cluster_col = str(nlp_column) + '_word_cluster_label'
+            cluster_col = str(nlp_column) + '_word_cluster_'+nlp_column
         train_nlp[cluster_col] = cluster_labels
         print ('    Created one new column: %s using KMeans_Clusters on NLP transformed columns...' %cluster_col)
         if not isinstance(test, str):
@@ -1721,10 +1721,12 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         ########################################################################################
         #######  COMBINE TRAIN AND TEST INTO ONE DATA FRAME HERE BEFORE SENTIMENT ANALYSIS #####
         ########################################################################################
-        train_nlp['auto_nlp_source'] = 'Train'
+        if not 'auto_nlp_source' in train_nlp.columns.tolist():
+            train_nlp['auto_nlp_source'] = 'Train'
         if type(test) != str:
             test_nlp[target] = 0
-            test_nlp['auto_nlp_source'] = 'Test'
+            if not 'auto_nlp_source' in test_nlp.columns.tolist():
+                test_nlp['auto_nlp_source'] = 'Test'
             nlp_data = train_nlp.append(test_nlp)
         else:
             nlp_data = copy.deepcopy(train_nlp)

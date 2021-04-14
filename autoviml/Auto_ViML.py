@@ -927,6 +927,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     start_train[new_missing_col] = 0
                     start_train.loc[start_train[col].isnull(),new_missing_col]=1
                 #### This is where you use My_LabelEncoder to transform
+                if len(start_train[col].map(type).value_counts()) > 1:
+                    print('    There are mixed data types in train column %s. Converting to string...' %col)
+                    start_train[col] = start_train[col].astype(str)
                 start_train[col] = MLB.fit_transform(start_train[col])
                 if not isinstance(start_test, str):
                     if missing_flag:
@@ -936,6 +939,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         start_test[new_missing_col] = 0
                         start_test.loc[start_test[col].isnull(),new_missing_col]=1
                     #### This is where you use My_LabelEncoder to transform
+                    if len(start_test[col].map(type).value_counts()) > 1:
+                        print('    There are mixed data types in test column %s. Converting to string...' %col)
+                        start_test[col] = start_test[col].astype(str)
                     start_test[col] = MLB.transform(start_test[col])
                 if missing_flag:
                     cat_vars.append(new_missing_col)
@@ -1002,6 +1008,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     missing_flag_cols.append(new_missing_col)
         ###########################################################################################
         ### This is where you fill the missing column initially with nan and then with imputed values
+        copy_preds = copy.deepcopy(preds)
         if len(missing_cols) >= 1:
             try:
                 ### Check if they have the latest version of Sklearn 0.23.1 or later, if not, this will blow up.
@@ -1022,7 +1029,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         if orig_train.isnull().sum().sum() > 0:
             ### If there are missing values in remaining features print it here ####
             top5 = orig_train.isnull().sum().sort_values(ascending=False).index.tolist()[:5]
-            print('    Columns with most missing values: %s' %(
+            print('    Top 5 columns with most missing values: %s' %(
                                             [x for x in top5 if orig_train[x].isnull().sum()>0]))
             print('    and their missing value totals: %s' %([orig_train[x].isnull().sum() for x in
                                                              top5 if orig_train[x].isnull().sum()>0]))
@@ -1045,6 +1052,20 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         return
     ###########################################################################################
     print('    Completed Label Encoding and Filling of Missing Values for Train and Test Data')
+    #####    CLASSIFY  COLUMNS   ONCE AGAIN SINCE SOME MIXED TYPES ARE FIXED    ################
+    var_df = classify_columns(start_train[preds], verbose=0)
+    #####       Classify Columns   ################
+    id_cols = var_df['id_vars']
+    nlp_columns = var_df['nlp_vars']
+    date_cols = var_df['date_vars']
+    del_cols = var_df['cols_delete']
+    factor_cols = var_df['factor_vars']
+    numvars = var_df['continuous_vars']+var_df['int_vars']
+    cat_vars = var_df['string_bool_vars']+var_df['discrete_string_vars']+var_df[
+                            'cat_vars']+var_df['factor_vars']+var_df['num_bool_vars']
+    num_bool_vars = var_df['num_bool_vars']
+    #######################################################################################
+    preds = [x for x in list(start_train) if x not in id_cols+del_cols+date_cols+target]
     ### This is a minor test to make sure that Boolean vars are Integers if they are Numeric!
     if len(num_bool_vars) > 0:
         ### Just make sure that numeric Boolean vars are set as Integer type -> otherwise CatBoost will blow up
@@ -1263,8 +1284,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         num_vars = copy.deepcopy(numvars)
         ####  we need to set the rem_vars in case there is no feature reduction #######
         imp_cats = left_subtract(important_features,num_vars)
-    ### Training an XGBoost model to find important features
-    train = train[important_features+target]
+    ### Training an XGBoost model to find important features  ####
+    important_features = [x for x in important_features if x not in target]
+    important_features = find_remove_duplicates(important_features)
+    train = train[find_remove_duplicates(important_features+target)]
     ######################################################################
     if type(orig_test) != str:
         test = test[important_features]
@@ -1379,7 +1402,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #part_train_scaled, part_cv_scaled = perform_scaling_numeric_vars(part_train, important_features,
     #                                        part_cv, model_name, SS)
     #### if important_features by mistake has duplicates they must be removed!
-    important_features = find_remove_duplicates(important_features)
     if model_label == 'Single_Label':
         if not perform_scaling_flag:
             print('Skipping %s scaling since perform_scaling flag is set to False ' %scaling)
@@ -4163,7 +4185,11 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         ####   Use LassoCV or LogisticRegressionCV to Reduce Variables using Regularization
         ###################################################################################
         print('Building Comparison Model with only Poly and Interaction variables...')
-        lm_p, _ = print_model_metrics(modeltype,lm,XP1X,Y,True)
+        try:
+            lm_p, _ = print_model_metrics(modeltype,lm,XP1X,Y,True)
+        except:
+            print('    Comparison model with add_poly erroring. Continuing...')
+            return predictors, lm, XP1, md, x_vars,feature_xvar_dict
         print('    Time Taken: %0.0f (in seconds)' %(time.time()-start_time))
         ####  We need to build a dataframe to hold coefficients from the model for each variable ###
         dfx = pd.DataFrame([new_addx_vars, new_addtext_vars])

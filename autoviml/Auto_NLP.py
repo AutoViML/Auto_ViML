@@ -307,7 +307,6 @@ def left_subtract(l1,l2):
     return lst
 ################################################################################
 def return_stop_words():
-    from nltk.corpus import stopwords
     STOP_WORDS = ['it', "this", "that", "to", 'its', 'am', 'is', 'are', 'was', 'were', 'a',
                 'an', 'the', 'and', 'or', 'of', 'at', 'by', 'for', 'with', 'about', 'between',
                  'into','above', 'below', 'from', 'up', 'down', 'in', 'out', 'on', 'over',
@@ -1643,40 +1642,20 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
                 best_vect,
                 best_sel,
                 best_model)
-        print('Returning predictions using Auto_NLP Pipeline via cross_val_predict')
-        train_copy = copy.deepcopy(train)
-        for fold, (t_, v_) in enumerate(scv.split(X,y)):
-            trainm = train_copy.loc[t_]
-            testm = train_copy.loc[v_]
-            best_pipe.fit(trainm[nlp_column], trainm[target])
-            nlp_col = 'predictions_by_Auto_NLP_'+nlp_column
-            testm = best_pipe.predict(testm[nlp_column])
-            train.loc[v_, nlp_col] = testm
-            print('    Transforming fold %d for NLP column' %(fold+1))
-        ## This is where we apply the transformer on train data and test ##
+        print('Training best Auto_NLP Pipeline on full Train data...will be faster since best params are known')
+        best_pipe.fit(X,y)
+        train = train.join(trainm, rsuffix='_NLP_token_by_Auto_NLP')
         if not isinstance(test, str):
             print('    Returning best Auto_NLP pipeline to transform and make predictions on test data...')
-            best_pipe.fit(train_copy[nlp_column], train[target])
+            test = test.join(testm,rsuffix='_NLP_token_by_Auto_NLP')
             y_pred = best_pipe.predict(test[nlp_column])
-            test[nlp_col] = y_pred
+            print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
+            print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
+            return train, test, best_pipe, y_pred
         else:
-            y_pred = ""
-            test = ""
-        print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
-        print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
-        return train, test, best_pipe, y_pred
-    elif build_model is None:
-        if isinstance(test, str):
-            test = ""
-        train_copy = copy.deepcopy(train)
-        for fold, (t_, v_) in enumerate(scv.split(X,y)):
-            testm = train_copy.loc[v_]
-            testm = transform_pipe.transform(testm[nlp_column])
-            nlp_cols = ['col_'+str(x) for x in range(testm.shape[1])]
-            train.loc[v_, nlp_cols] = testm
-            print('    Transforming fold %d for NLP column' %(fold+1))
-        print('Completed. Returning train modified with NLP transformer')
-        return train, test 
+            print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
+            print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
+            return train, '', best_pipe, ''
     else:
         #####################################################################################
         print('##################    AFTER BEST NLP TRANSFORMER SELECTED, NOW ENRICH TEXT DATA  #####################')
@@ -2213,12 +2192,4 @@ def plot_histogram_probability(dist_train, dist_test, label_title):
     plt.xlabel('Number of %s' %label_title, fontsize=15)
     plt.ylabel('Probability', fontsize=15)
     plt.show();
-########################################################################
-module_type = 'Running' if  __name__ == "__main__" else 'Imported'
-version_number = '0.0.45'
-print("""%s Auto_NLP version: %s.. Call using:
-     train_nlp, test_nlp, nlp_pipeline, predictions = Auto_NLP(
-                nlp_column, train, test, target, score_type='balanced_accuracy',
-                modeltype='Classification',top_num_features=200, verbose=0,
-                build_model=True)""" %(module_type, version_number))
 ########################################################################

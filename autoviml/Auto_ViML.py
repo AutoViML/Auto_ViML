@@ -3023,7 +3023,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ### Now draw the feature importances using the data frame above!
             height_size = 5
             width_size = 10
-            color_string = 'byrcmgkbyrcmgkbyrcmgkbyrcmgk'
+            color_string = list('byrcmgkbyrcmgkbyrcmgkbyrcmgk')[:15]
             print('    Plotting Feature Importances to explain the output of model')
             imp_features_df[:15].plot(kind='barh',title='Feature Importances for predicting %s' %each_target,
                                  figsize=(width_size, height_size), color=color_string);

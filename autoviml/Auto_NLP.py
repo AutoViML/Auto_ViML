@@ -1501,15 +1501,18 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     ######   This is where we choose one model vs another based on problem type ##
     if modeltype == 'Regression':
         scv = KFold(n_splits=n_splits)
-        model_name = 'Random Forest Regressor'
-        nlp_model = RandomForestRegressor(n_estimators = 100, n_jobs=-1, random_state=seed)
+        model_name = 'XGBoost Regressor'
+        #nlp_model = RandomForestRegressor(n_estimators = 100, n_jobs=-1, random_state=seed)
+        nlp_model = XGBRegressor(n_estimators = 200, n_jobs=-1, random_state=seed)
         #params['randomforestregressor__max_depth'] = sp.stats.randint(2,10),
         #params['randomforestregressor__n_estimators'] = sp.stats.randint(200,500)
     else:
         if isinstance(target, list):
             scv = KFold(n_splits=n_splits)
-            model_name = 'Random Forest Classifier'
-            nlp_model = RandomForestClassifier(n_estimators = 100, n_jobs=-1, random_state=seed)
+            #model_name = 'Random Forest Classifier'
+            model_name = 'XGBoost Classifier'
+            #nlp_model = RandomForestClassifier(n_estimators = 100, n_jobs=-1, random_state=seed)
+            nlp_model = XGBClassifier(n_estimators = 200, n_jobs=-1, random_state=seed)
         else:
             scv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
             if top_num_features < top_num_features_limit:

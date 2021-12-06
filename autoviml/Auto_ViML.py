@@ -22,6 +22,8 @@ with warnings.catch_warnings():
 from numpy import inf
 ################################################################################
 import pdb
+import os
+os.environ["KMP_WARNINGS"] = "FALSE" 
 ######## Import some multi-output models #######################################
 from sklearn.svm import LinearSVR, LinearSVC
 from sklearn.multioutput import MultiOutputRegressor, MultiOutputClassifier
@@ -1036,8 +1038,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         ####################################################################################
         if type(orig_test) != str:
             if start_test[copy_preds].isnull().sum().sum() > 0:
-                print('    Test data still has some missing values. Fix it. Exiting...')
-                return
+                null_vars_test = np.array(copy_preds)[(start_test[copy_preds].isnull().sum()>0).values].tolist()
+                for each_null_var in null_vars_test:
+                    if start_test[each_null_var].dtype == float:
+                        start_test[each_null_var].fillna(0.0, inplace=True)
+                    else:
+                        print('    Test data still has some missing values. Fix it. Exiting...')
+                        return
             else:
                 print('    Test data has no missing values. Continuing...')
     else:

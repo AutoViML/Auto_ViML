@@ -20,7 +20,7 @@ sns.set(style="white", color_codes=True)
 import time
 import matplotlib
 matplotlib.style.use('ggplot')
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import make_pipeline, Pipeline
 from sklearn.model_selection import RandomizedSearchCV
 import pdb
 from sklearn import model_selection
@@ -934,6 +934,7 @@ def select_top_features_from_SVD(X, tsvd, is_train=True, top_n=100):
     start_time = time.time()
     #### If the shape of the TFIDF array is huge in the thousands of terms,
     ####   then you select the top 25 terms in 1-gram and 2-gram that make sense.
+    top_n = int(max(2, np.sqrt(X.shape[1])))
     print('Reducing dimensions from %d term-matrix to %d dimensions using TruncatedSVD...' %(X.shape[1],top_n))
     if is_train:
         if X.shape[1] < top_n:
@@ -1298,17 +1299,14 @@ def class_info(classes):
     for cls in counts.keys():
         print("%6s: % 7d  =  % 5.1f%%" % (cls, counts[cls], counts[cls]/total*100))
 #########################################################################################
-from xgboost import XGBRegressor, XGBClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-import time
 import scipy as sp
 from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.pipeline import make_pipeline
 from sklearn.compose import make_column_transformer
-import time
 from sklearn.feature_selection import SelectKBest, chi2
 from sklearn.feature_selection import f_regression
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
@@ -1333,7 +1331,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     import nltk
     nltk.download("popular")
     calibrator_flag = False
-    import time
+    from lightgbm import LGBMClassifier, LGBMRegressor
     seed = 99
     train = copy.deepcopy(train)
     test = copy.deepcopy(test)
@@ -1488,6 +1486,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
                                                         random_state=seed)
     ############  THIS IS WHERE THE MAIN LOGIC TO SPEED UP BOTH MODEL AND PIPELINE BEGINS! ########
     max_features_limit = best_nlp_vect.fit_transform(X_train).shape[1]
+    max_features_limit = int(min(5000, max_features_limit))
     print('    Selected the maximum number of features limit = %d' %max_features_limit)
     if modeltype == 'Regression':
         ### currently SelectKBest does not seem to work with regression data - hence it's out
@@ -1501,18 +1500,18 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     ######   This is where we choose one model vs another based on problem type ##
     if modeltype == 'Regression':
         scv = KFold(n_splits=n_splits)
-        model_name = 'XGBoost Regressor'
+        model_name = 'LightGBM Regressor'
         #nlp_model = RandomForestRegressor(n_estimators = 100, n_jobs=-1, random_state=seed)
-        nlp_model = XGBRegressor(n_estimators = 200, n_jobs=-1, random_state=seed)
+        nlp_model = LGBMRegressor(n_estimators = 200, n_jobs=-1, random_state=seed)
         #params['randomforestregressor__max_depth'] = sp.stats.randint(2,10),
         #params['randomforestregressor__n_estimators'] = sp.stats.randint(200,500)
     else:
         if isinstance(target, list):
             scv = KFold(n_splits=n_splits)
             #model_name = 'Random Forest Classifier'
-            model_name = 'XGBoost Classifier'
+            model_name = 'LightGBM Classifier'
             #nlp_model = RandomForestClassifier(n_estimators = 100, n_jobs=-1, random_state=seed)
-            nlp_model = XGBClassifier(n_estimators = 200, n_jobs=-1, random_state=seed)
+            nlp_model = LGBMClassifier(n_estimators = 200, n_jobs=-1, random_state=seed)
         else:
             scv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
             if top_num_features < top_num_features_limit:
@@ -1549,37 +1548,42 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     ### It is better to clean the data in advance and then use the pipeline here in GS mode to find best params
     from sklearn.preprocessing import FunctionTransformer
     ##### Train and test the model ##########
+    model_string = "".join(model_name.lower().split(" "))
     try:
-        pipe = make_pipeline(
-            cvect,
-            select,
-            nlp_model)
+        pipe = Pipeline([
+            ('tfidfvectorizer', cvect),
+            ('selectkbest', select),
+            (model_string, nlp_model),
+            ])
         gs = RandomizedSearchCV(pipe, params, n_iter=n_iter, cv=scv,
                                 scoring=score_type, random_state=seed)
         gs.fit(X_train,y_train)
     except:
         ### If there is an error, we will just skip parameter tuning and just take a simple model
         params = {}
-        pipe = make_pipeline(
-             cvect,
-             FunctionTransformer(lambda x: x.todense(), accept_sparse=True),
-             select,
-             nlp_model)
+        pipe = Pipeline([
+            ('tfidfvectorizer', cvect),
+            ('convert_dense', FunctionTransformer(lambda x: x.todense(), accept_sparse=True)),
+            ('selectkbest', select),
+            (model_string, nlp_model),
+            ])
         gs = RandomizedSearchCV(pipe, params, n_iter=30, cv=scv,
                                 scoring=score_type, random_state=seed)
         gs.fit(X_train,y_train)
     ##### Now check to see if the CalibratedClassifier can work on this data set #####
-    model_string = "".join(model_name.lower().split(" "))
     #### Now select the best estimator from the RandomizedSearchCV models
     best_vect = gs.best_estimator_.named_steps['tfidfvectorizer']
     best_sel = gs.best_estimator_.named_steps['selectkbest']
+    vect_params = best_vect.get_params()
+    vect_params.update({'max_features': best_sel.get_params()['k']})
+    best_vect = best_vect.set_params(**vect_params)
     if calibrator_flag:
         best_estimator = gs.best_estimator_.named_steps[model_string]
-        calib_pipe = make_pipeline(
-             best_vect,
-             FunctionTransformer(lambda x: x.todense(), accept_sparse=True),
-             best_sel,
-             )
+        calib_pipe = Pipeline([
+            ('tfidfvectorizer', best_vect),
+            ('convert_dense', FunctionTransformer(lambda x: x.todense(), accept_sparse=True)),
+            ('best_features', best_sel),
+             ])
         best_model = CalibratedClassifierCV(best_estimator,cv=3, method='isotonic')
         best_model.fit(calib_pipe.transform(X_train), y_train)
         y_pred = best_model.predict(calib_pipe.transform(X_test))
@@ -1621,7 +1625,8 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     ###  This transform_pipe is used merely to transform text into the best term matrix for modeling
     #### Using the transform pipeline we will transform the train and test data sets!
     print('  Now transforming Train data to return as output...')
-    trainm = transform_pipe.transform(train[nlp_column])
+    
+    trainm = transform_pipe.fit_transform(X, y)
     sel_col_names = np.array(best_vect.get_feature_names())[transform_pipe.named_steps[
                             'selectkbest'].get_support()]
     trainm = pd.DataFrame(trainm.todense(),index=train_index,columns=sel_col_names)
@@ -1630,8 +1635,11 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         print('  Transforming Test data to return as output...')
         testm = transform_pipe.transform(test[nlp_column])
         testm = pd.DataFrame(testm.todense(),index=test_index,columns=sel_col_names)
-    #### This best_pipe pipeline will however in addition to transforming, will also train and predict using the trained model ####
     if build_model:
+        #############################################################################
+        #### This best_pipe pipeline will however in addition to transforming, 
+        ####    will also train and predict using the trained model ####
+        #############################################################################
         if tweets_flag:
             best_pipe = make_pipeline(
                 FunctionTransformer(lambda x: clean_tweets(x)),
@@ -1653,20 +1661,18 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             test = test.join(testm,rsuffix='_NLP_token_by_Auto_NLP')
             y_pred = best_pipe.predict(test[nlp_column])
             print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
-            print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
             return train, test, best_pipe, y_pred
         else:
             print('Training completed. Time taken for Auto_NLP = %0.1f minutes' %((time.time()-start_time4)/60))
-            print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
             return train, '', best_pipe, ''
     else:
         #####################################################################################
-        print('##################    AFTER BEST NLP TRANSFORMER SELECTED, NOW ENRICH TEXT DATA  #####################')
-        print('    Now we will start transforming NLP_column for train and test data using best vectorizer...')
+        print('###    AFTER BEST NLP TRANSFORMER SELECTED, NOW ENRICH TEXT DATA  ##############')
+        print('    Now transforming NLP_column for train and test data using best vectorizer...')
         #####################################################################################
         start_time1 = time.time()
         best_nlp_vect = copy.deepcopy(best_vect)
-        trainm = best_nlp_vect.transform(train[nlp_column])
+        trainm = best_nlp_vect.fit_transform(train[nlp_column])
         #######################################################################################
         ##################  THIS IS WHERE YOU ADD TRUNCATED SVD DIMENSIONS HERE      ##########
         #######################################################################################
@@ -1694,8 +1700,8 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         #tfidf_term_array = create_tfidf_terms(nlp_column_train, best_nlp_vect,
         #                        is_train=True, max_features_limit=max_features_limit)
         tfidf_term_array = train_best.values
-        print ('Creating word clusters using term matrix of size: %d for Train data set...' %len(
-                                                    tfidf_term_array))
+        print ('Creating word clusters using term matrix of shape: %s from Train data set...' %(
+                                                    tfidf_term_array.shape,))
         #n_clusters = int(np.sqrt(len(tfidf_term_array['terms']))/2)
         n_clusters = int(np.sqrt(tfidf_term_array.shape[1])/2)
         if n_clusters < 2:
@@ -1767,7 +1773,6 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         number_of_created_columns = train_full.shape[1] - 1
         print('Number of new columns created using NLP = %d' %number_of_created_columns)
         print('Time taken for Auto_NLP to complete = %0.1f minutes' %((time.time()-start_time4)/60))
-        print('#########          A U T O   N L P  C O M P L E T E D    ###############################')
         return train_full, test_full, best_nlp_vect, max_features_limit
 ##############################################################################################
 from sklearn.cluster import KMeans
@@ -1880,7 +1885,6 @@ def plot_classification_matrix(y_test, y_pred, model_name='Model'):
     plt.xlabel('Predicted label', fontsize = 13)
     plt.show();
 #################################################################################
-import time
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import f1_score, precision_score, recall_score
@@ -1901,6 +1905,7 @@ def NLP_select_best_model_fit_predict(X, y, test, modeltype, score_type):
     predictions, nlp_model = NLP_select_best_model_fit_predict(X,y,test_best,modeltype,score_type)
     ###############################################################################################
     """
+    from xgboost import XGBRegressor, XGBClassifier
     X = copy.deepcopy(X)
     y = copy.deepcopy(y)
     test_size = 0.1

@@ -1288,14 +1288,16 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ### Training an XGBoost model to find important features
     important_features = left_subtract(important_features, target)
     train = train[important_features+target]
+    integer_cats = train[imp_cats].select_dtypes(include="integer").columns.tolist()
+    non_integer_cats = left_subtract(imp_cats, integer_cats)
+    #######You must convert category variables into integers ###############
+    for important_cat in non_integer_cats:
+        train[important_cat] = train[important_cat].astype(int)
+        if type(orig_test) != str:
+            test[important_cat] = test[important_cat].astype(int)
     ######################################################################
     if type(orig_test) != str:
         test = test[important_features]
-        #######You must convert category variables into integers ###############
-        integer_cats = test[imp_cats].select_dtypes(include=[np.int64,np.int32,np.int16,np.int8,int]).columns.tolist()
-        non_integer_cats = left_subtract(imp_cats, integer_cats)
-        for important_cat in non_integer_cats:
-            test[important_cat] = test[important_cat].astype(int)
     ##############          F E A T U R E   E N G I N E E R I N G  S T A R T S  N O W    ##############
     ######    From here on we do some Feature Engg using Target Variable with Data Leakage ############
     ###   To avoid Model Leakage, we will now split the Data into Train and CV so that Held Out Data
@@ -4683,6 +4685,7 @@ def model_training_smote(model, x_train, y_train, eval_set, eval_metric,
                          params, imp_cats, modeltype,
                         calibrator_flag, model_name, Boosting_Flag, model_label,
                          GPU_exists):
+    #### This model training via SMOTE has to be modified later ####################
     early_stopping = 5
     if model_label == 'Single_Label':
         if Boosting_Flag:

@@ -20,8 +20,6 @@ Auto_ViML is pronounced "auto vimal" (autovimal logo created by Sanket Ghanmare)
 <li>Feature Selection -> We use SULOV and Recursive XGBoost to select best features fast. See below.</li>
 </ul>
 
-![xgboost](sulov_xgboost.png)
-
 ## Table of Contents
 <ul>
 <li><a href="#background">Background</a></li>
@@ -40,19 +38,19 @@ Auto_ViML is pronounced "auto vimal" (autovimal logo created by Sanket Ghanmare)
 <p>Auto_ViML was designed for building High Performance Interpretable Models with the fewest variables needed.
 The "V" in Auto_ViML stands for Variant because it tries multiple models with multiple features to find you the best performing model for your dataset. The "i" in Auto_ViML stands for "interpretable" since Auto_ViML selects the least number of features necessary to build a simpler, more interpretable model. In most cases, Auto_ViML builds models with 20%-99% fewer features than a similar performing model with all included features (this is based on my trials. Your experience may vary).<br>
 <p>
-Auto_ViML is every Data Scientist's model accelerator that:<ol>
+Auto_ViML is every Data Scientist's model accelerator tool that:<ol>
 <li><b>Helps you with data cleaning</b>: you can send in your entire dataframe as is and Auto_ViML will suggest changes to help with missing values, formatting variables, adding variables, etc. It loves dirty data. The dirtier the better!<br>
-<li><b>Assists you with variable selection</b>: Auto_ViML selects variables automatically. This is very helpful when you have hundreds if not thousands of variables since it can readily identify which of those are important variables vs which are unnecessary.<br>
+<li><b>Performs Feature Selection</b>: Auto_ViML selects variables automatically by default. This is very helpful when you have hundreds if not thousands of variables since it can readily identify which of those are important variables vs which are unnecessary. You can turn this off as well (see API).<br>
+
+![xgboost](sulov_xgboost.png)
 <li><b>Removes highly correlated features automatically</b>. If two variables are highly correlated in your dataset, which one should you remove and which one should you keep? The decision is not as easy as it looks. Auto_ViML uses the SULOV algorithm to remove highly correlated features. You can understand SULOV from this picture more intuitively.<br>
 
 ![sulov](SULOV.jpg)
 
-<li><b>Produces model performance results as graphs automatically</b>. Just set verbose = 1 (or) 2 instead of 0 (silent). You will get higher quality of insights as you increase verbosity. <br>
+<li><b>Generates performance results graphically</b>. Just set verbose = 1 (or) 2 instead of 0 (silent). You will get higher quality of insights as you increase verbosity. <br>
 <li><b>Handles text, date-time, structs (lists, dictionaries), numeric, boolean, factor and categorical</b> variables all in one model using one straight process.<br>
 </ol>
-Auto_ViML is built using scikit-learn, Nnumpy, pandas and matplotlib. It should run
-on most Python 3 Anaconda installations. You won't have to import any special
-libraries other than "XGBoost", "Imbalanced-Learn", "CatBoost", and "featuretools" library. We use "SHAP" library for interpretability. <br>But if you don't have these libraries, Auto_ViML will install those for you automatically.
+Auto_ViML is built using scikit-learn, numpy, pandas and matplotlib. It should run on most Python 3 Anaconda installations. You won't have to import any special libraries other than "XGBoost", "Imbalanced-Learn", "CatBoost", and "featuretools" library. We use "SHAP" library for interpretability. <br>But if you don't have these libraries, Auto_ViML will install those for you automatically.
 
 ## Install
 
@@ -119,20 +117,19 @@ Auto_ViML works on any Multi-Class, Multi-Label Data Set. So you can have many t
 You don't have to tell Auto_ViML whether it is a Regression or Classification problem.
 
 ## Tips for using Auto_ViML:
-1. For Classification problems and imbalanced classes, choose scoring_parameter="balanced_accuracy". It works better.
-2. For Imbalanced Classes (<5% samples in rare class), choose "Imbalanced_Flag"=True. You can also set this flag to True for Regression problems where the target variable might have skewed distributions.
-3. For Multi-Label dataset, the target input target variable can be sent in as a list of variables.
-4. It is recommended that you first set Boosting_Flag=None to get a Linear model. Once you understand that, then you can try to set Boosting_Flag=False to get a Random Forest model. Finally, try Boosting_Flag=True to get an XGBoost model. This is the order that we recommend in order to use Auto_ViML.
-5. Finally try Boosting_Flag="CatBoost" to get a complex but high performing model.
-6. Binning_Flag=True improves a CatBoost model since it adds to the list of categorical vars in data
-7. KMeans_featurizer=True works well in NLP and CatBoost models since it creates cluster variables
-8. Add_Poly=3 improves certain models where there is date-time or categorical and numeric variables
-9. feature_reduction=True is the default and works best. But when you have <10 features in data, set it to False
-10. Do not use Stacking_Flag=True with Linear models since your results may not look great.
-11. Use Stacking_Flag=True only for complex models and as a last step with Boosting_Flag=True or CatBoost
-12. Always set hyper_param ="RS" as input since it runs faster than GridSearchCV and gives better results!
-13. KMeans_Featurizer=True does not work well for small data sets. Use it for data sets > 10,000 rows.
-14. Finally Auto_ViML is meant to be a baseline or challenger solution to your data set. So use it for making quick models that you can compare against or in Hackathons. It is not meant for production!
+1. `scoring_parameter`: For Classification problems and imbalanced classes, choose scoring_parameter="balanced_accuracy". It works better.
+2. `Imbalanced_Flag`: For Imbalanced Classes (<5% samples in rare class), choose "Imbalanced_Flag"=True. You can also set this flag to True for Regression problems where the target variable might have skewed distributions.
+3. `target`: For Multi-Label dataset, the target input target variable can be sent in as a list of variables.
+4. `Boosting_Flag`: It is recommended that you first set Boosting_Flag=None to get a Linear model. Once you understand that, then you can try to set Boosting_Flag=False to get a Random Forest model. Finally, try Boosting_Flag=True to get an XGBoost model. This is the order that we recommend in order to use Auto_ViML. Finally try Boosting_Flag="CatBoost" to get a complex but high performing model.
+5. `Binning_Flag`: Binning_Flag=True improves a CatBoost model since it adds to the list of categorical vars in data
+6. `KMeans_featurizer`: KMeans_featurizer=True works well in NLP and CatBoost models since it creates cluster variables
+7. `Add_Poly`: Add_Poly=3 improves certain models where there is date-time or categorical and numeric variables
+8. `feature_reduction`: feature_reduction=True is the default and works best. But when you have <10 features in data, set it to False
+9. `Stacking_Flag`: Do not set Stacking_Flag=True with Linear models since your results may not look great.
+10. `Stacking_Flag`: Use Stacking_Flag=True only for complex models and as a last step with Boosting_Flag=True or CatBoost
+11. `hyper_param`: Leave hyper_param ="RS" as input since it runs faster than GridSearchCV and gives better results unless you have a small data set and can afford to spend time on hyper tuning.
+12. `KMeans_Featurizer`: KMeans_Featurizer=True does not work well for small data sets. Use it for data sets > 10,000 rows.
+13. `Final thoughts`: Finally Auto_ViML is meant to be a baseline or challenger solution to your data set. So use it for making quick models that you can compare against or in Hackathons. It is not meant for production!
 
 ## API
 

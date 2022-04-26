@@ -1,7 +1,7 @@
 # Auto-ViML
 
-![banner](logo.png)
-
+![banner](logo.png)<br>
+Automatically Build Variant Interpretable ML models fast!<br>
 [![Downloads](https://pepy.tech/badge/autoviml/week)](https://pepy.tech/project/autoviml/week)
 [![Downloads](https://pepy.tech/badge/autoviml/month)](https://pepy.tech/project/autoviml/month)
 [![Downloads](https://pepy.tech/badge/autoviml)](https://pepy.tech/project/autoviml)
@@ -10,17 +10,17 @@
 [![PyPI Version](https://img.shields.io/pypi/v/autoviml.svg?logo=pypi&logoColor=white)](https://pypi.org/project/autoviml)
 [![PyPI License](https://img.shields.io/pypi/l/autoviml.svg)](https://github.com/AutoViML/Auto_ViML/blob/master/LICENSE)
 
-Automatically Build Variant Interpretable ML models fast!
 Auto_ViML is pronounced "auto vimal" (autovimal logo created by Sanket Ghanmare)
 <p>NEW FEATURES in this version are:<br>
-1. SMOTE -> now we use SMOTE for imbalanced data. Just set Imbalanced_Flag = True in input below <br>
-2. Auto_NLP: It automatically detects Text variables and does NLP processing on those columns <br>
-3. Date Time Variables: It automatically detects  date time variables and adds extra features <br>
-4. Feature Engineering: Now you can perform feature engineering with the available <a href='https://www.featuretools.com/'>featuretools</a> library. <br>
-<p>To upgrade to the best, most stable and full-featured version (anything over > 0.1.600), do one of the following: <br>
-<code>Use $ pip install autoviml --upgrade --ignore-installed</code><br>
-or
-<code>pip install git+https://github.com/AutoViML/Auto_ViML.git </code><br>
+<ul>
+<li>SULOV -> Uses the SULOV algorithm for removing highly correlated features automatically.</li>
+<li>Auto_NLP -> AutoViML automatically detects Text variables and does NLP processing using Auto_NLP</li>
+<li>Date Time -> It automatically detects  date time variables and generates new features</li>
+<li>SMOTE -> Uses SMOTE for imbalanced data. Just set Imbalanced_Flag = True in input below</li>
+<li>Feature Selection -> We use SULOV and Recursive XGBoost to select best features fast. See below.</li>
+</ul>
+
+![xgboost](sulov_xgboost.png)
 
 ## Table of Contents
 <ul>
@@ -35,25 +35,20 @@ or
 </ul>
 
 ## Background
-Read this [Medium article to learn how to use Auto_ViML](https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46).<br>
-<p>Auto_ViML was designed for building High Performance Interpretable Models with the fewest variables.
-The "V" in Auto_ViML stands for Variable because it tries multiple models with multiple features to find you the best performing model for your dataset. The "i" in Auto_ViML stands for "interpretable" since Auto_ViML selects the least number of features necessary to build a simpler, more interpretable model. In most cases, Auto_ViML builds models with 20-99% fewer features than a similar performing model with all included features (this is based on my trials. Your experience may vary).<br>
+<p>Read this <a href="https://towardsdatascience.com/why-automl-is-an-essential-new-tool-for-data-scientists-2d9ab4e25e46">Medium article to learn how to use Auto_ViML effectively.</a>
+
+<p>Auto_ViML was designed for building High Performance Interpretable Models with the fewest variables needed.
+The "V" in Auto_ViML stands for Variant because it tries multiple models with multiple features to find you the best performing model for your dataset. The "i" in Auto_ViML stands for "interpretable" since Auto_ViML selects the least number of features necessary to build a simpler, more interpretable model. In most cases, Auto_ViML builds models with 20%-99% fewer features than a similar performing model with all included features (this is based on my trials. Your experience may vary).<br>
 <p>
-Auto_ViML is every Data Scientist's model assistant that:<ol>
+Auto_ViML is every Data Scientist's model accelerator that:<ol>
 <li><b>Helps you with data cleaning</b>: you can send in your entire dataframe as is and Auto_ViML will suggest changes to help with missing values, formatting variables, adding variables, etc. It loves dirty data. The dirtier the better!<br>
-<li><b>Assists you with variable classification</b>: Auto_ViML classifies variables automatically. This is very helpful when you have hundreds if not thousands of variables since it can readily identify which of those are numeric vs categorical vs NLP text vs date-time variables and so on.<br>
-<li><b>Performs feature reduction automatically</b>. When you have small data sets and you know your domain well, it is easy to perhaps do EDA and identify which variables are important. But when you have a very large data set with hundreds if not thousands of variables, selecting the best features from your model can mean the difference between a bloated and highly complex model or a simple model with the fewest and most information-rich features. Auto_ViML uses XGBoost repeatedly to perform feature selection. You must try it on your large data sets and compare!<br>
-<li><b>Produces model performance results as graphs automatically</b>. Just set verbose = 1 (or) 2 <br>
+<li><b>Assists you with variable selection</b>: Auto_ViML selects variables automatically. This is very helpful when you have hundreds if not thousands of variables since it can readily identify which of those are important variables vs which are unnecessary.<br>
+<li><b>Removes highly correlated features automatically</b>. If two variables are highly correlated in your dataset, which one should you remove and which one should you keep? The decision is not as easy as it looks. Auto_ViML uses the SULOV algorithm to remove highly correlated features. You can understand SULOV from this picture more intuitively.<br>
+
+![sulov](SULOV.jpg)
+
+<li><b>Produces model performance results as graphs automatically</b>. Just set verbose = 1 (or) 2 instead of 0 (silent). You will get higher quality of insights as you increase verbosity. <br>
 <li><b>Handles text, date-time, structs (lists, dictionaries), numeric, boolean, factor and categorical</b> variables all in one model using one straight process.<br>
-<li><b>Allows you to use the <a href='https://www.featuretools.com/'>featuretools</a> library to do Feature Engineering.<br></b>See example below.<br>
-Let's say you have a few numeric features in your data called "preds".
-You can 'add','subtract','multiply' or 'divide' these features among themselves using this module. You can optionally send an ID column in the data so that the index ordering is preserved.<br>
-<pre><code>
-from autoviml.feature_engineering import feature_engineering<br>
-print(df[preds].shape)<br>
-dfmod = feature_engineering(df[preds],['add'],'ID')<br>
-print(dfmod.shape)<br>
-</code></pre>
 </ol>
 Auto_ViML is built using scikit-learn, Nnumpy, pandas and matplotlib. It should run
 on most Python 3 Anaconda installations. You won't have to import any special
@@ -68,12 +63,11 @@ libraries other than "XGBoost", "Imbalanced-Learn", "CatBoost", and "featuretool
 To clone Auto_ViML, it is better to create a new environment, and install the required dependencies:
 
 To install from PyPi:
+<p>
+<code>$ pip install autoviml --upgrade --ignore-installed</code><br>
+or
 
 ```
-conda create -n <your_env_name> python=3.7 anaconda
-conda activate <your_env_name> # ON WINDOWS: `source activate <your_env_name>`
-pip install autoviml
-or
 pip install git+https://github.com/AutoViML/Auto_ViML.git
 ```
 

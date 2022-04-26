@@ -315,7 +315,9 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
             new_missing_col = col + '_Missing_Flag'
             start_train[new_missing_col] = 0
             start_train.loc[start_train[col].isnull(),new_missing_col]=1
-            start_train[col] = start_train[col].fillna("NA", inplace=False).astype('category')
+            ls = start_train[col].unique().astype(str)
+            start_train[col] = start_train[col].astype(pd.CategoricalDtype(ls))
+            start_train[col] = start_train[col].fillna("nan", inplace=False).astype('category')
     if len(start_train[col].apply(type).value_counts()) > 1:
         print('    Alert! Mixed Data Types in Train data set %s column with %d data types. Fixing it...' %(
                                        col, len(start_train[col].apply(type).value_counts())))
@@ -337,7 +339,9 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
             if str_flag:
                 start_test[col] = start_test[col].fillna("NA", inplace=False).astype(str)
             else:
-                start_test[col] = start_test[col].fillna("NA", inplace=False).astype('category')
+                ls = start_test[col].unique().astype(str)
+                start_test[col] = start_test[col].astype(pd.CategoricalDtype(ls))
+                start_test[col] = start_test[col].fillna("nan", inplace=False).astype('category')
         else:
             #### In some rare cases, there is missing values in train but not in test data!
             #### In those cases, we need to create a new_missing_col in test data in addition to train
@@ -2655,7 +2659,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         if not isinstance(orig_test, str):
             X_test = pd.DataFrame(SS.transform(test[important_features]),index=orig_test.index,
                                         columns=important_features)
-    print('#####   T R A I N I N G   M O D E L   O N    F U L L   T R A I N  D A T A  #############')
+    print('###########################################################################')
+    print('#####   F I N A L I Z I N G   M O D E L   O N    F U L L   T R A I N  #####')
+    print('###########################################################################')
     ### The next 2 lines are crucial: if X and y are dataframes, then next 2 should be df's
     ###   They should not be df.values since they will become numpy arrays and XGB will error.
     trainm = train[important_features+target]
@@ -2956,7 +2962,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                             testm[new_col] = pd.Series(ensembles[:,each]).map(transformer).values
                         new_cols.append(new_col)
                     ### After this, y_pred is a Series from now on. You need y_pred.values  ####
-                    if len(cols) == 5:
+                    if len(new_cols) == 5:
                         print('    Calculating weighted average ensemble of %d classifiers' %len(new_cols))
                         ensem_pred = np.round(subm[new_cols[-1]]*0.5+0.125*(subm[new_cols[0]]+subm[
                                         new_cols[1]]+subm[new_cols[2]]+subm[new_cols[3]])).astype(int)

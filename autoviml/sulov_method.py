@@ -80,7 +80,8 @@ def FE_remove_variables_using_SULOV_method(df, preds_in, modeltype, target,
     ### for some reason, doing a mass fillna of vars doesn't work! Hence doing it individually!
     null_vars = np.array(numvars)[df.isnull().sum()>0]
     for each_num in null_vars:
-        df[each_num] = df[each_num].fillna(0)
+        ### Remember that fillna only works at the dataframe level!
+        df[[each_num]] = df[[each_num]].fillna(0)
     target = copy.deepcopy(target)
 
     print('#######################################################################################')

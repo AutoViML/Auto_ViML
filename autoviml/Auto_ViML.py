@@ -285,13 +285,15 @@ def fill_missing_values_object_or_number(start_train, start_test, fill_num, col,
         new_missing_col = col + '_Missing_Flag'
         start_train[new_missing_col] = 0
         start_train.loc[start_train[col].isnull(),new_missing_col]=1
-        start_train[col] = start_train[col].fillna(fill_num)
+        ### Remember that fillna only works at dataframe level! ###
+        start_train[[col]] = start_train[[col]].fillna(fill_num)
     if type(start_test) != str:
         if missing_flag:
             start_test[new_missing_col] = 0
         if start_test[col].isnull().sum() > 0:
             start_test.loc[start_test[col].isnull(),new_missing_col]=1
-            start_test[col] = start_test[col].fillna(fill_num)
+            ### Remember that fillna only works at dataframe level! ###
+            start_test[[col]] = start_test[[col]].fillna(fill_num)
     return start_train, start_test, missing_flag, new_missing_col
 #####################################################################################
 def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=True):
@@ -310,14 +312,16 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
             new_missing_col = col + '_Missing_Flag'
             start_train[new_missing_col] = 0
             start_train.loc[start_train[col].isnull(),new_missing_col]=1
-            start_train[col] = start_train[col].fillna("NA", inplace=False).astype(str)
+            ### Remember that fillna only works at dataframe level! ###
+            start_train[[col]] = start_train[[col]].fillna("nan")
         else:
             new_missing_col = col + '_Missing_Flag'
             start_train[new_missing_col] = 0
             start_train.loc[start_train[col].isnull(),new_missing_col]=1
             ls = start_train[col].unique().astype(str)
             start_train[col] = start_train[col].astype(pd.CategoricalDtype(ls))
-            start_train[col] = start_train[col].fillna("nan", inplace=False).astype('category')
+            ### Remember that fillna only works at dataframe level! ###
+            start_train[[col]] = start_train[[col]].fillna("nan").astype('category')
     if len(start_train[col].apply(type).value_counts()) > 1:
         print('    Alert! Mixed Data Types in Train data set %s column with %d data types. Fixing it...' %(
                                        col, len(start_train[col].apply(type).value_counts())))
@@ -337,11 +341,13 @@ def convert_train_test_cat_col_to_numeric(start_train, start_test, col,str_flag=
             start_test[new_missing_col] = 0
             start_test.loc[start_test[col].isnull(),new_missing_col]=1
             if str_flag:
-                start_test[col] = start_test[col].fillna("NA", inplace=False).astype(str)
+                ### Remember that fillna only works at dataframe level! ###
+                start_test[[col]] = start_test[[col]].fillna("nan").astype(str)
             else:
                 ls = start_test[col].unique().astype(str)
                 start_test[col] = start_test[col].astype(pd.CategoricalDtype(ls))
-                start_test[col] = start_test[col].fillna("nan", inplace=False).astype('category')
+                ### Remember that fillna only works at dataframe level! ###
+                start_test[[col]] = start_test[[col]].fillna("nan").astype('category')
         else:
             #### In some rare cases, there is missing values in train but not in test data!
             #### In those cases, we need to create a new_missing_col in test data in addition to train
@@ -529,6 +535,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     n_jobs = -1 #### In case of KNN, having n_jobs=-1 gives an error on Windows environments. Hence avoid.
     chain_flag = False
     ensemble_max_rows = 100000 ### Want to limit the ensemble models running forever for large datasets
+    if verbose >= 2:
+        try:
+            print_system_info()
+        except:
+            pass
     print('##############  D A T A   S E T  A N A L Y S I S  #######################')
     ##########  I F   CATBOOST  IS REQUESTED, THEN CHECK IF IT IS INSTALLED #######################
     if hyper_param is not None:
@@ -974,7 +985,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     new_missing_col = col + '_Missing_Flag'
                     start_train[new_missing_col] = 0
                     start_train.loc[start_train[col].isnull(),new_missing_col]=1
-                    start_train[col] = start_train[col].fillna(method='ffill')
+                    ### Remember that fillna only works at dataframe level! ###
+                    start_train[[col]] = start_train[[col]].fillna(method='ffill')
                 if type(orig_test) != str:
                     if missing_flag:
                         start_test[new_missing_col] = 0
@@ -982,7 +994,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         new_missing_col = col + '_Missing_Flag'
                         start_test[new_missing_col] = 0
                         start_test.loc[start_test[col].isnull(),new_missing_col]=1
-                        start_test[col] = start_test[col].fillna(method='ffill')
+                        ### Remember that fillna only works at dataframe level! ###
+                        start_test[[col]] = start_test[[col]].fillna(method='ffill')
             elif col in factor_cols:
                 start_train, start_test,missing_flag,new_missing_col = convert_train_test_cat_col_to_numeric(start_train, start_test,col,False)
                 if missing_flag:
@@ -998,7 +1011,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     new_missing_col = col + '_Missing_Flag'
                     start_train[new_missing_col] = 0
                     start_train.loc[start_train[col].isnull(),new_missing_col]=1
-                    start_train[col] = start_train[col].fillna(fill_num)
+                    ### Remember that fillna only works at dataframe level! ###
+                    start_train[[col]] = start_train[[col]].fillna(fill_num)
                 if type(orig_test) != str:
                     if missing_flag:
                         start_test[new_missing_col] = 0
@@ -1006,7 +1020,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         new_missing_col = col + '_Missing_Flag'
                         start_test[new_missing_col] = 0
                         start_test.loc[start_test[col].isnull(),new_missing_col]=1
-                        start_test[col] = start_test[col].fillna(fill_num)
+                        ### Remember that fillna only works at dataframe level! ###
+                        start_test[[col]] = start_test[[col]].fillna(fill_num)
                 if missing_flag:
                     cat_vars.append(new_missing_col)
                     num_bool_vars.append(new_missing_col)
@@ -1052,7 +1067,8 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 null_vars_test = np.array(copy_preds)[(start_test[copy_preds].isnull().sum()>0).values].tolist()
                 for each_null_var in null_vars_test:
                     if start_test[each_null_var].dtype == float:
-                        start_test[each_null_var].fillna(0.0, inplace=True)
+                        ### Remember that fillna only works at dataframe level! ###
+                        start_test[[each_null_var]] = start_test[[each_null_var]].fillna(0.0)
                     else:
                         print('    Test data still has some missing values. Fix it. Exiting...')
                         return
@@ -1721,7 +1737,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
                         max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
                         n_jobs=n_jobs, nthread=n_jobs, objective=objective,
-                        random_state=1, reg_alpha=0.5, reg_lambda=0.5,
+                        random_state=1, reg_alpha=0.5, reg_lambda=0.5, use_label_encoder=False,
                         seed=1)
                     xgbm.set_params(**param)
             elif Boosting_Flag is None:
@@ -1888,13 +1904,13 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     #xgbm.set_params(**param)
                     if model_label == 'Single_Label':
                         #### Found XGB too slow for multi-class - hence better to use One Vs Rest against it
-                        xgbm = OneVsRestClassifier(estimator=XGBClassifier(booster='gbtree',
+                        xgbm = OneVsRestClassifier(estimator=XGBClassifier(booster='gbtree', use_label_encoder=False,
                                                 n_estimators=200,random_state=99,nthread=n_jobs,
                                                 n_jobs=n_jobs)
                                                     )
                     else:
                         ### This will be automatically wrapped around by a MultiOutputClassifier later ###
-                        XGBClassifier(booster='gbtree',
+                        XGBClassifier(booster='gbtree', use_label_encoder=False,
                                                 n_estimators=200,random_state=99,nthread=n_jobs,
                                                 n_jobs=n_jobs)
                     if hyper_param == 'GS':
@@ -2088,6 +2104,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ####    IT APPEARS LIKE DUPLICATED CODE!!  IT IS NOT !!        #############
     ############################################################################
     ##### This is where you start training the model for FIRST TIME  ############
+    
     if model_label == 'Single_Label':
         if Imbalanced_Flag:
             try:
@@ -2159,6 +2176,19 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         except:
             print('Training regular model first time is Erroring: Check if your Input is correct...')
             return
+    else:
+        #### This is for Imbalanced Training for Multi-Label problems ########
+        if model_label == 'Multi_Label':
+            if modeltype == 'Regression':
+                ### Since rare class is needed in the next step, just setting the rare_class as artificially 0.
+                rare_class = 0
+            model = training_with_SMOTE(X_train,y_train,each_target,eval_set, xgbm,
+                                           Boosting_Flag, eval_metric,
+                                           modeltype, model_name, training=True,
+                                           minority_class=rare_class,imp_cats=imp_cats,
+                                           calibrator_flag=calibrator_flag,
+                                           GPU_exists=GPU_exists, params = cpu_params,
+                                           model_label=model_label, verbose=verbose)
     ###########   FIRST TIME MODEL TRAINING COMPLETED ##########################
     ##   TRAINING OF MODELS COMPLETED. NOW GET METRICS on CV DATA ###############
     print('    Actual training time (in seconds): %0.0f' %(time.time()-model_start_time))
@@ -3308,7 +3338,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
             model_xgb = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                 colsample_bytree=col_sub_sample,gamma=1, learning_rate=0.1, max_delta_step=0,
                 max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
-                n_jobs=-1, nthread=-1, objective='binary:logistic',
+                n_jobs=-1, nthread=-1, objective='binary:logistic', use_label_encoder=False,
                 random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                 seed=1)
             eval_metric = 'logloss'
@@ -3316,7 +3346,7 @@ def find_top_features_xgb(train,preds,numvars,target,modeltype,corr_limit,verbos
             model_xgb = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                         colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
                 max_depth=max_depth, min_child_weight=1, missing=-999, n_estimators=200,
-                n_jobs=-1, nthread=-1, objective='multi:softmax',
+                n_jobs=-1, nthread=-1, objective='multi:softmax', use_label_encoder=False,
                 random_state=1, reg_alpha=0.5, reg_lambda=0.5,
                 seed=1)
             eval_metric = 'mlogloss'
@@ -3627,35 +3657,50 @@ def print_classification_metrics(y_test, y_probs, proba_flag=True):
         # Calculate comparison metrics for Multi-Class classification results.
         accuracy = np.mean((y_test==y_preds))
         if multi_label_flag:
-            balanced_accuracy = np.mean(metrics.recall_score(y_test, y_preds, average=None))
-            precision = metrics.precision_score(y_test, y_preds, average=None)
-            average_precision = metrics.precision_score(y_test, y_preds, average='macro')
-            f1_score = metrics.f1_score(y_test, y_preds, average=None)
-            recall = metrics.recall_score(y_test, y_preds, average=None)
+            for i in range(y_test.shape[1]):
+                print('For target label: %s' %i)
+                balanced_accuracy = np.mean(metrics.recall_score(y_test[:,i], y_preds[:,i], average=None))
+                precision = metrics.precision_score(y_test[:,i], y_preds[:,i], average=None)
+                average_precision = metrics.precision_score(y_test[:,i], y_preds[:,i], average='macro')
+                f1_score = metrics.f1_score(y_test[:,i], y_preds[:,i], average=None)
+                recall = metrics.recall_score(y_test[:,i], y_preds[:,i], average=None)
+                print('    Balanced Accuracy (average recall) = %0.1f%%' %(balanced_accuracy*100))
+                print('    Average Precision (macro) = %0.1f%%' %(average_precision*100))
+                ### these are basically one for each class #####
+                print('    Precisions by class:')
+                for precisions in precision:
+                    print('    %0.1f%%  ' %(precisions*100),end="")
+                print('\n    Recall Scores by class:')
+                for recalls in recall:
+                    print('    %0.1f%%  ' %(recalls*100), end="")
+                print('\n    F1 Scores by class:')
+                for f1_scores in f1_score:
+                    print('    %0.1f%%  ' %(f1_scores*100),end="")
+                print('\n#####################################################')
         else:
             balanced_accuracy = metrics.balanced_accuracy_score(y_test, y_preds)
             precision = metrics.precision_score(y_test, y_preds, average = None)
             average_precision = metrics.precision_score(y_test, y_preds,average='macro')
             f1_score = metrics.f1_score(y_test, y_preds, average = None)
             recall = metrics.recall_score(y_test, y_preds, average = None)
-        if type(np.mean((y_test==y_preds))) == pd.Series:
-            print('    Accuracy          = %0.1f%%' %(np.mean(accuracy)*100))
-        else:
-            print('    Accuracy          = %0.1f%%' %(accuracy*100))
-        print('    Balanced Accuracy (average recall) = %0.1f%%' %(balanced_accuracy*100))
-        print('    Average Precision (macro) = %0.1f%%' %(average_precision*100))
-        ### these are basically one for each class #####
-        print('    Precisions by class:')
-        for precisions in precision:
-            print('    %0.1f%%  ' %(precisions*100),end="")
-        print('\n    Recall Scores by class:')
-        for recalls in recall:
-            print('    %0.1f%%  ' %(recalls*100), end="")
-        print('\n    F1 Scores by class:')
-        for f1_scores in f1_score:
-            print('    %0.1f%%  ' %(f1_scores*100),end="")
-        # Return list of metrics to be added to a Dataframe to compare models.
-        print('\n#####################################################')
+            if type(np.mean((y_test==y_preds))) == pd.Series:
+                print('    Accuracy          = %0.1f%%' %(np.mean(accuracy)*100))
+            else:
+                print('    Accuracy          = %0.1f%%' %(accuracy*100))
+            print('    Balanced Accuracy (average recall) = %0.1f%%' %(balanced_accuracy*100))
+            print('    Average Precision (macro) = %0.1f%%' %(average_precision*100))
+            ### these are basically one for each class #####
+            print('    Precisions by class:')
+            for precisions in precision:
+                print('    %0.1f%%  ' %(precisions*100),end="")
+            print('\n    Recall Scores by class:')
+            for recalls in recall:
+                print('    %0.1f%%  ' %(recalls*100), end="")
+            print('\n    F1 Scores by class:')
+            for f1_scores in f1_score:
+                print('    %0.1f%%  ' %(f1_scores*100),end="")
+            # Return list of metrics to be added to a Dataframe to compare models.
+            print('\n#####################################################')
         return [accuracy, balanced_accuracy, precision, average_precision, f1_score, recall, 0]
 ##################################################################################################
 ##################################################################################################
@@ -4364,27 +4409,33 @@ def filling_missing_values_simple(train, test, cats, nums):
     for varm in cats:
         if train[varm].isnull().sum() > 0:
             fillnum = train[varm].mode()[0]
-            train[varm].fillna(fillnum, inplace=True)
+            ### Remember that fillna only works at dataframe level! ###
+            train[[varm]] = train[[varm]].fillna(fillnum)
             if not isinstance(test, str):
                 if test[varm].isnull().sum() > 0:
-                    test[varm].fillna(fillnum, inplace=True)
+                    ### Remember that fillna only works at dataframe level! ###
+                    test[[varm]] = test[[varm]].fillna(fillnum)
     for num in nums:
         if train[varm].isnull().sum() > 0:
             fillnum = train[num].mean()
-            train[num].fillna(fillnum, inplace=True)
+            ### Remember that fillna only works at dataframe level! ###
+            train[[num]] = train[[num]].fillna(fillnum)
             if not isinstance(test, str):
                 if test[varm].isnull().sum() > 0:
-                    test[num].fillna(fillnum, inplace=True)
+                    ### Remember that fillna only works at dataframe level! ###
+                    test[[num]] = test[[num]].fillna(fillnum)
     ### This is a simple log transform for very large numeric values => highly recommended!
     for num in nums:
         mask = train[num]==0
         fillnum = 10e-5
         train.ix[mask,num] = fillnum
-        train[num+'_log'] = np.log10(train[num]).fillna(0)
+        ### Remember that fillna only works at dataframe level! ###
+        train[[num+'_log']] = np.log10(train[[num]]).fillna(0)
         if not isinstance(test, str):
             mask = test[num]==0
             test.ix[mask,num] = fillnum
-            test[num+'_log'] = np.log10(test[num]).fillna(0)
+            ### Remember that fillna only works at dataframe level! ###
+            test[[num+'_log']] = np.log10(test[[num]]).fillna(0)
     return train, test
 ############################################################
 import os
@@ -4438,31 +4489,35 @@ def create_ts_features(df, tscol):
         name_col = tscol+"_is_festive"
         df[name_col] = 0
         df[name_col] = df[tscol+'_month'].map(lambda x: 1 if x in festives else 0).values
-        df[name_col].fillna(0,inplace=True)
+        ### Remember that fillna only works at dataframe level! ###
+        df[[name_col]] = df[[name_col]].fillna(0)
         dt_adds.append(name_col)
         summer = ['Jun','Jul','Aug']
         name_col = tscol+"_is_summer"
         df[name_col] = 0
         df[name_col] = df[tscol+'_month'].map(lambda x: 1 if x in summer else 0).values
-        df[name_col].fillna(0,inplace=True)
+        ### Remember that fillna only works at dataframe level! ###
+        df[[name_col]] = df[[name_col]].fillna(0)
         dt_adds.append(name_col)
         winter = ['Dec','Jan','Feb']
         name_col = tscol+"_is_winter"
         df[name_col] = 0
         df[name_col] = df[tscol+'_month'].map(lambda x: 1 if x in winter else 0).values
-        df[name_col].fillna(0,inplace=True)
+        ### Remember that fillna only works at dataframe level! ###
+        df[[name_col]] = df[[name_col]].fillna(0)
         dt_adds.append(name_col)
         cold = ['Oct','Nov','Dec','Jan','Feb','Mar']
         name_col = tscol+"_is_cold"
         df[name_col] = 0
         df[name_col] = df[tscol+'_month'].map(lambda x: 1 if x in cold else 0).values
-        df[name_col].fillna(0,inplace=True)
+        ### Remember that fillna only works at dataframe level! ###
+        df[[name_col]] = df[[name_col]].fillna(0)
         dt_adds.append(name_col)
         warm = ['Apr','May','Jun','Jul','Aug','Sep']
         name_col = tscol+"_is_warm"
         df[name_col] = 0
         df[name_col] = df[tscol+'_month'].map(lambda x: 1 if x in warm else 0).values
-        df[name_col].fillna(0,inplace=True)
+        df[[name_col]] = df[[name_col]].fillna(0)
         dt_adds.append(name_col)
         #########################################################################
         if tscol+'_dayofweek' in dt_adds:
@@ -4518,7 +4573,8 @@ def create_time_series_features(dtf, ts_column):
             new_missing_col = ts_column + '_Missing_Flag'
             dtf[new_missing_col] = 0
             dtf.loc[dtf[ts_column].isnull(),new_missing_col]=1
-            dtf[ts_column] = dtf[ts_column].fillna(method='ffill')
+            ### Remember that fillna only works at the dataframe level!
+            dtf[[ts_column]] = dtf[[ts_column]].fillna(method='ffill')
         if dtf[ts_column].dtype in [np.float64,np.float32,np.float16]:
             dtf[ts_column] = dtf[ts_column].astype(int)
         ### if we have already found that it was a date time var, then leave it as it is. Thats good enough!
@@ -4623,15 +4679,17 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
         Y_classes = km_model.fit_predict(X_df)
     else:
         Y_classes = copy.deepcopy(y_df)
-    class_weighted_rows = get_class_distribution(Y_classes)
-    if len(imp_cats) > 0:
-        # Your favourite oversampler = SMOTENC is better than SMOTE in most cases!
-        smote = SMOTENC(categorical_features=cat_vars_index,
-                    sampling_strategy=class_weighted_rows,
-                    random_state=42, k_neighbors=smallest_kn, n_jobs=-1)
-    else:
-        # Your favourite oversampler = SMOTE is better than SMOTEENN in most cases!
-        smote = SMOTE(random_state=27, sampling_strategy=class_weighted_rows, n_jobs=-1)
+    #### SMOTE works only for Single Label problems ####
+    if model_label == 'Single_Label':
+        class_weighted_rows = get_class_distribution(Y_classes)
+        if len(imp_cats) > 0:
+            # Your favourite oversampler = SMOTENC is better than SMOTE in most cases!
+            smote = SMOTENC(categorical_features=cat_vars_index,
+                        sampling_strategy=class_weighted_rows,
+                        random_state=42, k_neighbors=smallest_kn, n_jobs=-1)
+        else:
+            # Your favourite oversampler = SMOTE is better than SMOTEENN in most cases!
+            smote = SMOTE(random_state=27, sampling_strategy=class_weighted_rows, n_jobs=-1)
     ########################    Regression Resampler    #########################
     try:
         if modeltype == 'Regression':
@@ -4643,7 +4701,7 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
             #### For classification problems simply using the original data will do
             X_df_res, y_df_res = smote.fit_resample(X_df, y_df)
     except:
-        print('Regression-resampler is erroring. Continuing...')
+        print('SMOTE or Regression-resampler is erroring. Continuing...')
         model = model_training_smote(model, X_df, y_df, eval_set, eval_metric,
                              params, imp_cats, modeltype,
                             calibrator_flag, model_name, Boosting_Flag, model_label,
@@ -5416,3 +5474,43 @@ def marthas_columns(data,verbose=0):
                     ))
             print('--------------------------------------------------------------------')
 ##################################################################################
+def get_size(bytes, suffix="B"):
+    """
+    Scale bytes to its proper format
+    e.g:
+        1253656 => '1.20MB'
+        1253656678 => '1.17GB'
+    """
+    factor = 1024
+    for unit in ["", "K", "M", "G", "T", "P"]:
+        if bytes < factor:
+            return f"{bytes:.2f}{unit}{suffix}"
+        bytes /= factor
+
+def print_system_info():
+    """
+    This prints the information on the hardware running the Python code 
+    Many thanks to: https://www.thepythoncode.com/article/get-hardware-system-information-python
+    """
+    import psutil
+    import platform
+    print("="*20, "System Information", "="*20)
+    uname = platform.uname()
+    print(f"System: {uname.system}")
+    print(f"Node Name: {uname.node}")
+    print(f"Release: {uname.release}")
+    print(f"Version: {uname.version}")
+    print(f"Machine: {uname.machine}")
+    print(f"Processor: {uname.processor}")
+    print("="*22, "CPU Information", "="*22)
+    # number of cores
+    print("Physical cores:", psutil.cpu_count(logical=False))
+    print("Total cores:", psutil.cpu_count(logical=True))
+    print("="*20, "Memory Information", "="*20)
+    # get the memory details
+    svmem = psutil.virtual_memory()
+    print(f"Total: {get_size(svmem.total)}")
+    print(f"Available: {get_size(svmem.available)}")
+    print(f"Used: {get_size(svmem.used)}")
+    print("="*18, "System Information End", "="*18)
+#####################################################################################

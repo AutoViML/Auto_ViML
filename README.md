@@ -1,7 +1,7 @@
 # Auto-ViML
 
 ![banner](logo.png)<br>
-Automatically Build Variant Interpretable ML models fast!<br>
+Automatically Build Various Interpretable ML models fast!<br>
 [![Downloads](https://pepy.tech/badge/autoviml/week)](https://pepy.tech/project/autoviml/week)
 [![Downloads](https://pepy.tech/badge/autoviml/month)](https://pepy.tech/project/autoviml/month)
 [![Downloads](https://pepy.tech/badge/autoviml)](https://pepy.tech/project/autoviml)
@@ -10,7 +10,12 @@ Automatically Build Variant Interpretable ML models fast!<br>
 [![PyPI Version](https://img.shields.io/pypi/v/autoviml.svg?logo=pypi&logoColor=white)](https://pypi.org/project/autoviml)
 [![PyPI License](https://img.shields.io/pypi/l/autoviml.svg)](https://github.com/AutoViML/Auto_ViML/blob/master/LICENSE)
 
-Auto_ViML is pronounced "auto vimal" (autovimal logo created by Sanket Ghanmare)
+Auto_ViML is pronounced as "auto vimal" (autovimal logo created by Sanket Ghanmare).
+
+## Update (May 2022)
+<ol>
+<li><b>Auto_ViML as of version 0.1.710 has a very high performance model for Imbalanced dataset problems.</b> So if you have an imbalanced dataset, you must check it out by setting `Imbalanced_Flag`=True. It produces 5-10% boost in balanced_accuracy for many datasets I have tried.
+
 <p>NEW FEATURES in this version are:<br>
 <ul>
 <li>SULOV -> Uses the SULOV algorithm for removing highly correlated features automatically.</li>

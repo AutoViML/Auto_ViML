@@ -28,7 +28,7 @@ os.environ["KMP_WARNINGS"] = "FALSE"
 from sklearn.svm import LinearSVR, LinearSVC
 from sklearn.multioutput import MultiOutputRegressor, MultiOutputClassifier
 from sklearn.multioutput import RegressorChain, ClassifierChain
-from sklearn.multiclass import OneVsRestClassifier
+from sklearn.multiclass import OneVsRestClassifier, OneVsOneClassifier
 
 from sklearn.linear_model import Lasso
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -53,6 +53,7 @@ from autoviml.QuickML_Ensembling import QuickML_Ensembling
 from autoviml.Auto_NLP import Auto_NLP
 from autoviml.sulov_method import FE_remove_variables_using_SULOV_method
 from autoviml.classify_method import classify_columns
+from imbalanced_ensemble.ensemble import SelfPacedEnsembleClassifier, RUSBoostClassifier
 import sys
 ##################################################################################
 def find_rare_class(classes, verbose=0):
@@ -1965,6 +1966,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     ##### This is for Multi-Label: Both Binary and Multi-class Classification ######################
                     xgbm = OneVsRestClassifier(estimator=xgbm)
         print('Using Multi-Label %s model' %(str(xgbm).split("(")[0]))
+    else:
+        #### Now in some cases the Imbalanced Flag is set. YOu can insert SPE here ###
+        if Imbalanced_Flag:
+            rf = RandomForestClassifier(n_estimators=100, random_state=99)
+            xgbm = SelfPacedEnsembleClassifier(base_estimator=rf, n_jobs=-1, soft_resample_flag=True)
+            hyper_param = 'Imb'
+            model_name = 'SPE'
+            Boosting_Flag =  False
     ######   Now do RandomizedSearchCV  using # Early-stopping ################
     if modeltype == 'Regression':
         if model_label == 'Single_Label':
@@ -2104,7 +2113,6 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ####    IT APPEARS LIKE DUPLICATED CODE!!  IT IS NOT !!        #############
     ############################################################################
     ##### This is where you start training the model for FIRST TIME  ############
-    
     if model_label == 'Single_Label':
         if Imbalanced_Flag:
             try:
@@ -2210,6 +2218,10 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 else:
                     validation_metric = list(model.best_score_['learn'].keys())[0]
                     best_score = model.best_score_['learn'][validation_metric]
+            else:
+                ## This applies only to SPE classifier ########
+                validation_metric = 'Balanced Accuracy'
+                best_score = balanced_accuracy_score(y_cv, model.predict(X_cv))
     except:
         print('Error: Not able to print validation metrics. Continuing...')
         best_score = 0
@@ -2709,7 +2721,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         if Imbalanced_Flag:
             try:
                 print('##################  Imbalanced Model Training  ############################')
-                print('Imbalanced Training using SMOTE Rare Class Oversampling method...')
+                #print('Imbalanced Training using SMOTE Rare Class Oversampling method...')
                 ### Since it is a single label problem, we use each_target instead of target
                 model = training_with_SMOTE(X,y, each_target, eval_set, model,
                                   Boosting_Flag, eval_metric,modeltype, model_name,
@@ -4640,7 +4652,11 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
     if modeltype == 'Regression':
         print("Using Regression Resampler library to make skewed target variable more balanced...")
     else:
-        print("Using SMOTE's over-sampling techniques to make the %d classes balanced..." %len(np.unique(y_df)))
+        #print("Using SMOTE's over-sampling techniques to make the %d classes balanced..." %len(np.unique(y_df)))
+        if modeltype == 'Binary_Classification':
+            print('Using Self-Paced Ensemble Classifier to handle this Imbalanced dataset...')
+        else:
+            print('Using OneVsRest+Self-Paced Ensemble Classifier to handle this Imbalanced dataset...')
     try:
         #######################################################################
         # Initialize the resampler object
@@ -4699,7 +4715,19 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
             ### y_df_res will have the target column with now extra rows for regression training!
         else:
             #### For classification problems simply using the original data will do
-            X_df_res, y_df_res = smote.fit_resample(X_df, y_df)
+            #X_df_res, y_df_res = smote.fit_resample(X_df, y_df)
+            ### For classification problems we are going to use SPE from now on
+            if modeltype == 'Binary_Classification':
+                ### For Binary class, SPE model is better ############
+                rf = RandomForestClassifier(n_estimators=100, random_state=99)
+                spe = SelfPacedEnsembleClassifier(base_estimator=rf, n_jobs=-1, soft_resample_flag=False)
+            else:
+                ## For multi-class OnevsRest model is better  ###########
+                rf = RandomForestClassifier(n_estimators=100, random_state=99)
+                spe = SelfPacedEnsembleClassifier(base_estimator=rf, n_jobs=-1, soft_resample_flag=False)
+                spe = OneVsRestClassifier(estimator=spe)
+            spe.fit(X_df, y_df)
+            return spe
     except:
         print('SMOTE or Regression-resampler is erroring. Continuing...')
         model = model_training_smote(model, X_df, y_df, eval_set, eval_metric,
@@ -4707,7 +4735,7 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
                             calibrator_flag, model_name, Boosting_Flag, model_label,
                              GPU_exists)
         print('    Model Training time taken = %0.0f seconds' %(time.time()-start_time))
-        return model
+        return spe
     print('Training model now on resampled train data: %s. This will take time...' %(X_df_res.shape,))
     # Fit the model using x_train and y_train full data sent in
     model = model_training_smote(model, X_df_res, y_df_res, eval_set, eval_metric,
@@ -4716,6 +4744,7 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
                          GPU_exists)
     print('    Resampled data Training time taken = %0.0f seconds' %(time.time()-start_time))
     #Now make predictions on held out data
+    model_str = str(model).split("(")[0]
     if training:
         x_test = eval_set[0][0]
         y_test = eval_set[0][1]
@@ -4726,9 +4755,8 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
             print_regression_metrics(y_test, model.predict(x_test))
         else:
             print(classification_report(y_test, model.predict(x_test)))
-    model_str = str(model).split("(")[0]
-    print('##################  Completed Imbalanced Training using %s ################' %model_str)
-    if not training:
+        print('##################  Completed Imbalanced Training using %s ################' %model_str)
+    else:
         if verbose >= 1:
             fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True,figsize=(12,5))
             if modeltype == 'Regression':

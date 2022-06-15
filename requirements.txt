@@ -14,6 +14,7 @@ imbalanced-learn>=0.7
 regex
 beautifulsoup4
 imbalanced_ensemble>=0.1.7
+lightgbm>=3.0.0
 shap>=0.36.0
 emoji
 xlrd

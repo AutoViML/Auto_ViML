@@ -4451,11 +4451,14 @@ def filling_missing_values_simple(train, test, cats, nums):
     return train, test
 ############################################################
 import os
+import re
 def write_file_to_folder(df, each_target, base_filename, verbose=1):
+    remove_special_chars =  lambda x: re.sub('[^A-Za-z0-9_]+', '', x)
+
     if isinstance(each_target, str):
-        dir_name = copy.deepcopy(each_target)
+        dir_name = remove_special_chars(each_target)
     else:
-        dir_name = str(each_target)
+        dir_name = remove_special_chars(str(each_target))
     filename = os.path.join(dir_name, base_filename)
     if verbose >= 1:
         if os.name == 'nt':

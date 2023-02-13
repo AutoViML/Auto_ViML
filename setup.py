@@ -31,7 +31,7 @@ setuptools.setup(
         "imbalanced-learn>=0.7",
     	"beautifulsoup4",
         "shap>=0.36.0",
-        "imbalanced_ensemble>=0.1.7",
+        "imbalanced_ensemble>=0.2.0",
         "emoji",
         "lightgbm>=3.0.0",
         "xlrd",

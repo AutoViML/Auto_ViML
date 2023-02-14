@@ -162,7 +162,7 @@ You don't have to tell Auto_ViML whether it is a Regression or Classification pr
   - `3` Adds both Interactions and Squared variables such as x1*x2, x1**2,x2*x3, x2**2, etc.
 - `Stacking_Flag`: Default is False. If set to True, it will add an additional feature which is derived from predictions of another model. This is used in some cases but may result in overfitting. So be careful turning this flag "on".
 - `Binning_Flag`: Default is False. It set to True, it will convert the top numeric variables into binned variables through a technique known as "Entropy" binning. This is very helpful for certain datasets (especially hard to build models).
-- `Imbalanced_Flag`: Default is False. If set to True, it will use <a href='https://imbalanced-learn.org/stable/'>SMOTE from Imbalanced-Learn</a> to oversample the "Rare Class" in an imbalanced dataset and make the classes balanced (50-50 for example in a binary classification). This also works for Regression problems where you have highly skewed distributions in the target variable. Auto_ViML creates additional samples using SMOTE for Highly Imbalanced data.
+- `Imbalanced_Flag`: Default is False. Uses imbalanced_ensemble library for imbalanced data. Just set Imbalanced_Flag = True in arguments
 - `verbose`: This has 3 possible states:
   - `0` limited output. Great for running this silently and getting fast results.
   - `1` more charts. Great for knowing how results were and making changes to flags in input.

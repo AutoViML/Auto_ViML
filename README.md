@@ -14,15 +14,15 @@ Auto_ViML is pronounced as "auto vimal" (autovimal logo created by Sanket Ghanma
 
 ## Update (May 2022)
 <ol>
-<li><b>Auto_ViML as of version 0.1.710 has a very high performance model for Imbalanced dataset problems.</b> So if you have an imbalanced dataset, you must check it out by setting `Imbalanced_Flag`=True. It produces 5-10% boost in balanced_accuracy for many datasets I have tried.
-
-<p>NEW FEATURES in this version are:<br>
+<li><b>Auto_ViML as of version 0.1.710 uses a very high performance library called `imbalanced_ensemble` for Imbalanced dataset problems.</b> It will produce a 5-10% boost in your balanced_accuracy based on my experience with  many datasets I have tried.</li>
+<br>
+<p>In addition, new features in this version are:<br>
 <ul>
 <li>SULOV -> Uses the SULOV algorithm for removing highly correlated features automatically.</li>
 <li>Auto_NLP -> AutoViML automatically detects Text variables and does NLP processing using Auto_NLP</li>
 <li>Date Time -> It automatically detects  date time variables and generates new features</li>
-<li>SMOTE -> Uses SMOTE for imbalanced data. Just set Imbalanced_Flag = True in input below</li>
-<li>Feature Selection -> We use SULOV and Recursive XGBoost to select best features fast. See below.</li>
+<li>`imbalanced_ensemble` library -> Uses imbalanced_ensemble library for imbalanced data. Just set Imbalanced_Flag = True in arguments</li>
+<li>Feature Selection -> We use the same algorithm that featurewiz library uses: SULOV and Recursive XGBoost to select best features fast. See below.</li>
 </ul>
 
 ## Table of Contents

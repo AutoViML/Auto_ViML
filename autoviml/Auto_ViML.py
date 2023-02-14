@@ -53,7 +53,7 @@ from autoviml.QuickML_Ensembling import QuickML_Ensembling
 from autoviml.Auto_NLP import Auto_NLP
 from autoviml.sulov_method import FE_remove_variables_using_SULOV_method
 from autoviml.classify_method import classify_columns
-from imbalanced_ensemble.ensemble import SelfPacedEnsembleClassifier, RUSBoostClassifier
+from imbens.ensemble import SelfPacedEnsembleClassifier, RUSBoostClassifier
 import sys
 ##################################################################################
 def find_rare_class(classes, verbose=0):

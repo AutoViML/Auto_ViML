@@ -28,7 +28,7 @@ setuptools.setup(
         "nltk",
         "regex",
         "vaderSentiment",
-        "imbalanced-learn>=0.7",
+        "imbalanced-learn>=0.10.1",
     	"beautifulsoup4",
         "shap>=0.36.0",
         "imbalanced_ensemble>=0.2.0",

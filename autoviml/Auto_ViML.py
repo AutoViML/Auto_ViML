@@ -53,6 +53,7 @@ from autoviml.QuickML_Ensembling import QuickML_Ensembling
 from autoviml.Auto_NLP import Auto_NLP
 from autoviml.sulov_method import FE_remove_variables_using_SULOV_method
 from autoviml.classify_method import classify_columns
+#from imbalanced_ensemble.ensemble import SelfPacedEnsembleClassifier, RUSBoostClassifier
 from imbens.ensemble import SelfPacedEnsembleClassifier, RUSBoostClassifier
 import sys
 ##################################################################################
@@ -427,7 +428,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ####   sep: if you have a spearator in the file such as "," or "\t" mention it here. Default is ",". ####
     ####   scoring_parameter: if you want your own scoring parameter such as "f1" give it here. If not, #####
     ####       it will assume the appropriate scoring param for the problem and it will build the model.#####
-    ####   hyper_param: Tuning options are GridSearch ('GS'), RandomizedSearch ('RS')and now HyperOpt ('HO')#
+    ####   hyper_param: Tuning options are GridSearch ('GS'), RandomizedSearch ('RS')                   #####
     ####        Default setting is 'GS'. Auto_ViML with HyperOpt is approximately 3X Faster than Auto_ViML###
     ####   feature_reduction: Default = 'True' but it can be set to False if you don't want automatic    ####
     ####         feature_reduction since in Image data sets like digits and MNIST, you get better       #####
@@ -2141,6 +2142,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ##   this next step is skipped ##
     #########################################################################
     ### The model blows up when you use average-precision in Multi-Classes -> needs checking!
+    
     if not Imbalanced_Flag:
         #### This is for both regular Regression and regular Classification Model Training. It is not a Mistake #############
         ### In case Imbalanced training fails, this method is also tried. That's why we test the Flag here!!  #############
@@ -4451,14 +4453,11 @@ def filling_missing_values_simple(train, test, cats, nums):
     return train, test
 ############################################################
 import os
-import re
 def write_file_to_folder(df, each_target, base_filename, verbose=1):
-    remove_special_chars =  lambda x: re.sub('[^A-Za-z0-9_]+', '', x)
-
     if isinstance(each_target, str):
-        dir_name = remove_special_chars(each_target)
+        dir_name = copy.deepcopy(each_target)
     else:
-        dir_name = remove_special_chars(str(each_target))
+        dir_name = str(each_target)
     filename = os.path.join(dir_name, base_filename)
     if verbose >= 1:
         if os.name == 'nt':
@@ -5018,17 +5017,47 @@ def draw_confusion_maxtrix(y_test,y_pred, model_name='Model',ax=''):
     ax.set_ylabel('True label', fontsize = 13)
     ax.set_xlabel('Predicted label', fontsize = 13)
 ######################################################################################
-from sklearn.metrics import plot_precision_recall_curve, plot_roc_curve
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, roc_curve
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+from sklearn.metrics import roc_curve, precision_recall_curve
+
+def plot_precision_recall_curve(m, x_testc, y_test, ax=None):
+    #### This is a simple way to plot PR curve for binary classes #####
+    y_scores = m.predict_proba(x_testc)[:,1]
+    ### generate the precision recall curve ##########
+    p, r, thresholds = precision_recall_curve(y_test, y_scores)
+    #### plot the curve ##########
+    ax.set_title("Precision Recall Curve")
+    ax.plot(r, p, color="purple")
+    ax.set_ylim([0.5, 1.01])
+    ax.set_xlim([0.5, 1.01])
+    ax.set_xlabel('Recall')
+    ax.set_ylabel('Precision')
+
+def plot_roc_curve(m, x_testc, y_test, ax=None):
+    #### This is a simple way to plot ROC curve for binary classes #####
+    y_scores = m.predict_proba(x_testc)[:,1]
+    ### generate the precision recall curve ##########
+    fpr, tpr, _ = roc_curve(y_test,  y_scores)
+    #### plot the curve ##########
+    ax.set_title("ROC AUC Curve")
+    ax.plot(fpr,tpr, color="purple")
+    ax.set_ylim([0.0, 1.01])
+    ax.set_xlim([0.0, 1.01])
+    ax.set_xlabel('False Positive Rate')
+    ax.set_ylabel('True Positive Rate')
+
+
 def plot_classification_results(m, X_true, y_true, y_pred, labels, target_names, each_target):
+    #### These plots are only for binary classes #############
     try:
         fig, axes = plt.subplots(2,2,figsize=(15,15))
         plot_roc_curve(m, X_true, y_true, ax=axes[0,1])
         axes[0,1].set_title('ROC AUC Curve: %s' %each_target)
         plot_precision_recall_curve(m, X_true, y_true, ax=axes[1,0])
-        axes[1,0].set_title('PR AUC Curve %s' %each_target)
+        axes[1,0].set_title('PR AUC Curve for: %s' %each_target)
         y_pred = m.predict(X_true)
         draw_confusion_maxtrix(y_true, y_pred, 'Confusion Matrix', ax=axes[0,0])
         try:

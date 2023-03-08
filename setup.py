@@ -22,7 +22,7 @@ setuptools.setup(
         "xgboost>=1.1.1",
         "matplotlib",
         "seaborn",
-        "scikit-learn>=0.23.1",
+        "scikit-learn~=1.1",
         "catboost",
         "textblob",
         "nltk",

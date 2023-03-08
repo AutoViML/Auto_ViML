@@ -754,8 +754,8 @@ def print_top_feature_grams(X, vectorizer, top_n = 200):
                 top_num = int(top_n*1/6)
             vectorizer.ngram_range = (i,i)
             XA = vectorizer.fit_transform(X)
-            feature_array = vectorizer.get_feature_names()
-            top_sorted_tuples = sorted(list(zip(vectorizer.get_feature_names(),
+            feature_array = vectorizer.get_feature_names_out()
+            top_sorted_tuples = sorted(list(zip(feature_array,
                                                          XA.sum(0).getA1())),
                                              key=lambda x: x[1], reverse=True)[:top_num]
             top_sorted = [x for (x,y) in  top_sorted_tuples]
@@ -1037,13 +1037,13 @@ def transform_combine_top_feats_with_SVD(each_df_dtm, nlp_column, big_nlp_vect, 
     if is_train:
         each_df_dtm2 = small_nlp_vect.fit_transform(each_df[nlp_column])
         each_df_dtm2 = pd.DataFrame(each_df_dtm2.toarray(),index=orig_each_df_index,
-                                             columns=small_nlp_vect.get_feature_names())
+                                             columns=small_nlp_vect.get_feature_names_out())
         #### Since the top features from each class is a pretty bad idea, I am dropping it here!
         #print('Added top %d features from Train data' %(each_df_dtm2.shape[1]))
     else:
         each_df_dtm2 = small_nlp_vect.transform(each_df[nlp_column])
         each_df_dtm2 = pd.DataFrame(each_df_dtm2.toarray(),index=orig_each_df_index,
-                                             columns=small_nlp_vect.get_feature_names())
+                                             columns=small_nlp_vect.get_feature_names_out())
         #### Since the top features from each class is a pretty bad idea, I am dropping it here!
         #print('Added top %d features from Test data' %(each_df_dtm2.shape[1]))
     # Now you have to combine them all to get a new each_df_best dataframe
@@ -1632,7 +1632,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
     print('  Now transforming Train data to return as output...')
     
     trainm = transform_pipe.fit_transform(X, y)
-    sel_col_names = np.array(best_vect.get_feature_names())[transform_pipe.named_steps[
+    sel_col_names = np.array(best_vect.get_feature_names_out())[transform_pipe.named_steps[
                             'selectkbest'].get_support()]
     trainm = pd.DataFrame(trainm.todense(),index=train_index,columns=sel_col_names)
     if not isinstance(test, str):
@@ -1798,7 +1798,7 @@ def create_tfidf_terms(list_X, tfidf_vectorizer,is_train=True, max_features_limi
         tfidf_matrix = tfidf_vectorizer.transform(list_X)
     return {
         'tfidf_matrix' : tfidf_matrix ,
-        'terms' : tfidf_vectorizer.get_feature_names()
+        'terms' : tfidf_vectorizer.get_feature_names_out()
     }
 
 def return_cluster_labels(km, tfid_terms, num_cluster, is_train):

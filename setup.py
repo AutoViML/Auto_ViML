@@ -15,8 +15,8 @@ setuptools.setup(
     url="https://github.com/AutoViML/Auto_ViML",
     packages=setuptools.find_packages(exclude=("tests",)),
     install_requires=[
-        "numpy~1.19.5",
-        "pandas~1.0.0",
+        "numpy~=1.19.5",
+        "pandas>=1.1.3",
         "ipython",
         "jupyter",
         "xgboost>=1.1.1",

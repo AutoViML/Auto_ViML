@@ -1525,19 +1525,20 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
                 #params['randomforestclassifier__max_depth'] = sp.stats.randint(2,10),
                 #params['randomforestclassifier__n_estimators'] = sp.stats.randint(200,500)
     #### Adding a CalibratedClassifier to text classification tasks  ########################
-    if modeltype != 'Regression':
-        if isinstance(target, list):
-            ### There is no need for CalibratedClassifierCV in Multi-Label problems
-            pass
-        else:
-            if X_train.shape[0] <= 1000:
-                # This works well for small data sets and is similar to parametric
-                method=  'sigmoid' # 'isotonic' # #
-            else:
-                # This works well for large data sets and is non-parametric
-                method=  'isotonic'
-            calibrator_flag = True
-            print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
+    ### Calibrated classifier is needed only for Logistic Regression models. Hence not needed here.
+    # if modeltype != 'Regression':
+    #     if isinstance(target, list):
+    #         ### There is no need for CalibratedClassifierCV in Multi-Label problems
+    #         pass
+    #     else:
+    #         if X_train.shape[0] <= 1000:
+    #             # This works well for small data sets and is similar to parametric
+    #             method=  'sigmoid' # 'isotonic' # #
+    #         else:
+    #             # This works well for large data sets and is non-parametric
+    #             method=  'isotonic'
+    #         calibrator_flag = True
+    #         print('Using a Calibrated Classifier in this classification problem to improve results...')
     ################    B U I L D I N G   A   P I P E L I N E   H E R E  ######################
     if top_num_features < top_num_features_limit:
         print("""Since top_num_features = %d, %s model selected. If you need different model, increase it >= %d.""" %(

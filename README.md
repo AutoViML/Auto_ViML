@@ -12,7 +12,7 @@ Automatically Build Various Interpretable ML models fast!<br>
 
 Auto_ViML is pronounced as "auto vimal" (autovimal logo created by Sanket Ghanmare).
 
-## Update (May 2022)
+## Update (March 2023)
 <ol>
 <li><b>Auto_ViML has a new flag to speed up processing using GPU's</b>. Just set the `GPU_flag`=`True` on Colab and other environments. But don't forget to set the runtime type to be "GPU" while running on Colab. Otherwise you will get an error.</li>
 </ol>

@@ -742,7 +742,6 @@ def print_top_feature_grams(X, vectorizer, top_n = 200):
     X = copy.deepcopy(X)
     vectorizer = copy.deepcopy(vectorizer)
     all_sorted = []
-    pdb.set_trace()
     for i in range(1,4):
         #### set min_df to be low so that you catch at least a few  of them
         try:
@@ -827,7 +826,6 @@ def print_top_features(train,nlp_column, best_nlp_vect, target, top_nums=200):
             print('\n    For class = %s' %each_class)
             eachdf_index = each_df.index
             cv = copy.deepcopy(best_nlp_vect)
-            pdb.set_trace()
             top_num_feats = print_top_feature_grams(each_df[nlp_column], cv, top_nums)
             #### This is an Alternative Method to get Top Num features ###########
             #top_num_feats =set([" ".join(x.split("_")) for x in word_freq_bigrams(bus_texts,int(top_nums*1/2))[0].values]+[

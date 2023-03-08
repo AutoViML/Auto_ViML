@@ -10,6 +10,7 @@
 ################################################################################
 import pandas as pd
 import numpy as np
+import pdb
 import seaborn as sns
 import matplotlib.pyplot as plt
 #get_ipython().magic('matplotlib inline')
@@ -1546,6 +1547,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
                             top_num_features,model_name,top_num_features_limit))
     ### The reason we don't add a clean_text function here in pipeline is because it takes too long in online
     ### It is better to clean the data in advance and then use the pipeline here in GS mode to find best params
+    pdb.set_trace()
     from sklearn.preprocessing import FunctionTransformer
     ##### Train and test the model ##########
     model_string = "".join(model_name.lower().split(" "))

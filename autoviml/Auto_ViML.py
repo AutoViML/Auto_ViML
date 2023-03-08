@@ -386,7 +386,7 @@ from pandas.api.types import is_datetime64_any_dtype as is_datetime
 def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feature_reduction=True,
             scoring_parameter='logloss', Boosting_Flag=None, KMeans_Featurizer=False,
             Add_Poly=0, Stacking_Flag=False, Binning_Flag=False,
-              Imbalanced_Flag=False, verbose=0):
+              Imbalanced_Flag=False, GPU_flag=False, verbose=0):
     """
     #########################################################################################################
     #############       This is not an Officially Supported Google Product!         #########################
@@ -451,6 +451,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ####   Imbalanced_Flag: Default is False. If set to True, it will downsample the "Majority Class"   #####
     ####         in an imbalanced dataset and make the "Rare" class at least 5% of the data set. This   #####
     ####         the ideal threshold in my mind to make a model learn. Do it for Highly Imbalanced data.#####
+    ####   GPU_flag: False. Set to True if have a GPU on your machine. In Colab, GPU runtime must be on #####
     ####   verbose: This has 3 possible states:                                                         #####
     ####    0 = limited output. Great for running this silently and getting fast results.               #####
     ####    1 = more charts. Great for knowing how results were and making changes to flags in input.   #####
@@ -843,7 +844,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         if verbose >= 1:
             print('        %s' %(id_cols+del_cols+date_cols))
     ################## This is where real code begins ###################################################
-    GPU_exists = check_if_GPU_exists()
+    if GPU_flag:
+        GPU_exists = check_if_GPU_exists()
+        if GPU_exists:
+            GPU_exists = True
+        else:
+            GPU_exists = False
+    else:
+        GPU_exists = False
     ###### This is where we set the CPU and GPU parameters for XGBoost
     param = {}
     if Boosting_Flag:
@@ -2142,7 +2150,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     ##   this next step is skipped ##
     #########################################################################
     ### The model blows up when you use average-precision in Multi-Classes -> needs checking!
-    
+    pdb.set_trace()
     if not Imbalanced_Flag:
         #### This is for both regular Regression and regular Classification Model Training. It is not a Mistake #############
         ### In case Imbalanced training fails, this method is also tried. That's why we test the Flag here!!  #############

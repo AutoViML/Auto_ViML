@@ -14,6 +14,11 @@ Auto_ViML is pronounced as "auto vimal" (autovimal logo created by Sanket Ghanma
 
 ## Update (May 2022)
 <ol>
+<li><b>Auto_ViML has a new flag to speed up processing using GPU's</b>. Just set the `GPU_flag`=`True` on Colab and other environments. But don't forget to set the runtime type to be "GPU" while running on Colab. Otherwise you will get an error.</li>
+</ol>
+
+## Update (May 2022)
+<ol>
 <li><b>Auto_ViML as of version 0.1.710 uses a very high performance library called `imbalanced_ensemble` for Imbalanced dataset problems.</b> It will produce a 5-10% boost in your balanced_accuracy based on my experience with  many datasets I have tried.</li>
 <br>
 <p>In addition, new features in this version are:<br>

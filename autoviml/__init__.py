@@ -20,7 +20,7 @@ print("""%s Auto_ViML version: %s. Call using:
                             hyper_param='RS',feature_reduction=True,
                              Boosting_Flag='CatBoost', Binning_Flag=False,
                             Add_Poly=0, Stacking_Flag=False,Imbalanced_Flag=False,
-                            verbose=1)
+                            GPU_flag=False, verbose=1)
             """ %(module_type, viml_version_number))
 print()
 ###########################################################################################

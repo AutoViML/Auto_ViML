@@ -1979,7 +1979,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         #### Now in some cases the Imbalanced Flag is set. YOu can insert SPE here ###
         if Imbalanced_Flag:
             rf = RandomForestClassifier(n_estimators=100, random_state=99)
-            xgbm = SelfPacedEnsembleClassifier(base_estimator=rf, n_jobs=-1, soft_resample_flag=True)
+            xgbm = SelfPacedEnsembleClassifier(estimator=rf, n_jobs=-1, soft_resample_flag=True)
             hyper_param = 'Imb'
             model_name = 'SPE'
             Boosting_Flag =  False
@@ -4730,11 +4730,11 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
             if modeltype == 'Binary_Classification':
                 ### For Binary class, SPE model is better ############
                 rf = RandomForestClassifier(n_estimators=100, random_state=99)
-                spe = SelfPacedEnsembleClassifier(base_estimator=rf, n_jobs=-1, soft_resample_flag=False)
+                spe = SelfPacedEnsembleClassifier(estimator=rf, n_jobs=-1, soft_resample_flag=False)
             else:
                 ## For multi-class OnevsRest model is better  ###########
                 rf = RandomForestClassifier(n_estimators=100, random_state=99)
-                spe = SelfPacedEnsembleClassifier(base_estimator=rf, n_jobs=-1, soft_resample_flag=False)
+                spe = SelfPacedEnsembleClassifier(estimator=rf, n_jobs=-1, soft_resample_flag=False)
                 spe = OneVsRestClassifier(estimator=spe)
             spe.fit(X_df, y_df)
             return spe

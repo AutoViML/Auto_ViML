@@ -3873,6 +3873,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Lasso
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.model_selection import GridSearchCV
+import sklearn
+from distutils.version import LooseVersion
 
 def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly=2,md='',
                             corr_limit=0.70,scaling=True, fit_flag=False, verbose=0):
@@ -3891,7 +3893,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     orig_data_index = data.index
     if modeltype == 'Regression':
         lm = Lasso(alpha=0.001, max_iter=2000,
-                 fit_intercept=True, normalize=False)
+                 fit_intercept=True)
     else:
         if modeltype == 'Binary_Classification':
             lm = LogisticRegression(C=0.01,fit_intercept=True,tol=tolerance,
@@ -3943,7 +3945,17 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     #################################################################################
     #####   CONVERT X-VARIABLES FROM POLY AND INTERACTION INTO ORIGINAL VARIABLES ###
     #################################################################################
-    xnames = md.get_feature_names() ### xnames contains all x-only, Poly and Intxn variables in x-format
+    if LooseVersion(sklearn.__version__) < LooseVersion('0.24.2'):
+        # Perform action for scikit-learn version below 0.24.2
+        print("Performing action for scikit-learn version below 0.24.2")
+        # Add your code here for scikit-learn version below 0.24.2
+        xnames = md.get_feature_names()
+    else:
+        # Perform action for scikit-learn version 0.24.2 and above
+        print("Performing action for scikit-learn version 0.24.2 and above")
+        # Add your code here for scikit-learn version 0.24.2 and above
+        xnames = md.get_feature_names_out().tolist() ### xnames contains all x-only, Poly and Intxn variables in x-format
+        
     if len(xnames) > 300:
         max_iter = 5000
     else:
@@ -3952,7 +3964,7 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     start_time = time.time()
     if modeltype == 'Regression':
         lm = Lasso(alpha=0.001, max_iter=max_iter,
-                 fit_intercept=True, normalize=False)
+                 fit_intercept=True)
     else:
         if modeltype == 'Binary_Classification':
             lm = LogisticRegression(C=0.01,fit_intercept=True, tol=tolerance,
@@ -4073,7 +4085,16 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         final_text_vars = [feature_xvar_dict[x] for x in final_x_vars]
         ##########################################################################################
         final_df = md.transform(data[predictors])
-        xnames = md.get_feature_names()
+        if LooseVersion(sklearn.__version__) < LooseVersion('0.24.2'):
+            # Perform action for scikit-learn version below 0.24.2
+            print("Performing action for scikit-learn version below 0.24.2")
+            # Add your code here for scikit-learn version below 0.24.2
+            xnames = md.get_feature_names()
+        else:
+            # Perform action for scikit-learn version 0.24.2 and above
+            print("Performing action for scikit-learn version 0.24.2 and above")
+            # Add your code here for scikit-learn version 0.24.2 and above
+            xnames = md.get_feature_names_out().tolist() ### xnames contains all x-only, Poly and Intxn variables in x-format
         final_df = pd.DataFrame(final_df,index=orig_data_index, columns=xnames)
         final_df = final_df[final_x_vars]
         final_df.columns = final_text_vars
@@ -4088,7 +4109,16 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     else:
         #### Just return the transformed dataframe with all orig+poly+intxn vars
         final_df = md.transform(data[predictors])
-        xnames = md.get_feature_names()
+        if LooseVersion(sklearn.__version__) < LooseVersion('0.24.2'):
+            # Perform action for scikit-learn version below 0.24.2
+            print("Performing action for scikit-learn version below 0.24.2")
+            # Add your code here for scikit-learn version below 0.24.2
+            xnames = md.get_feature_names()
+        else:
+            # Perform action for scikit-learn version 0.24.2 and above
+            print("Performing action for scikit-learn version 0.24.2 and above")
+            # Add your code here for scikit-learn version 0.24.2 and above
+            xnames = md.get_feature_names_out().tolist() ### xnames contains all x-only, Poly and Intxn variables in x-format
         final_df = pd.DataFrame(final_df,index=orig_data_index, columns=xnames)
         return predictors, lm, final_df, md, xnames, ""
 ##################################################################################

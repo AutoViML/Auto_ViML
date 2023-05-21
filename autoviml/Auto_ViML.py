@@ -1472,6 +1472,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     estimator_string = 'estimator__'
     if hyper_param is not None:
         if hyper_param.lower() == 'chain':
+            ### Don't change this! Thanksfully in prev and new versions of sklearn, its' the same!
             estimator_string = 'base_estimator__'
     ###   Setting up the Estimators for Single Label and Multi Label targets only
     if modeltype == 'Regression':
@@ -1736,7 +1737,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             ### DO NOT USE NUM CLASS WITH BINARY CLASSIFICATION ######
             if Boosting_Flag:
                 if model_name.lower() == 'catboost':
-                    xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
+                    xgbm =  CatBoostClassifier(verbose=0,iterations=max_estims,
                         random_state=99,one_hot_max_size=one_hot_size,
                         loss_function=loss_function, eval_metric=catboost_scoring,
                         subsample=subsample,bootstrap_type='Bernoulli',
@@ -1897,12 +1898,12 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             if Boosting_Flag:
                 # Create regularization hyperparameter distribution using uniform distribution
                 if model_name.lower() == 'catboost':
-                    xgbm =  CatBoostClassifier(verbose=1,iterations=max_estims,
+                    xgbm =  CatBoostClassifier(verbose=0,iterations=max_estims,
                             random_state=99,one_hot_max_size=one_hot_size,
                             loss_function=loss_function, eval_metric=catboost_scoring,
                             subsample=subsample,bootstrap_type='Bernoulli',
                             metric_period = 500,
-                           early_stopping_rounds=2000,boosting_type='Plain')
+                           early_stopping_rounds=1000,boosting_type='Plain')
                 else:
                     #xgbm = XGBClassifier(base_score=0.5, booster='gbtree', subsample=subsample,
                     #            colsample_bytree=col_sub_sample, gamma=1, learning_rate=0.1, max_delta_step=0,
@@ -1977,12 +1978,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         print('Using Multi-Label %s model' %(str(xgbm).split("(")[0]))
     else:
         #### Now in some cases the Imbalanced Flag is set. YOu can insert SPE here ###
-        if Imbalanced_Flag:
-            rf = RandomForestClassifier(n_estimators=100, random_state=99)
-            xgbm = SelfPacedEnsembleClassifier(estimator=rf, n_jobs=-1, soft_resample_flag=True)
-            hyper_param = 'Imb'
-            model_name = 'SPE'
-            Boosting_Flag =  False
+        print('     Handling Imbalanced flag...')
     ######   Now do RandomizedSearchCV  using # Early-stopping ################
     if modeltype == 'Regression':
         if model_label == 'Single_Label':
@@ -2095,7 +2091,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
             if Boosting_Flag:
                 if model_name.lower() == 'catboost':
                     data_dim = data_dim*one_hot_size/len(preds)
-                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(300000.*CPU_count)))
+                    print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*max_class_length*len(target)/(3000000.*CPU_count)))
                 else:
                     print('Using %s Model, Estimated Training time = %0.3f mins' %(model_name,data_dim*(max_class_length**2)*len(target)/(100000.*CPU_count)))
             elif Boosting_Flag is None:
@@ -2111,9 +2107,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                 else:
                     print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*(max_class_length)*len(target)**2/(40000.*CPU_count)))
             elif Boosting_Flag is None:
+                ### This is for a linear model
                 print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length*len(target)/(100000.*CPU_count)))
             else:
-                print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length*len(target)/(25000.*CPU_count)))
+                ### This is for a forests model
+                print('Using %s Model, Estimated Training time = %0.2f mins' %(model_name,data_dim*max_class_length*0.25*len(target)/(25000.*CPU_count)))
     ##### Since we are using Multiple Models each with its own quirks, we have to make sure it is done this way
     ##### ############      TRAINING MODEL FIRST TIME WITH X_TRAIN AND TESTING ON X_CV ############
     model_start_time = time.time()
@@ -2126,7 +2124,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         if Imbalanced_Flag:
             try:
                 print('##################  Imbalanced Model Training  ############################')
-                print('Imbalanced Training using SMOTE Rare Class Oversampling method...')
+                #print('Imbalanced Training using SMOTE Rare Class Oversampling method...')
                 if modeltype == 'Regression':
                     ### Since rare class is needed in the next step, just setting the rare_class as artificially 0.
                     rare_class = 0
@@ -2221,7 +2219,11 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                     best_score = model.best_score_
                     validation_metric = copy.deepcopy(scoring_parameter)
             elif hyper_param is None:
-                val_keys = list(model.best_score_.keys())
+                if Imbalanced_Flag:
+                    ## there is no best_score since GridSearchCV is not used
+                    best_score = 0
+                else:
+                    val_keys = list(model.best_score_.keys())
                 if 'validation' in val_keys:
                     validation_metric = list(model.best_score_['validation'].keys())[0]
                     best_score = model.best_score_['validation'][validation_metric]
@@ -2307,7 +2309,9 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
                         y_ful = np.r_[y_train, y_cv]
                     model.fit(X_ful, y_ful)
                     print('Using a Calibrated Classifier in this Multi_Classification dataset to improve results...')
-                    calibrator_flag = True
+                    if model_name.lower() == "forests":
+                        ### Extra Calibration works well only for random forests. The rest are already decent.
+                        calibrator_flag = True
                 except:
                     calibrator_flag = False
             elif model_label == 'Multi_Label' and modeltype == 'Binary_Classification':
@@ -2391,7 +2395,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         else:
             if model_name == 'Forests':
                 if calibrator_flag:
-                    print('    OOB Score = %0.3f' %model.base_estimator.oob_score_)
+                    if LooseVersion(sklearn.__version__) <= LooseVersion('0.24.2'):
+                        # Perform action for scikit-learn version below 0.24.2
+                        # Add your code here for scikit-learn version below 0.24.2
+                        print('    OOB Score = %0.3f' %model.base_estimator.oob_score_)
+                    else:
+                        # Perform action for scikit-learn version 0.24.2 and above
+                        # Add your code here for scikit-learn version 0.24.2 and above
+                        print('    OOB Score = %0.3f' %model.estimator.oob_score_)
                 else:
                     print('    OOB Score = %0.3f' %model.oob_score_)
             rmsle_calculated_m = balanced_accuracy_score(y_cv,y_pred)
@@ -3046,7 +3057,14 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #####################   P L O T   F E A T U R E   I M P O R T A N C E S   H E R E ###################
     if model_label == 'Single_Label':
         if calibrator_flag:
-            plot_model = model.base_estimator
+            if LooseVersion(sklearn.__version__) <= LooseVersion('0.24.2'):
+                # Perform action for scikit-learn version below 0.24.2
+                # Add your code here for scikit-learn version below 0.24.2
+                plot_model = model.base_estimator
+            else:
+                # Perform action for scikit-learn version 0.24.2 and above
+                # Add your code here for scikit-learn version 0.24.2 and above
+                plot_model = model.estimator
         else:
             plot_model = copy.deepcopy(model)
         try:
@@ -3945,14 +3963,12 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     #################################################################################
     #####   CONVERT X-VARIABLES FROM POLY AND INTERACTION INTO ORIGINAL VARIABLES ###
     #################################################################################
-    if LooseVersion(sklearn.__version__) < LooseVersion('0.24.2'):
+    if LooseVersion(sklearn.__version__) <= LooseVersion('0.24.2'):
         # Perform action for scikit-learn version below 0.24.2
-        print("Performing action for scikit-learn version below 0.24.2")
         # Add your code here for scikit-learn version below 0.24.2
         xnames = md.get_feature_names()
     else:
         # Perform action for scikit-learn version 0.24.2 and above
-        print("Performing action for scikit-learn version 0.24.2 and above")
         # Add your code here for scikit-learn version 0.24.2 and above
         xnames = md.get_feature_names_out().tolist() ### xnames contains all x-only, Poly and Intxn variables in x-format
         
@@ -4085,14 +4101,12 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
         final_text_vars = [feature_xvar_dict[x] for x in final_x_vars]
         ##########################################################################################
         final_df = md.transform(data[predictors])
-        if LooseVersion(sklearn.__version__) < LooseVersion('0.24.2'):
+        if LooseVersion(sklearn.__version__) <= LooseVersion('0.24.2'):
             # Perform action for scikit-learn version below 0.24.2
-            print("Performing action for scikit-learn version below 0.24.2")
             # Add your code here for scikit-learn version below 0.24.2
             xnames = md.get_feature_names()
         else:
             # Perform action for scikit-learn version 0.24.2 and above
-            print("Performing action for scikit-learn version 0.24.2 and above")
             # Add your code here for scikit-learn version 0.24.2 and above
             xnames = md.get_feature_names_out().tolist() ### xnames contains all x-only, Poly and Intxn variables in x-format
         final_df = pd.DataFrame(final_df,index=orig_data_index, columns=xnames)
@@ -4109,14 +4123,12 @@ def add_poly_vars_select(data,numvars,targetvar,modeltype,poly_degree=2,Add_Poly
     else:
         #### Just return the transformed dataframe with all orig+poly+intxn vars
         final_df = md.transform(data[predictors])
-        if LooseVersion(sklearn.__version__) < LooseVersion('0.24.2'):
+        if LooseVersion(sklearn.__version__) <= LooseVersion('0.24.2'):
             # Perform action for scikit-learn version below 0.24.2
-            print("Performing action for scikit-learn version below 0.24.2")
             # Add your code here for scikit-learn version below 0.24.2
             xnames = md.get_feature_names()
         else:
             # Perform action for scikit-learn version 0.24.2 and above
-            print("Performing action for scikit-learn version 0.24.2 and above")
             # Add your code here for scikit-learn version 0.24.2 and above
             xnames = md.get_feature_names_out().tolist() ### xnames contains all x-only, Poly and Intxn variables in x-format
         final_df = pd.DataFrame(final_df,index=orig_data_index, columns=xnames)
@@ -4759,13 +4771,12 @@ def training_with_SMOTE(X_df,y_df,target,eval_set,model_input,Boosting_Flag,eval
             ### For classification problems we are going to use SPE from now on
             if modeltype == 'Binary_Classification':
                 ### For Binary class, SPE model is better ############
-                rf = RandomForestClassifier(n_estimators=100, random_state=99)
-                spe = SelfPacedEnsembleClassifier(estimator=rf, n_jobs=-1, soft_resample_flag=False)
+                spe = SelfPacedEnsembleClassifier(estimator=model_copy, n_jobs=-1, soft_resample_flag=False)
             else:
                 ## For multi-class OnevsRest model is better  ###########
-                rf = RandomForestClassifier(n_estimators=100, random_state=99)
-                spe = SelfPacedEnsembleClassifier(estimator=rf, n_jobs=-1, soft_resample_flag=False)
+                spe = SelfPacedEnsembleClassifier(estimator=model_copy, n_jobs=-1, soft_resample_flag=False)
                 spe = OneVsRestClassifier(estimator=spe)
+            print('Training Imbalanced model. This will take time...')
             spe.fit(X_df, y_df)
             return spe
     except:
@@ -4832,7 +4843,14 @@ def model_training_smote(model, x_train, y_train, eval_set, eval_metric,
                     if GPU_exists:
                         print('Warning: GPU exists but it is not turned on. Using CPU for predictions...')
                         if calibrator_flag:
-                            model.base_estimator.set_params(**params)
+                            if LooseVersion(sklearn.__version__) <= LooseVersion('0.24.2'):
+                                # Perform action for scikit-learn version below 0.24.2
+                                # Add your code here for scikit-learn version below 0.24.2
+                                model.base_estimator.set_params(**params)
+                            else:
+                                # Perform action for scikit-learn version 0.24.2 and above
+                                # Add your code here for scikit-learn version 0.24.2 and above
+                                model.estimator.set_params(**params)
                             model.fit(x_train, y_train)
                         else:
                             model.estimator.set_params(**params)
@@ -5062,6 +5080,7 @@ import seaborn as sns
 from sklearn.metrics import roc_curve, precision_recall_curve
 
 def plot_precision_recall_curve(m, x_testc, y_test, ax=None):
+
     #### This is a simple way to plot PR curve for binary classes #####
     y_scores = m.predict_proba(x_testc)[:,1]
     ### generate the precision recall curve ##########
@@ -5094,6 +5113,7 @@ def plot_classification_results(m, X_true, y_true, y_pred, labels, target_names,
         fig, axes = plt.subplots(2,2,figsize=(15,15))
         plot_roc_curve(m, X_true, y_true, ax=axes[0,1])
         axes[0,1].set_title('ROC AUC Curve: %s' %each_target)
+        
         plot_precision_recall_curve(m, X_true, y_true, ax=axes[1,0])
         axes[1,0].set_title('PR AUC Curve for: %s' %each_target)
         y_pred = m.predict(X_true)
@@ -5101,12 +5121,15 @@ def plot_classification_results(m, X_true, y_true, y_pred, labels, target_names,
         try:
             clf_report = classification_report(y_true,
                                                y_pred,
-                                               labels=labels,
-                                               target_names=target_names,
+                                                #labels=target_names,
+                                                #target_names=labels,
                                                output_dict=True)
         except:
-            clf_report = classification_report(y_true,y_pred,labels=target_names,
-                target_names=labels,output_dict=True)
+            clf_report = classification_report(y_true,y_pred,
+                #labels=target_names,
+                #target_names=labels,
+                output_dict=True)
+        
         sns.heatmap(pd.DataFrame(clf_report).iloc[:, :].T, annot=True,ax=axes[1,1],fmt='0.2f');
         axes[1,1].set_title('Classification Report: %s' %each_target)
     except:

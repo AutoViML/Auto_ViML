@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="autoviml",
-    version="0.1.716",
+    version="0.1.717",
     author="Ram Seshadri",
     # author_email="author@example.com",
     description="Automatically Build Variant Interpretable ML models fast - now with CatBoost!",
@@ -15,8 +15,8 @@ setuptools.setup(
     url="https://github.com/AutoViML/Auto_ViML",
     packages=setuptools.find_packages(exclude=("tests",)),
     install_requires=[
-        "numpy~=1.19.5",
-        "pandas>=1.1.3",
+        "numpy<=1.19.5",
+        "pandas>=1.1.3, <2.0",
         "xlrd",
         "matplotlib",
         "beautifulsoup4",
@@ -28,8 +28,8 @@ setuptools.setup(
         "textblob",
         "nltk",
         "regex",
-        "scikit-learn~=1.1",
-        "xgboost~=1.1.1",
+        "scikit-learn<1.2",
+        "xgboost<=1.5.2",
         "vaderSentiment",
         "imbalanced-learn>=0.10.1",
         "shap>=0.36.0",

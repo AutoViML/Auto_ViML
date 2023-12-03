@@ -2395,7 +2395,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
         else:
             if model_name == 'Forests':
                 if calibrator_flag:
-                    if LooseVersion(sklearn.__version__) <= LooseVersion('0.24.2'):
+                    if LooseVersion(sklearn.__version__) < LooseVersion('1.2'):
                         # Perform action for scikit-learn version below 0.24.2
                         # Add your code here for scikit-learn version below 0.24.2
                         print('    OOB Score = %0.3f' %model.base_estimator.oob_score_)
@@ -3057,7 +3057,7 @@ def Auto_ViML(train, target, test='',sample_submission='',hyper_param='RS', feat
     #####################   P L O T   F E A T U R E   I M P O R T A N C E S   H E R E ###################
     if model_label == 'Single_Label':
         if calibrator_flag:
-            if LooseVersion(sklearn.__version__) <= LooseVersion('0.24.2'):
+            if LooseVersion(sklearn.__version__) < LooseVersion('1.2'):
                 # Perform action for scikit-learn version below 0.24.2
                 # Add your code here for scikit-learn version below 0.24.2
                 plot_model = model.base_estimator
@@ -4843,7 +4843,7 @@ def model_training_smote(model, x_train, y_train, eval_set, eval_metric,
                     if GPU_exists:
                         print('Warning: GPU exists but it is not turned on. Using CPU for predictions...')
                         if calibrator_flag:
-                            if LooseVersion(sklearn.__version__) <= LooseVersion('0.24.2'):
+                            if LooseVersion(sklearn.__version__) < LooseVersion('1.2'):
                                 # Perform action for scikit-learn version below 0.24.2
                                 # Add your code here for scikit-learn version below 0.24.2
                                 model.base_estimator.set_params(**params)

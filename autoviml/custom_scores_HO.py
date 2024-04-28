@@ -94,7 +94,7 @@ def gini_roc(truth, predictions):
     return 1 - roc_auc_score(truth, predictions)
 
 
-def gini_precision(truth, predictions, pos_label=1):
+def gini_precision(truth, predictions):
     return 1 - precision_score(truth, predictions)
 
 

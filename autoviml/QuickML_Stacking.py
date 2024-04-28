@@ -1,30 +1,23 @@
-import pandas as pd
-import numpy as np
 import warnings
+
+import numpy as np
+import pandas as pd
+
 warnings.filterwarnings("ignore")
-from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, TimeSeriesSplit
-from sklearn.model_selection import ShuffleSplit,StratifiedKFold,KFold
+from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.ensemble import BaggingRegressor, RandomForestClassifier
-from sklearn.ensemble import ExtraTreesClassifier,ExtraTreesRegressor
-from sklearn.linear_model import LogisticRegressionCV, LinearRegression, Ridge
-from sklearn.svm import LinearSVC, SVR, LinearSVR
-from sklearn.ensemble import AdaBoostClassifier, AdaBoostRegressor
-from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-from sklearn.linear_model import Lasso, LassoCV, Ridge, RidgeCV, LassoLarsCV
+from sklearn.svm import LinearSVR
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.linear_model import LassoCV
 from sklearn.model_selection import cross_val_predict
-from sklearn.ensemble import ExtraTreesRegressor, ExtraTreesClassifier
-from sklearn.linear_model import LogisticRegression, LogisticRegressionCV, LinearRegression
-from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit,ShuffleSplit
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
 import time
-import pdb
-import time
 import copy
 from collections import Counter
-from collections import defaultdict
 from collections import OrderedDict
+
+
 #############################################################################
 def find_rare_class(classes, verbose=0):
     ######### Print the % count of each class in a Target variable  #####
@@ -38,14 +31,16 @@ def find_rare_class(classes, verbose=0):
     if verbose >= 1:
         print(' Class  -> Counts -> Percent')
         for cls in counts.keys():
-            print("%6s: % 7d  ->  % 5.1f%%" % (cls, counts[cls], counts[cls]/total*100))
-    if type(pd.Series(counts).idxmin())==str:
+            print("%6s: % 7d  ->  % 5.1f%%" % (cls, counts[cls], counts[cls] / total * 100))
+    if type(pd.Series(counts).idxmin()) == str:
         return pd.Series(counts).idxmin()
     else:
         return int(pd.Series(counts).idxmin())
+
+
 ################################################################################
-def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boosting_Flag=False,
-                    scoring='', verbose=0):
+def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression', Boosting_Flag=False,
+                     scoring='', verbose=0):
     """
     Quickly build Stacks of multiple model results
     Input must be a clean data set (only numeric variables, no categorical or string variables).
@@ -77,23 +72,23 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
             scv = KFold(n_splits=FOLDS, shuffle=False)
             if Boosting_Flag:
                 ######    Bagging models if Bagging is chosen ####
-                #model4 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
+                # model4 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
                 #                            n_estimators=NUMS,random_state=seed)
                 model4 = LinearSVR()
-                results = cross_val_predict(model4,X_train,y_train, cv=scv,n_jobs=-1)
-                estimators.append(('Linear_SVR',model4))
+                results = cross_val_predict(model4, X_train, y_train, cv=scv, n_jobs=-1)
+                estimators.append(('Linear_SVR', model4))
                 estimator_length.append(1)
             elif Boosting_Flag is None:
                 ####   Tree models if Linear chosen #####
-                model5 = DecisionTreeRegressor(random_state=seed,min_samples_leaf=2)
-                results = cross_val_predict(model5,X_train,y_train, cv=scv,n_jobs=-1)
-                estimators.append(('Decision Trees',model5))
+                model5 = DecisionTreeRegressor(random_state=seed, min_samples_leaf=2)
+                results = cross_val_predict(model5, X_train, y_train, cv=scv, n_jobs=-1)
+                estimators.append(('Decision Trees', model5))
                 estimator_length.append(1)
             else:
                 ####   Linear Models if Boosting is chosen #####
-                model6 = LassoCV(alphas=np.logspace(-5,-1,20), cv=scv,random_state=seed)
-                results = cross_val_predict(model6,X_train,y_train, cv=scv,n_jobs=-1)
-                estimators.append(('LassoCV Regularization',model6))
+                model6 = LassoCV(alphas=np.logspace(-5, -1, 20), cv=scv, random_state=seed)
+                results = cross_val_predict(model6, X_train, y_train, cv=scv, n_jobs=-1)
+                estimators.append(('LassoCV Regularization', model6))
                 estimator_length.append(1)
         else:
             n_classes = len(Counter(y_train))
@@ -105,23 +100,23 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
                     majority_class = 1
                 else:
                     majority_class = 0
-                y_train = y_train.map(lambda x: rare_class if x==rare_class else majority_class)
+                y_train = y_train.map(lambda x: rare_class if x == rare_class else majority_class)
             if scoring == '':
                 scoring = 'accuracy'
             scv = StratifiedKFold(n_splits=FOLDS, random_state=seed, shuffle=True)
             if Boosting_Flag:
                 ####   Linear Models if Boosting is chosen #####
                 model4 = LinearDiscriminantAnalysis()
-                results = cross_val_predict(model4,X_train,y_train, cv=scv,n_jobs=-1,
+                results = cross_val_predict(model4, X_train, y_train, cv=scv, n_jobs=-1,
                                             method='predict_proba')
-                estimators.append(('Linear Discriminant',model4))
+                estimators.append(('Linear Discriminant', model4))
                 estimator_length.append(results.shape[1])
             elif Boosting_Flag is None:
                 ####   Tree models if Linear chosen #####
                 model6 = DecisionTreeClassifier(min_samples_leaf=2)
-                results = cross_val_predict(model6,X_train,y_train, cv=scv,n_jobs=-1,
+                results = cross_val_predict(model6, X_train, y_train, cv=scv, n_jobs=-1,
                                             method='predict_proba')
-                estimators.append(('Decision Tree',model6))
+                estimators.append(('Decision Tree', model6))
                 estimator_length.append(results.shape[1])
             else:
                 ######    Naive Bayes models if Bagging is chosen ####
@@ -135,9 +130,9 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
                         model7 = MultinomialNB()
                     except:
                         model7 = DecisionTreeClassifier(min_samples_leaf=2)
-                results = cross_val_predict(model7,X_train,y_train, cv=scv,n_jobs=-1,
+                results = cross_val_predict(model7, X_train, y_train, cv=scv, n_jobs=-1,
                                             method='predict_proba')
-                estimators.append(('Naive Bayes',model7))
+                estimators.append(('Naive Bayes', model7))
                 estimator_length.append(results.shape[1])
     else:
         #### This is where you fit the model and then predict ########
@@ -147,23 +142,23 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
             scv = KFold(n_splits=FOLDS, shuffle=False)
             if Boosting_Flag:
                 ######    Bagging models if Bagging is chosen ####
-                #model4 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
+                # model4 = BaggingRegressor(DecisionTreeRegressor(random_state=seed),
                 #                            n_estimators=NUMS,random_state=seed)
                 model4 = LinearSVR()
-                results = model4.fit(X_train,y_train).predict(X_test)
-                estimators.append(('Linear_SVR',model4))
+                results = model4.fit(X_train, y_train).predict(X_test)
+                estimators.append(('Linear_SVR', model4))
                 estimator_length.append(1)
             elif Boosting_Flag is None:
                 ####   Tree models if Linear chosen #####
-                model5 = DecisionTreeRegressor(random_state=seed,min_samples_leaf=2)
-                results = model5.fit(X_train,y_train).predict(X_test)
-                estimators.append(('Decision Trees',model5))
+                model5 = DecisionTreeRegressor(random_state=seed, min_samples_leaf=2)
+                results = model5.fit(X_train, y_train).predict(X_test)
+                estimators.append(('Decision Trees', model5))
                 estimator_length.append(1)
             else:
                 ####   Linear Models if Boosting is chosen #####
-                model6 = LassoCV(alphas=np.logspace(-5,-1,20), cv=scv,random_state=seed)
-                results = model6.fit(X_train,y_train).predict(X_test)
-                estimators.append(('LassoCV Regularization',model6))
+                model6 = LassoCV(alphas=np.logspace(-5, -1, 20), cv=scv, random_state=seed)
+                results = model6.fit(X_train, y_train).predict(X_test)
+                estimators.append(('LassoCV Regularization', model6))
                 estimator_length.append(1)
         else:
             n_classes = len(Counter(y_train))
@@ -175,21 +170,21 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
                     majority_class = 1
                 else:
                     majority_class = 0
-                y_train = y_train.map(lambda x: rare_class if x==rare_class else majority_class)
+                y_train = y_train.map(lambda x: rare_class if x == rare_class else majority_class)
             if scoring == '':
                 scoring = 'accuracy'
             scv = StratifiedKFold(n_splits=FOLDS, random_state=seed, shuffle=True)
             if Boosting_Flag:
                 ####   Linear Models if Boosting is chosen #####
                 model4 = LinearDiscriminantAnalysis()
-                results = model4.fit(X_train,y_train).predict_proba(X_test)
-                estimators.append(('Linear Discriminant',model4))
+                results = model4.fit(X_train, y_train).predict_proba(X_test)
+                estimators.append(('Linear Discriminant', model4))
                 estimator_length.append(results.shape[1])
             elif Boosting_Flag is None:
                 ####   Tree models if Linear chosen #####
                 model6 = DecisionTreeClassifier(min_samples_leaf=2)
-                results = model6.fit(X_train,y_train).predict_proba(X_test)
-                estimators.append(('Decision Tree',model6))
+                results = model6.fit(X_train, y_train).predict_proba(X_test)
+                estimators.append(('Decision Tree', model6))
                 estimator_length.append(results.shape[1])
             else:
                 ######    Naive Bayes models if Bagging is chosen ####
@@ -203,18 +198,18 @@ def QuickML_Stacking(X_train, y_train, X_test='', modeltype='Regression',Boostin
                         model7 = MultinomialNB()
                     except:
                         model7 = DecisionTreeClassifier(min_samples_leaf=2)
-                results = model7.fit(X_train,y_train).predict_proba(X_test)
-                estimators.append(('Naive Bayes',model7))
+                results = model7.fit(X_train, y_train).predict_proba(X_test)
+                estimators.append(('Naive Bayes', model7))
                 estimator_length.append(results.shape[1])
-    #stacks = np.c_[results1,results2,results3]
-    estimators_list = [(tuples[0],tuples[1]) for tuples in estimators]
+    # stacks = np.c_[results1,results2,results3]
+    estimators_list = [(tuples[0], tuples[1]) for tuples in estimators]
     estimator_names = [tuples[0] for tuples in estimators]
     #### Here is where we consolidate the estimator names and their results into one common list ###
     ls = []
-    for x,y in dict(zip(estimator_names,estimator_length)).items():
-        els = [x+'_'+str(eachy) for eachy in range(y)]
+    for x, y in dict(zip(estimator_names, estimator_length)).items():
+        els = [x + '_' + str(eachy) for eachy in range(y)]
         ls += els
     if verbose == 1:
-        print('    Time taken for Stacking: %0.1f seconds' %(time.time()-start_time))
+        print('    Time taken for Stacking: %0.1f seconds' % (time.time() - start_time))
     return ls, results
 #########################################################

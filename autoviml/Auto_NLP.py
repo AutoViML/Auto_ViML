@@ -46,11 +46,11 @@ def print_rare_class(classes, verbose=0):
     """
     try:
         ### test if it is a multi-label problem by seeing if the classes has multiple columns
-        len(classes.columns) > 1
-        ### This is a multi-label problem, hence you have to do value counts by each target name
-        targets = classes.columns.tolist()
-        for each_target in targets:
-            print('%s value counts:\n%s' % (each_target, classes[each_target].value_counts()))
+        if len(classes.columns) > 1:
+            ### This is a multi-label problem, hence you have to do value counts by each target name
+            targets = classes.columns.tolist()
+            for each_target in targets:
+                print('%s value counts:\n%s' % (each_target, classes[each_target].value_counts()))
     except:
         ##### if classes has only one column, then it is a single-label problem
         counts = OrderedDict(Counter(classes))
@@ -702,15 +702,6 @@ def remove_emoji(text):
     return emoji_pattern.sub(r'', text)
 
 
-# Remove punctuation marks
-import string
-
-
-def remove_punct(text):
-    table = str.maketrans('', '', string.punctuation)
-    return text.translate(table)
-
-
 ###############################################################################
 ####    CLEAN   TWEETS   IS   MEANT FOR SHORT  SENTENCES SUCH AS TWEETS
 ###############################################################################
@@ -992,7 +983,7 @@ def reduce_dimensions_with_Truncated_SVD(each_df, each_df_dtm, is_train=True, tr
     """
     This is a new method to combine the top X features from Vectorizers and the top 100 dimensions from Truncated SVD.
     The idea is to have a small number of features that are the best in each class (label) to produce a very fast accurate model.
-    This model outperforms many models that have 10X more features. Hence it can be used to build highly interpretable models.
+    This model outperforms many models that have 10X more features. Hence, it can be used to build highly interpretable models.
     """
     import copy
     orig_each_df = copy.deepcopy(each_df)
@@ -1017,7 +1008,7 @@ def transform_combine_top_feats_with_SVD(nlp_column, big_nlp_vect, new_vect,
     """
     This is a new method to combine the top 300 features from Vectorizers and the top 100 dimensions from Truncated SVD.
     The idea is to have a small number of features that are the best in each class (label) to produce a very fast accurate model.
-    This model outperforms many models that have 10X more features. Hence it can be used to build highly interpretable models.
+    This model outperforms many models that have 10X more features. Hence, it can be used to build highly interpretable models.
     """
     import copy
     orig_each_df = copy.deepcopy(each_df)
@@ -1083,7 +1074,7 @@ def print_sparse_stats(X_dtm):
 def tokenize_and_stem(text):
     stemmer = SnowballStemmer("english")
     text = re.sub("^\d+\s|\s\d+\s|\s\d+$", " ", text)
-    # first tokenize by sentence, then by word to ensure that punctuation is caught as it's own token
+    # first tokenize by sentence, then by word to ensure that punctuation is caught as its own token
     tokens = [word for sent in nltk.sent_tokenize(text) for word in nltk.word_tokenize(sent)]
     filtered_tokens = []
     # filter out any tokens not containing letters (e.g., numeric tokens, raw punctuation)
@@ -1300,7 +1291,6 @@ def return_scoreval(scoretype, y_true, y_preds, y_proba, modeltype):
                 scoreval = accuracy_score(y_true, y_preds)
         else:
             print('Scoring Type not Recognized - selecting default as F1.')
-            scoretype == 'f1'
             try:
                 scoreval = f1_score(y_true, y_preds)
             except:
@@ -1318,7 +1308,6 @@ def return_scoreval(scoretype, y_true, y_preds, y_proba, modeltype):
                 scoreval = 0
         else:
             print('Scoring Type not Recognized.')
-            scoretype == 'mae'
             scoreval = mean_absolute_error(y_true, y_preds)
     return scoreval
 
@@ -1562,7 +1551,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
                 # params['randomforestclassifier__max_depth'] = sp.stats.randint(2,10),
                 # params['randomforestclassifier__n_estimators'] = sp.stats.randint(200,500)
     #### Adding a CalibratedClassifier to text classification tasks  ########################
-    ### Calibrated classifier is needed only for Logistic Regression models. Hence not needed here.
+    ### Calibrated classifier is needed only for Logistic Regression models. Hence it is not needed here.
     # if modeltype != 'Regression':
     #     if isinstance(target, list):
     #         ### There is no need for CalibratedClassifierCV in Multi-Label problems
@@ -1717,12 +1706,12 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
         #######################################################################################
         ##################  THIS IS WHERE YOU ADD TRUNCATED SVD DIMENSIONS HERE      ##########
         #######################################################################################
-        ### train_best contains the the TruncatedSVD dimensions of train data
+        ### train_best contains the TruncatedSVD dimensions of train data
         train_best, trained_svd = reduce_dimensions_with_Truncated_SVD(train,
                                                                        trainm, is_train=True, trained_svd='')
         nlp_result_columns = left_subtract(list(train_best), cols_excl_nlp_cols)
         train_best = train_best.fillna(0)
-        ### train_nlp contains the the TruncatedSVD dimensions along with original train data
+        ### train_nlp contains the TruncatedSVD dimensions along with original train data
         train_nlp = train.join(train_best, rsuffix='_SVD_Dim_' + nlp_column)
         #################################################################################
         if type(test) != str:
@@ -1730,7 +1719,7 @@ def Auto_NLP(nlp_column, train, test, target, score_type='',
             test_best, _ = reduce_dimensions_with_Truncated_SVD(test,
                                                                 testm, is_train=False, trained_svd=trained_svd)
             test_best = test_best.fillna(0)
-            test_nlp = test.join(test_best, rsuffix='_SVD_Dim_' + nlp_column)
+            test_nlp = test.join(test_best, rs='_SVD_Dim_' + nlp_column)
         ########################################################################
         ##### C R E A T E   C L U S T E R   L A B E L S    U S I N G   TruncatedSVD
         ########################################################################

@@ -258,7 +258,7 @@ def FE_remove_variables_using_SULOV_method(df, preds_in, modeltype, target,
             blue_patch = mpatches.Patch(color='lightblue',
                                         label='Thicker line denotes higher correlation between two variables')
             plt.legend(handles=[red_patch, blue_patch], loc='best')
-            plt.show();
+            plt.show()
             #####    N E T W O R K     D I A G R A M    C O M P L E T E   #################
             return final_list + remvars
         except Exception as e:

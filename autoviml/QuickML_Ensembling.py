@@ -1,36 +1,25 @@
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-get_ipython().magic('matplotlib inline')
+import numpy as np
+import pandas as pd
 import seaborn as sns
+
 sns.set(style="white", color_codes=True)
 import warnings
 warnings.filterwarnings("ignore")
-from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, TimeSeriesSplit
-from sklearn.svm import LinearSVC, LinearSVR
-from sklearn.linear_model import SGDRegressor, SGDClassifier
-from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, TimeSeriesSplit
-from sklearn.model_selection import ShuffleSplit,StratifiedKFold,KFold
+from sklearn.linear_model import SGDClassifier
+from sklearn.model_selection import StratifiedKFold,KFold
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import BaggingRegressor, RandomForestClassifier, RandomForestRegressor
-from sklearn.ensemble import ExtraTreesClassifier,ExtraTreesRegressor
-from sklearn.linear_model import LogisticRegressionCV, LinearRegression, Ridge
-from sklearn.svm import LinearSVC, SVR, LinearSVR
+from sklearn.svm import LinearSVC, LinearSVR
 from sklearn.ensemble import AdaBoostClassifier, AdaBoostRegressor
-from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-from sklearn.linear_model import Lasso, LassoCV, Ridge, RidgeCV, LassoLarsCV
-from sklearn.model_selection import cross_val_predict
-from sklearn.ensemble import ExtraTreesRegressor, ExtraTreesClassifier
-from sklearn.linear_model import LogisticRegression, LogisticRegressionCV, LinearRegression
-from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.linear_model import LassoLarsCV
+from sklearn.linear_model import LogisticRegressionCV
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.neighbors import KNeighborsRegressor
 import time
-import pdb
-import time
-import copy
 import operator
 #########################################################
 def QuickML_Ensembling(X_train, y_train, X_test, y_test='', modeltype='Regression',

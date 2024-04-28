@@ -1,8 +1,8 @@
+from collections import Counter
+
 import numpy as np
-import pandas as pd
 from sklearn.cluster import KMeans
-import sklearn
-import scipy
+
 
 class KMeansFeaturizer:
     """Transforms numeric data into k-means cluster memberships.
@@ -109,11 +109,9 @@ class KMeansFeaturizer:
         return self.transform(X, y)
 
 
-from collections import defaultdict
-import operator
-import pdb
 import copy
-from sklearn.model_selection import train_test_split
+
+
 def Transform_KM_Features(training_data, training_labels, test_data, km_max=0):
     seed = 99
     preds = list(training_data)

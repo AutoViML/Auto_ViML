@@ -18,8 +18,9 @@ Auto_ViML is pronounced as "auto vimal" (autovimal logo created by Sanket Ghanma
 </ol>
 
 ## Update (May 2022)
-<ol>
+<ul>
 <li><b>Auto_ViML as of version 0.1.710 uses a very high performance library called `imbalanced_ensemble` for Imbalanced dataset problems.</b> It will produce a 5-10% boost in your balanced_accuracy based on my experience with  many datasets I have tried.</li>
+</ul>
 <br>
 <p>In addition, new features in this version are:<br>
 <ul>
@@ -48,17 +49,18 @@ Auto_ViML is pronounced as "auto vimal" (autovimal logo created by Sanket Ghanma
 <p>Auto_ViML was designed for building High Performance Interpretable Models with the fewest variables needed.
 The "V" in Auto_ViML stands for Variant because it tries multiple models with multiple features to find you the best performing model for your dataset. The "i" in Auto_ViML stands for "interpretable" since Auto_ViML selects the least number of features necessary to build a simpler, more interpretable model. In most cases, Auto_ViML builds models with 20%-99% fewer features than a similar performing model with all included features (this is based on my trials. Your experience may vary).<br>
 <p>
-Auto_ViML is every Data Scientist's model accelerator tool that:<ol>
-<li><b>Helps you with data cleaning</b>: you can send in your entire dataframe as is and Auto_ViML will suggest changes to help with missing values, formatting variables, adding variables, etc. It loves dirty data. The dirtier the better!<br>
-<li><b>Performs Feature Selection</b>: Auto_ViML selects variables automatically by default. This is very helpful when you have hundreds if not thousands of variables since it can readily identify which of those are important variables vs which are unnecessary. You can turn this off as well (see API).<br>
+Auto_ViML is every Data Scientist's model accelerator tool that:
+<ol>
+<li><b>Helps you with data cleaning</b>: you can send in your entire dataframe as is and Auto_ViML will suggest changes to help with missing values, formatting variables, adding variables, etc. It loves dirty data. The dirtier the better!</li>
+<li><b>Performs Feature Selection</b>: Auto_ViML selects variables automatically by default. This is very helpful when you have hundreds if not thousands of variables since it can readily identify which of those are important variables vs which are unnecessary. You can turn this off as well (see API).</li>
 
 ![xgboost](sulov_xgboost.png)
-<li><b>Removes highly correlated features automatically</b>. If two variables are highly correlated in your dataset, which one should you remove and which one should you keep? The decision is not as easy as it looks. Auto_ViML uses the SULOV algorithm to remove highly correlated features. You can understand SULOV from this picture more intuitively.<br>
+<li><b>Removes highly correlated features automatically</b>. If two variables are highly correlated in your dataset, which one should you remove and which one should you keep? The decision is not as easy as it looks. Auto_ViML uses the SULOV algorithm to remove highly correlated features. You can understand SULOV from this picture more intuitively.</li>
 
 ![sulov](SULOV.jpg)
 
-<li><b>Generates performance results graphically</b>. Just set verbose = 1 (or) 2 instead of 0 (silent). You will get higher quality of insights as you increase verbosity. <br>
-<li><b>Handles text, date-time, structs (lists, dictionaries), numeric, boolean, factor and categorical</b> variables all in one model using one straight process.<br>
+<li><b>Generates performance results graphically</b>. Just set verbose = 1 (or) 2 instead of 0 (silent). You will get higher quality of insights as you increase verbosity. </li>
+<li><b>Handles text, date-time, structs (lists, dictionaries), numeric, boolean, factor and categorical</b> variables all in one model using one straight process.</li>
 </ol>
 Auto_ViML is built using scikit-learn, numpy, pandas and matplotlib. It should run on most Python 3 Anaconda installations. You won't have to import any special libraries other than "XGBoost", "Imbalanced-Learn", "CatBoost", and "featuretools" library. We use "SHAP" library for interpretability. <br>But if you don't have these libraries, Auto_ViML will install those for you automatically.
 
@@ -72,8 +74,8 @@ To clone Auto_ViML, it is better to create a new environment, and install the re
 
 To install from PyPi:
 <p>
-<code>$ pip install autoviml --upgrade --ignore-installed</code><br>
-or
+<code>$ pip install autoviml --upgrade --ignore-installed</code><br />
+
 
 ```
 pip install git+https://github.com/AutoViML/Auto_ViML.git

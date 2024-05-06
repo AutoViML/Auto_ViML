@@ -1,8 +1,8 @@
+from collections import Counter
+
 import numpy as np
-import pandas as pd
 from sklearn.cluster import KMeans
-import sklearn
-import scipy
+
 
 class KMeansFeaturizer:
     """Transforms numeric data into k-means cluster memberships.
@@ -34,6 +34,9 @@ class KMeansFeaturizer:
         self.k = k
         self.target_scale = target_scale
         self.random_state = random_state
+        self.km_model_ = None
+        self.km_model = None
+        self.cluster_centers_ = None
 
     def fit(self, X, y=None):
         """Runs k-means on the input data and find centroids.
@@ -56,8 +59,8 @@ class KMeansFeaturizer:
         if y is None:
             # No target variable, just do plain k-means
             km_model = KMeans(n_clusters=self.k,
-                                  n_init=20,
-                                  random_state=self.random_state)
+                              n_init=20,
+                              random_state=self.random_state)
             km_model.fit(X)
 
             self.km_model_ = km_model
@@ -66,7 +69,7 @@ class KMeansFeaturizer:
 
         # There is target information. Apply appropriate scaling and include
         # into input data to k-means
-        data_with_target = np.hstack((X, y[:,np.newaxis]*self.target_scale))
+        data_with_target = np.hstack((X, y[:, np.newaxis] * self.target_scale))
 
         # Build a pre-training k-means model on data and target
         km_model_pretrain = KMeans(n_clusters=self.k,
@@ -79,7 +82,7 @@ class KMeansFeaturizer:
         # Go through a single iteration of cluster assignment and centroid
         # recomputation.
         km_model = KMeans(n_clusters=self.k,
-                          init=km_model_pretrain.cluster_centers_[:,:n_features],
+                          init=km_model_pretrain.cluster_centers_[:, :n_features],
                           n_init=1,
                           max_iter=1)
         km_model.fit(X)
@@ -88,65 +91,61 @@ class KMeansFeaturizer:
         self.cluster_centers_ = km_model.cluster_centers_
         return self
 
-    def transform(self, X, y=None):
+    def transform(self, X):
         """Output the closest cluster id for each input data point.
         Parameters
         ----------
         X : array-like or sparse matrix, shape=(n_data_points, n_features)
-        y : vector of length n_data_points, optional, default None
-            Target vector is ignored even if provided.
         Returns
         -------
         cluster_ids : array, shape[n_data_points,1]
         """
         clusters = self.km_model.predict(X)
-        return clusters[:,np.newaxis]
+        return clusters[:, np.newaxis]
 
     def fit_transform(self, X, y=None):
         """Runs fit followed by transform.
         """
         self.fit(X, y)
-        return self.transform(X, y)
+        return self.transform(X)
 
 
-from collections import defaultdict
-import operator
-import pdb
 import copy
-from sklearn.model_selection import train_test_split
+
+
 def Transform_KM_Features(training_data, training_labels, test_data, km_max=0):
     seed = 99
     preds = list(training_data)
     target = training_labels.name
-    train_index =  training_data.index
-    test_index =  test_data.index
+    train_index = training_data.index
+    test_index = test_data.index
     if km_max <= 2:
         k_max = 2
     else:
         k_max = copy.deepcopy(km_max)
     ### Calculate the target scale here => the higher the number the better for target accuracy
     try:
-        if training_labels.dtype in [np.float64,np.float32,np.float16]:
+        if training_labels.dtype in [np.float64, np.float32, np.float16]:
             target_range = float(abs(training_labels.max() - training_labels.min()))
-        elif training_labels.dtype in [object,bool]:
+        elif training_labels.dtype in [object, bool]:
             target_range = int(len(Counter(training_labels)) + 3)
         else:
             target_range = int(abs(training_labels.max() - training_labels.min()))
     except:
         target_range = 5.0
-    kmf =  KMeansFeaturizer(k=k_max, target_scale=target_range, random_state=seed)
+    kmf = KMeansFeaturizer(k=k_max, target_scale=target_range, random_state=seed)
     kmf_hint = kmf.fit(training_data, training_labels)
     ### Just return it with the cluster column => no need to return the data frame ###
     training_cluster_features = kmf_hint.transform(training_data)
     test_cluster_features = kmf_hint.transform(test_data)
     npx = np.c_[training_data, training_labels.values]
-    training_with_cluster = np.c_[npx,training_cluster_features]
+    training_with_cluster = np.c_[npx, training_cluster_features]
     test_with_cluster = np.c_[test_data, test_cluster_features]
     ### We are going to just return the cluster values ######
-    train_with_cluster_df = training_with_cluster[:,-1]
-    test_with_cluster_df = test_with_cluster[:,-1]
-    #train_with_cluster_df = pd.DataFrame(training_with_cluster,index=train_index,
+    train_with_cluster_df = training_with_cluster[:, -1]
+    test_with_cluster_df = test_with_cluster[:, -1]
+    # train_with_cluster_df = pd.DataFrame(training_with_cluster,index=train_index,
     #                                  columns=preds+[target,'cluster'])
-    #test_with_cluster_df = pd.DataFrame(test_with_cluster,index=test_index,
+    # test_with_cluster_df = pd.DataFrame(test_with_cluster,index=test_index,
     #                                  columns=preds+['cluster'])
     return train_with_cluster_df, test_with_cluster_df

@@ -7,6 +7,8 @@
 ################################################################################
 # Version
 from .__version__ import __version__, __nlp_version__
+from .Auto_ViML import Auto_ViML, EntropyBinningTransformer
+from .Auto_NLP import Auto_NLP
 if __name__ == "__main__":
     module_type = 'Running'
 else:

@@ -1366,6 +1366,14 @@ def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', featu
             #### Do binning only when there are numeric features ####
             #### When we Bin the first time, we set the entropy_binning flag to False so
             ####    no numeric variables are removed. But next time, we will remove them later!
+            pdb.set_trace()
+            # Optionally, select top n variables based on their predictive power
+            # This step is useful if you want to bin only the most informative variables
+            entropy_binner = EntropyBinningTransformer(replace_vars=False, modeltype=modeltype, top_n_vars=None)
+
+            # Fit the transformer to the training data
+            entropy_binner.fit_transform(X_train, y_train)
+            
             part_train, num_vars, important_features, part_cv = add_entropy_binning(part_train,
                                                                                     each_target, saved_num_vars,
                                                                                     saved_important_features, part_cv,
@@ -5493,95 +5501,6 @@ def remove_highly_correlated_vars_fast(df, corr_limit=0.70):
 
 
 #####################################################################################
-def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_test,
-                        modeltype, entropy_binning, verbose=0):
-    """
-        ######   This is where we do ENTROPY BINNING OF CONTINUOUS VARS ###########
-        #### It is best to do Binning on ONLY on the top most variables from Important_Features!
-        #### Make sure that the Top 2-10 vars are all CONTINUOUS VARS! Otherwise Binning is Waste!
-        #### This method ensures you get the Best Results by generalizing on the top numeric vars!
-    """
-    temp_train = copy.deepcopy(temp_train)
-    temp_test = copy.deepcopy(temp_test)
-    max_depth = 10
-    seed = 99
-    num_vars = copy.deepcopy(num_vars)
-    continuous_vars = copy.deepcopy(num_vars)
-    important_features = copy.deepcopy(important_features)
-    print('Determining which of %d continuous variables should be Entropy Binned...' % len(continuous_vars))
-    if 0 < len(continuous_vars) <= 2:
-        max_depth = 2
-        continuous_vars = continuous_vars[:]
-    elif 2 < len(continuous_vars) <= 5:
-        max_depth = len(continuous_vars) - 2
-        continuous_vars = continuous_vars[:2]
-    elif 5 < len(continuous_vars) <= 10:
-        max_depth = 5
-        continuous_vars = continuous_vars[:5]
-    elif 10 < len(continuous_vars) <= 50:
-        max_depth = max_depth
-        continuous_vars = continuous_vars[:10]
-    else:
-        max_depth = max_depth
-        continuous_vars = continuous_vars[:50]
-    new_bincols = []
-    ###   This is an Awesome Entropy Based Binning Method for Continuous Variables ###########
-    from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-    if modeltype == 'Regression':
-        clf = DecisionTreeRegressor(criterion='mse', min_samples_leaf=2,
-                                    max_depth=max_depth,
-                                    random_state=seed)
-    else:
-        clf = DecisionTreeClassifier(criterion='entropy', min_samples_leaf=2,
-                                     max_depth=max_depth,
-                                     random_state=seed)
-    ####### This is where we bin each variable through a method known as Entropy Binning ##############
-    for each_num in continuous_vars:
-        try:
-            clf.fit(temp_train[each_num].values.reshape(-1, 1), temp_train[targ].values)
-            entropy_threshold = clf.tree_.threshold[clf.tree_.threshold > -2]
-            entropy_threshold = np.sort(entropy_threshold)
-            if isinstance(each_num, str):
-                bincol = each_num + '_bin'
-                temp_train[bincol] = np.digitize(temp_train[each_num].values, entropy_threshold)
-            else:
-                bincol = 'bin_' + str(each_num)
-                temp_train[bincol] = np.digitize(temp_train[each_num].values, entropy_threshold)
-            #### We Drop the original continuous variable after you have created the bin when Flag is true
-            ### We Don't drop these original numeric vars since they will be used later for full train binning
-            if type(temp_test) != str:
-                if isinstance(each_num, str):
-                    bincol = each_num + '_bin'
-                    temp_test[bincol] = np.digitize(temp_test[each_num].values, entropy_threshold)
-                else:
-                    bincol = 'bin_' + str(each_num)
-                    temp_test[bincol] = np.digitize(temp_test[each_num].values, entropy_threshold)
-                #### We Drop the original continuous variable after you have created the bin when Flag is true
-                ### We Don't drop these original numeric vars since they will be used later for full train binning
-            if entropy_binning:
-                ### In the second time, we don't repeat adding binned vars since they have already been added!
-                #### we also make sure that the orig num vars which have now been binned are removed!
-                temp_train.drop(each_num, axis=1, inplace=True)
-                if type(temp_test) != str:
-                    temp_test.drop(each_num, axis=1, inplace=True)
-            else:
-                #### In the first time, we add binned vars to  important_features  ###
-                ### In the second time, we don't repeat that since they have already been added!
-                important_features.append(bincol)
-            num_vars.append(bincol)
-            important_features.remove(each_num)
-            #### Drop these original continuous variable from further consideration that's all! ###
-            num_vars.remove(each_num)
-            new_bincols.append(bincol)
-        except:
-            print('Error in %s during Entropy Binning' % each_num)
-    print('    Selected and binned only top %s continuous variables.' % (len(new_bincols)))
-    if verbose and len(new_bincols) <= 30:
-        print('    %s' % new_bincols)
-    return temp_train, num_vars, important_features, temp_test
-
-
-#############################################################################
 from imblearn.over_sampling import SMOTE, SVMSMOTE
 from imblearn.over_sampling import ADASYN, SMOTENC
 from sklearn.cluster import KMeans
@@ -5701,7 +5620,6 @@ def marthas_columns(data, verbose=0):
                 ))
             print('--------------------------------------------------------------------')
 
-
 ##################################################################################
 def get_size(input_bytes, suffix="B"):
     """
@@ -5742,5 +5660,3 @@ def print_system_info():
     print(f"Total: {get_size(svmem.total)}")
     print(f"Available: {get_size(svmem.available)}")
     print(f"Used: {get_size(svmem.used)}")
-    print("=" * 18, "System Information End", "=" * 18)
-#####################################################################################

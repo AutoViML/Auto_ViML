@@ -9,17 +9,11 @@ random.seed(42)
 ################################################################################
 #### The warnings from Sklearn are so annoying that I have to shut it off #######
 import warnings
-
 warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
-
 warnings.filterwarnings(action='ignore', category=DataConversionWarning)
-
-
 def warn(*args, **kwargs):
     pass
-
-
 warnings.warn = warn
 ####################################################################################
 import copy
@@ -29,17 +23,32 @@ from itertools import combinations
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 from collections import defaultdict
-
-from Auto_ViML import remove_highly_correlated_vars_fast
-
 #################################################################################################
+def remove_highly_correlated_vars_fast(df, corr_limit=0.70):
+    """
+    This is a simple method to remove highly correlated features fast using Pearson's Correlation.
+    Use this only for float and integer variables. It will automatically select those only.
+    It can be used for very large data sets where featurewiz has trouble with memory
+    """
+    # Creating correlation matrix
+    cor_matrix = df.corr().abs().astype(np.float16)
+    # Selecting upper triangle of correlation matrix
+    upper_tri = cor_matrix.where(np.triu(np.ones(cor_matrix.shape),
+                                         k=1).astype(np.bool))
+    # Finding index of feature columns with correlation greater than 0.95
+    to_drop = [column for column in upper_tri.columns if any(upper_tri[column] > corr_limit)]
+    print()
+    print('Highly correlated columns to remove: %s' % to_drop)
+    return to_drop
+
+
+#####################################################################################
 def left_subtract(l1, l2):
     lst = []
     for i in l1:
         if i not in l2:
             lst.append(i)
     return lst
-
 
 #################################################################################
 def return_dictionary_list(lst_of_tuples):

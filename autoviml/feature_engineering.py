@@ -1,7 +1,5 @@
 import pandas as pd
 import numpy as np
-import featuretools as ft
-
 
 ######### NEW And FAST WAY to ADD Feature Engg COLUMNS IN A DATA SET #######
 ###   Modify Dataframe by adding Features using Feature Tools ####
@@ -14,6 +12,10 @@ def add_computational_primitive_features(df, add_types: list, idcolumn=''):
     ###   add_types: list of computational types: 'add', 'subtract', 'multiply' and 'divide'. Choose any or all.
     ###   idcolumn: this is to create an index for the dataframe since FT runs on index variable. You can leave it empty string.
     """
+    try:
+        import featuretools as ft
+    except:
+        print('pip install featuretools and try this again')
     df = copy.deepcopy(df)
     projectid = 'project_prediction'
     dataid = 'project_data'
@@ -167,8 +169,6 @@ def add_date_time_features(smalldf, startTime, endTime, splitter_date_string="/"
     print('%d columns added using start date=%s and end date=%s processing...' % (len(add_cols), startTime, endTime))
     return smalldf
 
-
-#
 #################################################################################
 def split_one_field_into_many(df, field, splitter, filler, new_names_list):
     """
@@ -324,3 +324,216 @@ def FE_create_groupby_features(dft, groupby_columns, numeric_columns, agg_types)
         print('   Error in setting column names. Please reset column names after this step...')
     return grouped_list
 ################################################################################
+from scipy.stats import skew, kurtosis
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+from sklearn.metrics import mean_squared_error, accuracy_score
+
+class EntropyBinningTransformer(BaseEstimator, TransformerMixin):
+    """
+    #########   This innovative binning transformer is found only in AutoViML  ##############################
+    The entropy binning approach in AutoViML is a novel and intriguing approach, especially as 
+    it leverages decision trees to determine optimal binning thresholds based on information gain 
+    (for classification) or mean squared error reduction (for regression). 
+
+    This method can adapt well to non-linear relationships between the feature and the target. 
+    It also incorporates some heuristics and improvements to enhance its effectiveness and efficiency.
+
+    Heuristics:
+    Variable Selection: We prioritize binning the most important variables. 
+    This is a sensible heuristic as it focuses computational resources on variables that are 
+    most likely to impact the model. We introduce a parameter to specify the number of top variables to bin.
+
+    Adaptive max_depth: We've used an adaptive max_depth based on the number of continuous variables. 
+    This heuristic helps control the granularity of the binning. We can maintain this by adding a 
+    logic to adjust max_depth based on the number of features.
+
+    Handling of Binned Variables: The code has an option to either keep the original variables 
+    alongside the binned versions or replace them. This flexibility can be useful and we keep it 
+    in the class implementation.
+
+    Post-Binning Smoothing: After binning, applying smoothing techniques (e.g., Laplace smoothing) 
+    can help address bins with very low frequencies, which might be particularly useful for categorical targets.
+
+    Incorporating these aspects, this is an updated version of the original EntropyBinningTransformer method in AutoViML
+
+    Additional Improvements to consider:
+
+    Evaluation and Optimization: Integrating a mechanism to evaluate the effectiveness of binning (e.g., 
+        using cross-validation scores) and automatically optimize the binning parameters accordingly.
+    #########################################################################################################
+    EntropyBinningTransformer is a transformer class for binning numeric variables based on entropy using decision trees,
+    with options for selecting the most relevant variables for binning based on their predictive power, skewness,
+    and kurtosis, and for smoothing the bins post-binning to mitigate issues with overfitting and bins with 
+        low frequencies.
+
+    Parameters:
+    - max_depth: The maximum depth of the decision trees used for binning.
+    - min_samples_leaf: The minimum number of samples required to be at a leaf node of the decision trees.
+    - entropy_binning: Whether to apply entropy binning.
+    - modeltype: Indicates whether the target variable is for 'Regression' or 'Classification'.
+
+    Methods:
+    - fit: Learns the binning thresholds for each variable.
+    - transform: Applies the learned thresholds to bin the data, with an option for post-binning smoothing.
+    - select_top_n_vars: Selects the top N variables for binning based on their predictive power and distribution
+         characteristics.
+    #########################################################################################################
+    ####  U S A G E  #####
+    # Initialize the EntropyBinningTransformer 
+    entropy_binner = EntropyBinningTransformer( replace_vars=True, modeltype='Classification')
+
+    # Optionally, select top n variables based on their predictive power
+    # This step is useful if you want to bin only the most informative variables
+    top_vars = entropy_binner.select_top_n_vars(X_train, y_train, n=2)
+    X_train_top_vars = X_train[top_vars]
+
+    # Fit the transformer to the training data
+    entropy_binner.fit(X_train_top_vars, y_train)
+
+    # Transform the training data and new data using the learned binning thresholds
+    X_train_binned = entropy_binner.transform(X_train_top_vars)
+    X_test_binned = entropy_binner.transform(X_test[top_vars])    
+    #########################################################################################################
+    """
+    def __init__(self, replace_vars=True, modeltype='Classification', top_n_vars=None):
+        self.replace_vars = replace_vars
+        self.modeltype = modeltype
+        self.max_depth = 10
+        self.min_samples_leaf = 2
+        self.top_n_vars = top_n_vars
+        self.binning_thresholds = {}
+        self.remvars = []
+
+    def fit(self, X, y):
+        # Determine top_n variables based on importance, for example, using feature importances from a preliminary model
+        if self.top_n_vars is not None:
+            top_vars = self.select_top_n_vars(X, y, n=self.top_n_vars)
+        else:
+            top_vars = X.columns
+
+        for col in top_vars:
+            max_depth = self._adjust_max_depth(len(top_vars))
+            clf = self.get_decision_tree(max_depth)
+            
+            try:
+                clf.fit(X[col].values.reshape(-1, 1), y)
+                thresholds = clf.tree_.threshold[clf.tree_.threshold > -2]
+                self.binning_thresholds[col] = np.sort(thresholds)
+            except Exception as e:
+                print(f'Error in {col} during Entropy Binning: {e}')
+        
+        return self
+        
+    def get_decision_tree(self, max_depth):
+        if self.modeltype == 'Regression':
+            return DecisionTreeRegressor(criterion='mse', min_samples_leaf=self.min_samples_leaf,
+                                         max_depth=max_depth, random_state=99)
+        else:
+            return DecisionTreeClassifier(criterion='entropy', min_samples_leaf=self.min_samples_leaf,
+                                          max_depth=max_depth, random_state=99)
+
+    def _adjust_max_depth(self, n_features):
+        """
+        Adjust max depth based on the heuristic from the original function.
+
+        Future:
+        Dynamic Depth Adjustment: Instead of fixed depth adjustments based on the number of variables, 
+        use a more dynamic approach that considers the actual distribution and variability of each variable.
+
+        """
+        if self.max_depth is not None:
+            return self.max_depth  # Use user-defined max_depth if provided
+        elif n_features <= 2:
+            return 2
+        elif n_features <= 5:
+            return n_features - 2
+        elif n_features <= 10:
+            return 5
+        else:
+            return 10  # Default max depth for > 10 features
+
+    def select_top_n_vars(self, X, y, n=2, skew_threshold=1.5, kurtosis_threshold=3):
+        """
+        The select_top_n_vars method takes into account the skewness and kurtosis of each variable
+         in addition to its predictive power. The final score is used to rank the variables 
+         adjusted by the absolute values of skewness and kurtosis to prefer variables that are 
+         both predictive and have less extreme distributions.
+
+        Incorporating distribution-based metrics such as skewness, kurtosis, and outlier 
+        detection into the selection process for variables to bin can indeed provide a more 
+        nuanced approach. Variables with high skewness or kurtosis may benefit more from binning, 
+        as it can help to normalize their effect in predictive models. Additionally, handling 
+        outliers before binning can ensure that bins are more representative of the general 
+        distribution of the data.
+        """
+        scores = {}
+        ### Select only float numeric columns to bin ###########
+        numvars = X.select_dtypes(include='float').columns.tolist()
+        ### Let's keep the remaining vars ######
+        self.remvars = [x for x in list(X) if x not in numvars ]
+        for col in numvars:
+            X_col = X[col].values.reshape(-1, 1)
+
+            # Calculate skewness and kurtosis
+            skewness = skew(X[col])
+            kurt = kurtosis(X[col], fisher=True)  # Fisher's definition is used (normal ==> 0.0)
+
+            # Initialize a simple decision tree
+            if self.modeltype == 'Regression':
+                model = DecisionTreeRegressor(max_depth=self.max_depth, random_state=99)
+            else:
+                model = DecisionTreeClassifier(max_depth=self.max_depth, random_state=99)
+
+            # Fit the model
+            model.fit(X_col, y)
+
+            # Predict using the model
+            predictions = model.predict(X_col)
+
+            # Calculate the performance metric
+            if self.modeltype == 'Regression':
+                score = -mean_squared_error(y, predictions)  # Negative because lower MSE is better
+            else:
+                score = accuracy_score(y, predictions)
+
+            # Store the score, possibly adjusted for skewness and kurtosis
+            if abs(skewness) > skew_threshold or abs(kurt) > kurtosis_threshold:
+                scores[col] = score * (1 + abs(skewness) + abs(kurt))
+            else:
+                scores[col] = score
+
+        # Sort the variables based on the scores and select the top n
+        top_n_vars = sorted(scores, key=scores.get, reverse=True)[:max(n, int(X.shape[1] * 0.1), 2)]
+
+        self.remvars += [x for x in numvars if x not in top_n_vars ]
+        return top_n_vars
+
+    def transform(self, X):
+        """
+        Applies the learned binning thresholds and Laplace smoothing to the data, replacing or appending the original 
+        variables with their smoothed, binned versions based on the replace_vars flag.
+
+        Parameters:
+        - X (pd.DataFrame): The input data to transform.
+
+        Returns:
+        - X_transformed (pd.DataFrame): The transformed data with variables binned and smoothed according to the learned thresholds.
+        """
+        X_transformed = X.copy()
+        for col, thresholds in self.binning_thresholds.items():
+            bin_col_name = f'{col}_bin' if not self.replace_vars else col
+            binned_data = np.digitize(X_transformed[col].values, thresholds)
+            
+            # Apply Laplace smoothing to the binned data
+            smoothed_binned_data = binned_data + 1  # Add-one smoothing
+            
+            # Replace or append the smoothed, binned data
+            X_transformed[bin_col_name] = smoothed_binned_data
+            
+            # If replacing, drop the original column if it's not the same as the bin_col_name
+            if self.replace_vars and bin_col_name != col:
+                X_transformed.drop(col, axis=1, inplace=True)
+        
+        return X_transformed
+################################################################################################

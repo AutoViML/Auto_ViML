@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ################################################################################
-import warnings
-
+import numpy as np
+np.random.seed(42)
+from numpy import inf
 import pandas as pd
 
+import warnings
 warnings.filterwarnings("ignore")
 from sklearn.exceptions import DataConversionWarning
 
@@ -26,13 +28,20 @@ with warnings.catch_warnings():
 ################################################################################
 import os
 import shap
-
 os.environ["KMP_WARNINGS"] = "FALSE"
 ######## Import some multi-output models #######################################
 from sklearn.svm import LinearSVR
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.multioutput import RegressorChain, ClassifierChain
 from sklearn.multiclass import OneVsRestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score
+from sklearn import metrics
+
+import copy
+from inspect import signature
+from sklearn.preprocessing import label_binarize
+from sklearn.metrics import average_precision_score
 
 import matplotlib.pylab as plt
 # get_ipython().magic(u'matplotlib inline')
@@ -52,11 +61,59 @@ from autoviml.QuickML_Stacking import QuickML_Stacking
 from autoviml.Transform_KM_Features import Transform_KM_Features
 from autoviml.QuickML_Ensembling import QuickML_Ensembling
 from autoviml.Auto_NLP import Auto_NLP
-from autoviml.sulov_method import FE_remove_variables_using_SULOV_method
+from autoviml.sulov_method import FE_remove_variables_using_SULOV_method, remove_highly_correlated_vars_fast
+
 from autoviml.classify_method import classify_columns
 from imbalanced_ensemble.ensemble import SelfPacedEnsembleClassifier
 
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
+#############################################################################################################
+from itertools import cycle
+from collections import defaultdict
+
+from imblearn.over_sampling import SMOTE, SVMSMOTE
+from imblearn.over_sampling import ADASYN, SMOTENC
+from sklearn.cluster import KMeans
+from sklearn.utils.class_weight import compute_class_weight
+
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
+from sklearn.base import TransformerMixin
+from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.preprocessing import MultiLabelBinarizer
+from xgboost import XGBClassifier, XGBRegressor
+from sklearn.feature_selection import mutual_info_regression, mutual_info_classif
+from sklearn.feature_selection import SelectKBest
+################################################################################
+from collections import OrderedDict
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import Lasso
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.model_selection import GridSearchCV
+import sklearn
+from distutils.version import LooseVersion
+
+## Import sklearn
+from sklearn.model_selection import cross_val_score, KFold, StratifiedKFold
+from sklearn.metrics import auc
+from scipy import interp
+import pandas as pd
+
+################################################################
+from dateutil.relativedelta import relativedelta
+from datetime import date
+####################################################################################
+from collections import Counter
+
+import seaborn as sns
+
+from sklearn.metrics import roc_curve, precision_recall_curve
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import balanced_accuracy_score
+
+import time
+import pdb
 ##################################################################################
 def find_rare_class(classes, verbose=0):
     ######### Print the % count of each class in a Target variable  #####
@@ -77,7 +134,6 @@ def find_rare_class(classes, verbose=0):
     else:
         return int(pd.Series(counts).idxmin())
 
-
 ###############################################################################
 def return_factorized_dict(ls):
     """
@@ -90,18 +146,14 @@ def return_factorized_dict(ls):
     if -1 in factos:
         categs = np.insert(categs, np.where(factos == -1)[0][0], np.nan)
     return dict(zip(categs, factos))
-
-
 #############################################################################################
-
-
 def balanced_accuracy_score(y_true, y_pred, sample_weight=None,
                             adjusted=False):
-    C = confusion_matrix(y_true, y_pred, sample_weight=sample_weight)
+    confu = confusion_matrix(y_true, y_pred, sample_weight=sample_weight)
     with np.errstate(divide='ignore', invalid='ignore'):
-        per_class = np.diag(C) / C.sum(axis=1)
+        per_class = np.diag(confu) / confu.sum(axis=1)
     if np.any(np.isnan(per_class)):
-        warnings.warn('y_pred contains classes not in y_true')
+        print('y_pred contains classes not in y_true')
         per_class = per_class[~np.isnan(per_class)]
     score = np.mean(per_class)
     if adjusted:
@@ -110,11 +162,7 @@ def balanced_accuracy_score(y_true, y_pred, sample_weight=None,
         score -= chance
         score /= 1 - chance
     return score
-
-
 #############################################################################################
-
-
 def check_if_GPU_exists():
     GPU_exists = False
     try:
@@ -139,8 +187,6 @@ def check_if_GPU_exists():
             return False
     else:
         return True
-
-
 #############################################################################################
 def modify_array_to_integer(y_pred, negative_flag=False):
     """
@@ -150,8 +196,6 @@ def modify_array_to_integer(y_pred, negative_flag=False):
     if negative_flag:
         y_pred[y_pred < 0] = 0
     return y_pred
-
-
 ##########################################################################
 def analyze_problem_type(train, target, verbose=0):
     target = copy.deepcopy(target)
@@ -187,13 +231,7 @@ def analyze_problem_type(train, target, verbose=0):
     if verbose <= 1:
         print('''\n################ %s VISUALIZATION Started #####################''' % model_class)
     return model_class
-
-
 ###################################################################################
-from sklearn.model_selection import StratifiedShuffleSplit
-from sklearn.preprocessing import MultiLabelBinarizer
-
-
 def split_train_into_two(train_data, target, randomstate, modeltype):
     preds = [x for x in list(train_data) if x not in target]
     if modeltype.endswith('Classification'):
@@ -221,12 +259,7 @@ def split_train_into_two(train_data, target, randomstate, modeltype):
         training_idx, test_idx = indices[:train_rows], indices[train_rows:]
         traindf, testdf = train_data.iloc[training_idx], train_data.iloc[test_idx]
     return traindf, testdf
-
-
 #######################################################################################
-from sklearn.base import TransformerMixin
-
-
 class My_LabelEncoder(TransformerMixin):
     """
     ################################################################################################
@@ -287,8 +320,6 @@ class My_LabelEncoder(TransformerMixin):
         else:
             outs = testx[:]
         return outs
-
-
 #################################################################################
 def fill_missing_values_object_or_number(start_train: pd.DataFrame, start_test: pd.DataFrame, fill_num, col):
     """
@@ -315,8 +346,6 @@ def fill_missing_values_object_or_number(start_train: pd.DataFrame, start_test: 
             ### Remember that fillna only works at dataframe level! ###
             start_test[[col]] = start_test[[col]].fillna(fill_num)
     return start_train, start_test, missing_flag, new_missing_col
-
-
 #####################################################################################
 def convert_train_test_cat_col_to_numeric(start_train, start_test, col, str_flag=True):
     """
@@ -403,13 +432,8 @@ def flatten_list(list_of_lists):
             final_ls.append(each_item)
     return final_ls
 
-
 #############################################################################################################
-from pandas.api.types import is_datetime64_any_dtype as is_datetime
-
-
-#############################################################################################################
-def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', feature_reduction=True,
+def Auto_ViML(train, target, test='', sample_submission='', hyper_param='RS', feature_reduction=True,
               scoring_parameter='logloss', Boosting_Flag=None, KMeans_Featurizer=False,
               Add_Poly=0, Stacking_Flag=False, Binning_Flag=False,
               Imbalanced_Flag=False, GPU_flag=False, verbose=0):
@@ -508,46 +532,62 @@ def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', featu
     ######################### HELP OTHERS! PLEASE CONTRIBUTE! OPEN A PULL REQUEST! ##########################
     #########################################################################################################
     """
-    np.random.seed(42)
     #####   These copies are to make sure that the originals are not destroyed ####
     CPU_count = os.cpu_count()
     test = copy.deepcopy(test)
     orig_train = copy.deepcopy(train)
     orig_test = copy.deepcopy(test)
+    train_index = train.index
+    if not isinstance(test, str):
+        test_index = test.index
     start_test = copy.deepcopy(orig_test)
     #######    These are Global Settings. If you change them here, it will ripple across the whole code ###
-    corr_limit = 0.70  #### This decides what the cut-off for defining highly correlated vars to remove is.
-    scaling = 'MinMax'  ### This decides whether to use MinMax scaling or Standard Scaling ("Std").
-    seed = 99  ### this maintains repeatability of the whole ML pipeline here ###
-    subsample = 0.7  #### Leave this low so the models generalize better. Increase it if you want overfit models
-    col_sub_sample = 0.7  ### Leave this low for the same reason above
+    corr_limit = 0.70   #### This decides what the cut-off for defining highly correlated vars to remove is.
+    scaling = 'MinMax' ### This decides whether to use MinMax scaling or Standard Scaling ("Std").
+    first_flag = 0  ## This is just a setting to detect which is
+    seed= 99  ### this maintains repeatability of the whole ML pipeline here ###
+    subsample=0.7 #### Leave this low so the models generalize better. Increase it if you want overfit models
+    col_sub_sample = 0.7   ### Leave this low for the same reason above
     poly_degree = 2  ### this create 2-degree polynomial variables in Add_Poly. Increase if you want more degrees
+    booster = 'gbtree'   ### this is the booster for XGBoost. The other option is "Linear".
     n_splits = 5  ### This controls the number of splits for Cross Validation. Increasing will take longer time.
-    one_hot_size = 500  #### This determines the max length of one_hot_max_size parameter of CatBoost algrithm
-    Alpha_min = -3  #### The lowest value of Alpha in LOGSPACE that is used in CatBoost
-    Alpha_max = 2  #### The highest value of Alpha in LOGSPACE that is used in Lasso or Ridge Regression
-    # Cs = np.linspace(0.0001,0.9,5).tolist()+np.linspace(1,100,10).tolist()
-    # Cs = np.linspace(C_min,C_max,100)
-    Cs = np.logspace(-4, 3, 40)  ### The list of values of C used in Logistic Regression
-    tolerance = 0.001  #### This tolerance is needed to speed up Logistic Regression. Otherwise, SAGA takes too long!!
+    matplotlib_flag = True #(default) This is for drawing SHAP values. If this is False, initJS is used.
+    early_stopping = 20 #### Early stopping rounds for XGBoost ######
+    encoded = '_Label_Encoded' ### This is the tag we add to feature names in the end to indicate they are label encoded
+    catboost_limit = 0.4 #### The catboost_limit represents the percentage of num vars in data. ANy lower, CatBoost is used.
+    cat_code_limit = 100 #### If the number of dummy variables to create in a data set exceeds this, CatBoost is the default Algorithm used
+    one_hot_size = 500 #### This determines the max length of one_hot_max_size parameter of CatBoost algrithm
+    Alpha_min = -3 #### The lowest value of Alpha in LOGSPACE that is used in CatBoost
+    Alpha_max = 2 #### The highest value of Alpha in LOGSPACE that is used in Lasso or Ridge Regression
+    #Cs = np.linspace(0.0001,0.9,5).tolist()+np.linspace(1,100,10).tolist()
+    C_min = 10e-5  ### The lowest value of C used in Logistic Regression
+    C_max = 100  ### The highest value of C used in Logistic Regression
+    #Cs = np.linspace(C_min,C_max,100)
+    Cs = np.logspace(-4,3,40) ### The list of values of C used in Logistic Regression
+    tolerance = 0.001 #### This tolerance is needed to speed up Logistic Regression. Otherwise, SAGA takes too long!!
     #### 'lbfgs' is the fastest one but doesnt provide accurate results. Newton-CG is slower but accurate!
     #### SAGA is extremely slow. Even slower than Newton-CG. Liblinear is the fastest and as accurate as Newton-CG!
-    solvers = ['liblinear']  ### Other solvers for Logistic Regression model: ['newton-cg','lbfgs','saga','liblinear']
+    solvers = ['liblinear'] ### Other solvers for Logistic Regression model: ['newton-cg','lbfgs','saga','liblinear']
     solver = 'liblinear'  ### lbfgs is the next fastest solver after liblinear. Useful for Multi-class problems!
-    penalties = ['l2', 'l1']  ### This is to determine the penalties for LogisticRegression
-    n_steps = 6  ### number of estimator steps between 100 and max_estims
-    max_depth = 8  ##### This limits the max_depth used in decision trees and other classifiers
-    warm_start = True  ### This is to set the warm_start flag for the ExtraTrees models
-    bootstrap = True  #### Set this flag to control whether to bootstrap variables or not.
-    n_repeats = 3  #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
-    Bins = 30  ### This is for plotting probabilities in a histogram. For small data sets, 30 is enough.
+    penalties = ['l2','l1'] ### This is to determine the penalties for LogisticRegression
+    n_steps = 6 ### number of estimator steps between 100 and max_estims
+    max_depth = 8 ##### This limits the max_depth used in decision trees and other classifiers
+    max_features = 20 #### maximum number of features in a random forest model or extra trees model
+    warm_start = True ### This is to set the warm_start flag for the ExtraTrees models
+    bootstrap = True #### Set this flag to control whether to bootstrap variables or not.
+    n_repeats = 3 #### This is for repeated KFold and StratifiedKFold - this changes the folds every time
+    Bins = 30 ### This is for plotting probabilities in a histogram. For small data sets, 30 is enough.
+    top_nlp_features = 300 ### This sets a limit on the number of features added by each NLP transformer!
+    removed_features_threshold = 5 #### This triggers the Truncated_SVD if number of removed features from XGB exceeds this!
     calibrator_flag = False  ### In Multi-class data sets, a CalibratedClassifier works better than regular classifiers!
-    max_class_length = 1  ### It turns out the number of classes is directly correlated to Estimated Time. Hence this!
-    perform_scaling_flag = True  #### For linear models, scaling is a must but for other models, its not necessary but okay.
-    max_neighbors = 100  #### this is max number of neighbors used in k_neighbors for RandomizedSearchCV algo
-    n_jobs = -1  #### In case of KNN, having n_jobs=-1 gives an error on Windows environments. Hence avoid.
+    max_class_length = 1 ### It turns out the number of classes is directly correlated to Estimated Time. Hence this!
+    perform_scaling_flag = True #### For linear models, scaling is a must but for other models, its not necessary but okay.
+    xgb_booster = 'dart'  ### you can set this to either of dart, gbtree or gblinear
+    max_neighbors = 100 #### this is max number of neighbors used in k_neighbors for RandomizedSearchCV algo
+    n_jobs = -1 #### In case of KNN, having n_jobs=-1 gives an error on Windows environments. Hence avoid.
     chain_flag = False
-    ensemble_max_rows = 100000  ### Want to limit the ensemble models running forever for large datasets
+    ensemble_max_rows = 100000 ### Want to limit the ensemble models running forever for large datasets
+    ####################################################################################################
     if verbose >= 2:
         try:
             print_system_info()
@@ -558,9 +598,10 @@ def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', featu
     if hyper_param is not None:
         if hyper_param.lower() == 'chain':
             chain_flag = True
-    if isinstance(Boosting_Flag, str):
+    if isinstance(Boosting_Flag,str):
         if Boosting_Flag.lower() == 'catboost':
             try:
+                from catboost import CatBoostClassifier, CatBoostRegressor
                 ### You don't want to do scaling on Catboost since integers can become float and it will error in training
                 perform_scaling_flag = False
             except:
@@ -670,14 +711,6 @@ def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', featu
             else:
                 max_estims = 350
             early_stopping = 6
-    #### The warnings from Sklearn are so annoying that I have to shut it off ####
-    import warnings
-    warnings.filterwarnings("ignore")
-
-    def warn():
-        pass
-
-    warnings.warn = warn
     ### First_Flag is merely a flag for the first time you want to set values of variables
     if scaling == 'MinMax':
         SS = MinMaxScaler()
@@ -1366,7 +1399,6 @@ def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', featu
             #### Do binning only when there are numeric features ####
             #### When we Bin the first time, we set the entropy_binning flag to False so
             ####    no numeric variables are removed. But next time, we will remove them later!
-            pdb.set_trace()
             # Optionally, select top n variables based on their predictive power
             # This step is useful if you want to bin only the most informative variables
             entropy_binner = EntropyBinningTransformer(replace_vars=False, modeltype=modeltype, top_n_vars=None)
@@ -2174,7 +2206,6 @@ def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', featu
     ##   this next step is skipped ##
     #########################################################################
     ### The model blows up when you use average-precision in Multi-Classes -> needs checking!
-
     if not Imbalanced_Flag:
         #### This is for both regular Regression and regular Classification Model Training. It is not a Mistake #############
         ### In case Imbalanced training fails, this method is also tried. That's why we test the Flag here!!  #############
@@ -2215,8 +2246,8 @@ def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', featu
                     model.fit(X_train, y_train)
             else:
                 model.fit(X_train, y_train)
-        except:
-            print('Training regular model first time is Erroring: Check if your Input is correct...')
+        except Exception as e:
+            print('Training regular model first time is erroring due to %s' %e)
             return
     else:
         #### This is for Imbalanced Training for Multi-Label problems ########
@@ -2258,8 +2289,8 @@ def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', featu
                 ## This applies only to SPE classifier ########
                 validation_metric = 'Balanced Accuracy'
                 best_score = balanced_accuracy_score(y_cv, model.predict(X_cv))
-    except:
-        print('Error: Not able to print validation metrics. Continuing...')
+    except Exception as e:
+        print('Warning: Not able to print validation metrics due to %s' %e)
         best_score = 0
     if model_label == 'Single_Label':
         if modeltype != 'Regression':
@@ -3156,8 +3187,6 @@ def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', featu
             width_size = 10
             color_string = list('byrcmgkbyrcmgkbyrcmgkbyrcmgk')[:15]
             print('    Plotting Feature Importances to explain the output of model')
-            imp_features_df[:15].plot(kind='barh', title='Feature Importances for predicting %s' % each_target,
-                                      figsize=(width_size, height_size), color=color_string)
         except:
             print('Could not draw feature importance plot due to an error')
         ###########   D R A W  SHAP  VALUES USING TREE BASED MODELS. THE REST WILL NOT GET SHAP ############
@@ -3228,6 +3257,8 @@ def Auto_ViML(train, target, test, sample_submission='', hyper_param='RS', featu
                             shap.summary_plot(shap_values, X_plot)
             except:
                 print('Could not plot SHAP values since SHAP is not installed or could not import SHAP in this machine')
+                imp_features_df[:15].plot(kind='barh', title='Feature Importances for predicting %s' % each_target,
+                                          figsize=(width_size, height_size), color=color_string)
     else:
         ############ No Plotting feature importances for Multi-Label problems ##############
         print('    No feature importance plots available for Multi-Label problems')
@@ -3327,8 +3358,6 @@ def plot_SHAP_values(m, X, modeltype, Boosting_Flag=False, matplotlib_flag=False
 ################################################################################
 ################      Find top features using XGB     ###################
 ################################################################################
-from xgboost import XGBClassifier, XGBRegressor
-
 
 def find_top_features_xgb(train, preds, numvars, target, modeltype):
     """
@@ -3674,9 +3703,6 @@ def plot_xgb_metrics(model, model_label='', model_name=""):
 
 
 #################################################################################
-from sklearn import metrics
-
-
 def print_classification_metrics(y_test, y_probs, proba_flag=True):
     """
     #######  Send in the actual_values and prediction_probabilities for binary classes
@@ -3786,7 +3812,6 @@ def print_classification_metrics(y_test, y_probs, proba_flag=True):
 
 
 ##################################################################################################
-##################################################################################################
 def left_subtract(l1, l2):
     lst = []
     for i in l1:
@@ -3794,13 +3819,7 @@ def left_subtract(l1, l2):
             lst.append(i)
     return lst
 
-
 ################################################################################
-from sklearn.feature_selection import mutual_info_regression, mutual_info_classif
-from sklearn.feature_selection import SelectKBest
-################################################################################
-from collections import OrderedDict
-
 
 def return_dictionary_list(lst_of_tuples):
     """ Returns a dictionary of lists if you send in a list of Tuples"""
@@ -3934,15 +3953,6 @@ def find_corr_vars(correlation_dataframe, corr_limit=0.70):
 
 
 ################################################################################
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import Lasso
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.model_selection import GridSearchCV
-import sklearn
-from distutils.version import LooseVersion
-
-
 def add_poly_vars_select(data, numvars, targetvar, modeltype, poly_degree=2, Add_Poly=2, md='',
                          scaling=True, fit_flag=False, verbose=0):
     """
@@ -4185,10 +4195,6 @@ def add_poly_vars_select(data, numvars, targetvar, modeltype, poly_degree=2, Add
 
 
 ##################################################################################
-## Import sklearn
-from sklearn.model_selection import cross_val_score, KFold, StratifiedKFold
-
-
 def print_model_metrics(modeltype, reg, X, y, fit_flag=False, verbose=1):
     ### If fit_flag is set to True, then you must return a fitted model ###
     ###   Else you must return the cv_scores.mean only ####
@@ -4240,11 +4246,6 @@ def select_best_variables(df, names, verbose=0):
 
 
 ##############################################################################################
-from sklearn.metrics import auc
-from scipy import interp
-import pandas as pd
-
-
 def Draw_ROC_MC_ML(model, X_test, y_true, target, model_name):
     figsize = (10, 6)
     y_proba = model.predict_proba(X_test)
@@ -4565,8 +4566,6 @@ def filling_missing_values_simple(train, test, cats, nums):
 
 
 ############################################################
-import os
-
 
 def write_file_to_folder(df, each_target, base_filename, verbose=1):
     if isinstance(each_target, str):
@@ -4679,12 +4678,6 @@ def create_ts_features(df, tscol):
     df = df[dt_adds]
     return df
 
-
-################################################################
-from dateutil.relativedelta import relativedelta
-from datetime import date
-
-
 ##### This is a little utility that computes age from year ####
 def compute_age(year_string):
     today = date.today()
@@ -4733,24 +4726,11 @@ def create_time_series_features(dtf, ts_column):
         print('Error in Processing %s column for date time features. Continuing...' % ts_column)
     return dtf
 
-
-########################################
-########################################
-import warnings
-
-warnings.filterwarnings("ignore")
-from sklearn.exceptions import DataConversionWarning
-
-warnings.filterwarnings(action='ignore', category=DataConversionWarning)
-####################################################################################
-from collections import Counter
-
-
 #######################################################################################
 ### Regression_Resampler is a neat library that returns a numpy list of classes for each
 ###  corresponding sample. from target data. It enables regresison problems to use SMOTE.
 ###  I have used a similar concept but implemented it my way using K-Means algorithm.
-###  My sincere thanks to the creators of the library:
+###  My sincere thanks to the creators of the library for inspiration:
 ###     https://github.com/atif-hassan/Regression_ReSampling/
 #######################################################################################
 def training_with_SMOTE(X_df, y_df, target, eval_set, model_input, Boosting_Flag, eval_metric, imp_cats: list,
@@ -4943,18 +4923,6 @@ def model_training_smote(model, x_train, y_train, eval_set, eval_metric,
     else:
         model.fit(x_train, y_train)
     return model
-
-
-#################################################################################
-from sklearn.model_selection import train_test_split
-import numpy as np
-from sklearn.metrics import f1_score
-import copy
-from inspect import signature
-from sklearn.preprocessing import label_binarize
-from sklearn.metrics import average_precision_score
-
-
 #############################################################################################
 def multi_f1(truth, predictions):
     return f1_score(truth, predictions, average=None)
@@ -5153,11 +5121,6 @@ def draw_confusion_maxtrix(y_test, y_pred, model_name='Model', ax=''):
 
 
 ######################################################################################
-import seaborn as sns
-
-from sklearn.metrics import roc_curve, precision_recall_curve
-
-
 def plot_precision_recall_curve(m, x_testc, y_test, ax=None):
     #### This is a simple way to plot PR curve for binary classes #####
     y_scores = m.predict_proba(x_testc)[:, 1]
@@ -5215,10 +5178,6 @@ def plot_classification_results(m, X_true, y_true, each_target):
         print('Error: could not plot classification results. Continuing...')
 
 
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.metrics import balanced_accuracy_score
-
-
 def print_classification_model_stats(y_true, predicted, m_thresh=0.5):
     """
     This prints classification metrics in a nice format only for binary classes
@@ -5255,9 +5214,6 @@ def print_classification_model_stats(y_true, predicted, m_thresh=0.5):
 #####################################################################
 #####     REGRESSION CHARTS AND METRICS ARE PRINTED PLOTTED HERE
 #####################################################################
-import time
-
-
 def plot_regression_scatters(df, df2, num_vars, plot_name=''):
     """
     Great way to plot continuous variables fast. Just sent them in and it will take care of the rest!
@@ -5423,8 +5379,6 @@ def print_static_rmse(actual, predicted, start_from=0, verbose=0):
 
 
 ################################################################################
-
-
 def print_rmse(y, y_hat):
     """
     Calculating Root Mean Square Error https://en.wikipedia.org/wiki/Root-mean-square_deviation
@@ -5444,10 +5398,6 @@ def print_mape(y, y_hat):
 
 
 ################################################################################
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-from itertools import cycle
-
-
 def plot_dfplot(dfplot, plot_title=""):
     figsize = (10, 10)
     colors = cycle('byrcmgkbyrcmgkbyrcmgkbyrcmgk')
@@ -5468,9 +5418,94 @@ def plot_dfplot(dfplot, plot_title=""):
 
 
 ###############################################################################
-from collections import defaultdict
-
-
+def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_test,
+                       modeltype, entropy_binning,verbose=0):
+    """
+        ######   This is where we do ENTROPY BINNING OF CONTINUOUS VARS ###########
+        #### It is best to do Binning on ONLY on the top most variables from Important_Features!
+        #### Make sure that the Top 2-10 vars are all CONTINUOUS VARS! Otherwise Binning is Waste!
+        #### This method ensures you get the Best Results by generalizing on the top numeric vars!
+    """
+    temp_train = copy.deepcopy(temp_train)
+    temp_test = copy.deepcopy(temp_test)
+    max_depth = 10
+    seed = 99
+    num_vars = copy.deepcopy(num_vars)
+    continuous_vars = copy.deepcopy(num_vars)
+    important_features = copy.deepcopy(important_features)
+    print('Determining which of %d continuous variables should be Entropy Binned...' %len(continuous_vars))
+    if len(continuous_vars) > 0 and len(continuous_vars) <= 2:
+        max_depth =  2
+        continuous_vars = continuous_vars[:]
+    elif len(continuous_vars) > 2 and len(continuous_vars) <= 5:
+        max_depth = len(continuous_vars) - 2
+        continuous_vars = continuous_vars[:2]
+    elif len(continuous_vars) > 5 and len(continuous_vars) <= 10:
+        max_depth = 5
+        continuous_vars = continuous_vars[:5]
+    elif len(continuous_vars) > 10 and len(continuous_vars) <= 50:
+        max_depth = max_depth
+        continuous_vars = continuous_vars[:10]
+    else:
+        max_depth = max_depth
+        continuous_vars = continuous_vars[:50]
+    new_bincols = []
+    ###   This is an Awesome Entropy Based Binning Method for Continuous Variables ###########
+    from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+    if modeltype == 'Regression':
+        clf = DecisionTreeRegressor(criterion='mse',min_samples_leaf=2,
+                                    max_depth=max_depth,
+                                    random_state=seed)
+    else:
+        clf = DecisionTreeClassifier(criterion='entropy',min_samples_leaf=2,
+                                         max_depth=max_depth,
+                                         random_state=seed)
+    entropy_threshold = []
+    ####### This is where we bin each variable through a method known as Entropy Binning ##############
+    for each_num in continuous_vars:
+        try:
+            clf.fit(temp_train[each_num].values.reshape(-1,1),temp_train[targ].values)
+            entropy_threshold = clf.tree_.threshold[clf.tree_.threshold>-2]
+            entropy_threshold = np.sort(entropy_threshold)
+            if isinstance(each_num, str):
+                bincol = each_num+'_bin'
+                temp_train[bincol] = np.digitize(temp_train[each_num].values, entropy_threshold)
+            else:
+                bincol = 'bin_'+str(each_num)
+                temp_train[bincol] = np.digitize(temp_train[each_num].values, entropy_threshold)
+            #### We Drop the original continuous variable after you have created the bin when Flag is true
+            ### We Don't drop these original numeric vars since they will be used later for full train binning
+            if type(temp_test) != str:
+                if isinstance(each_num, str):
+                    bincol = each_num+'_bin'
+                    temp_test[bincol] = np.digitize(temp_test[each_num].values, entropy_threshold)
+                else:
+                    bincol = 'bin_'+str(each_num)
+                    temp_test[bincol] = np.digitize(temp_test[each_num].values, entropy_threshold)
+                #### We Drop the original continuous variable after you have created the bin when Flag is true
+                ### We Don't drop these original numeric vars since they will be used later for full train binning
+            if entropy_binning:
+                ### In the second time, we don't repeat adding binned vars since they have already been added!
+                #### we also make sure that the orig num vars which have now been binned are removed!
+                temp_train.drop(each_num,axis=1,inplace=True)
+                if type(temp_test) != str:
+                    temp_test.drop(each_num,axis=1,inplace=True)
+            else:
+                #### In the first time, we add binned vars to  important_features  ###
+                ### In the second time, we don't repeat that since they have already been added!
+                important_features.append(bincol)
+            num_vars.append(bincol)
+            important_features.remove(each_num)
+            #### Drop these original continuous variable from further consideration that's all! ###
+            num_vars.remove(each_num)
+            new_bincols.append(bincol)
+        except:
+            print('Error in %s during Entropy Binning' %each_num)
+    print('    Selected and binned only top %s continuous variables.' %(len(new_bincols)))
+    if verbose and len(new_bincols) <= 30:
+        print('    %s' %new_bincols)
+    return temp_train, num_vars, important_features, temp_test
+#############################################################################
 def return_list_matching_keys(dicto, list_keys):
     """Return a list of values matching keys in a dictionary
     from a list of keys. Returns Values in the Same order as the List Keys.
@@ -5480,32 +5515,7 @@ def return_list_matching_keys(dicto, list_keys):
         results.append(dicto[each])
     return results
 
-
 ##################################################################################
-def remove_highly_correlated_vars_fast(df, corr_limit=0.70):
-    """
-    This is a simple method to remove highly correlated features fast using Pearson's Correlation.
-    Use this only for float and integer variables. It will automatically select those only.
-    It can be used for very large data sets where featurewiz has trouble with memory
-    """
-    # Creating correlation matrix
-    cor_matrix = df.corr().abs().astype(np.float16)
-    # Selecting upper triangle of correlation matrix
-    upper_tri = cor_matrix.where(np.triu(np.ones(cor_matrix.shape),
-                                         k=1).astype(np.bool))
-    # Finding index of feature columns with correlation greater than 0.95
-    to_drop = [column for column in upper_tri.columns if any(upper_tri[column] > corr_limit)]
-    print()
-    print('Highly correlated columns to remove: %s' % to_drop)
-    return to_drop
-
-
-#####################################################################################
-from imblearn.over_sampling import SMOTE, SVMSMOTE
-from imblearn.over_sampling import ADASYN, SMOTENC
-from sklearn.cluster import KMeans
-
-
 def kmeans_resampler(x_train, y_train, target, smote="", verbose=0):
     """
     This function converts a Regression problem into a Classification problem to enable SMOTE!
@@ -5552,9 +5562,6 @@ def kmeans_resampler(x_train, y_train, target, smote="", verbose=0):
 
 
 ##################################################################################
-from sklearn.utils.class_weight import compute_class_weight
-
-
 def get_class_distribution(y_input):
     y_input = copy.deepcopy(y_input)
     classes = np.unique(y_input)
@@ -5660,3 +5667,4 @@ def print_system_info():
     print(f"Total: {get_size(svmem.total)}")
     print(f"Available: {get_size(svmem.available)}")
     print(f"Used: {get_size(svmem.used)}")
+##################################################################################

@@ -11,8 +11,8 @@ catboost
 textblob
 nltk
 regex
-scikit-learn<1.2
-xgboost<=1.5.2
+scikit-learn>=0.24,<=1.2.2
+xgboost<=1.6.2
 vaderSentiment
 imbalanced-learn>=0.10.1
 shap>=0.36.0

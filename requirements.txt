@@ -1,7 +1,7 @@
-numpy<=1.19.5
+numpy>=1.24.0
 pandas>=1.1.3, <2.0
 ipython
-matplotlib
+matplotlib>3.7.4
 beautifulsoup4
 emoji
 ipython
@@ -12,7 +12,7 @@ textblob
 nltk
 regex
 scikit-learn>=0.24,<=1.2.2
-xgboost<=1.6.2
+xgboost>=0.82,<1.7
 vaderSentiment
 imbalanced-learn>=0.10.1
 shap>=0.36.0

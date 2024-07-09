@@ -64,7 +64,7 @@ from autoviml.Auto_NLP import Auto_NLP
 from autoviml.sulov_method import FE_remove_variables_using_SULOV_method, remove_highly_correlated_vars_fast
 
 from autoviml.classify_method import classify_columns
-from imbalanced_ensemble.ensemble import SelfPacedEnsembleClassifier
+from imbens.ensemble import SelfPacedEnsembleClassifier
 
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
@@ -97,7 +97,7 @@ from distutils.version import LooseVersion
 ## Import sklearn
 from sklearn.model_selection import cross_val_score, KFold, StratifiedKFold
 from sklearn.metrics import auc
-from scipy import interp
+from scipy import interpolate
 import pandas as pd
 
 ################################################################
@@ -4342,7 +4342,7 @@ def Draw_ROC_MC_ML(model, X_test, y_true, target, model_name):
                 # Then interpolate all ROC curves at this points
                 mean_tpr = np.zeros_like(all_fpr)
                 for j in range(n_classes):
-                    mean_tpr += interp(all_fpr, fpr[j], tpr[j])
+                    mean_tpr += interpolate(all_fpr, fpr[j], tpr[j])
 
                 # Finally average it and compute AUC
                 mean_tpr /= n_classes

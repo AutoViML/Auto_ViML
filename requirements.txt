@@ -8,13 +8,14 @@ emoji
 ipython
 jupyter
 seaborn
-catboost
+catboost>=1.2.7
 textblob
 nltk
 regex
-scikit-learn>=0.24,<=1.5.2
 xgboost>=0.82,<=1.7.6
 vaderSentiment
 imbalanced-learn>=0.10.1
 shap>=0.36.0
+scikit-learn>=0.24,<=1.5.2
 lightgbm>=3.0.0
+networx

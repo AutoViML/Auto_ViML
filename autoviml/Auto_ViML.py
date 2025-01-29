@@ -64,7 +64,6 @@ from autoviml.Auto_NLP import Auto_NLP
 from autoviml.sulov_method import FE_remove_variables_using_SULOV_method, remove_highly_correlated_vars_fast
 
 from autoviml.classify_method import classify_columns
-from imbalanced_ensemble.ensemble import SelfPacedEnsembleClassifier
 
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
@@ -1401,24 +1400,19 @@ def Auto_ViML(train, target, test='', sample_submission='', hyper_param='RS', fe
             ####    no numeric variables are removed. But next time, we will remove them later!
             # Optionally, select top n variables based on their predictive power
             # This step is useful if you want to bin only the most informative variables
-            entropy_binner = EntropyBinningTransformer(replace_vars=False, modeltype=modeltype, top_n_vars=None)
-
-            # Fit the transformer to the training data
-            entropy_binner.fit_transform(X_train, y_train)
-            
             part_train, num_vars, important_features, part_cv = add_entropy_binning(part_train,
-                                                                                    each_target, saved_num_vars,
-                                                                                    saved_important_features, part_cv,
-                                                                                    modeltype, entropy_binning=False,
-                                                                                    verbose=verbose)
+                                            each_target, saved_num_vars,
+                                            saved_important_features, part_cv,
+                                            modeltype, entropy_binning=False,verbose=verbose)
             #### In saved_num_vars we send in all the continuous_vars but we bin only the top few vars.
             ###  Those that are binned are removed from saved_num_vars and the remaining become num_vars
             ### Our job is to find the names of those original numeric variables which were binned.
             ### orig_num_vars contains original num vars. num_vars contains binned versions of those vars.
             ### Those binned variables have now become categorical vars and must be added to imp_cats.
             ### you get the name of the original vars which were binned here in this orig_num_vars variable!
+            orig_num_vars = left_subtract(saved_num_vars,num_vars)
             #### you need to know the name of the binner variables. This is where you get it!
-            binned_num_vars = left_subtract(num_vars, saved_num_vars)
+            binned_num_vars = left_subtract(num_vars,saved_num_vars)
             imp_cats += binned_num_vars
             #### Also note that important_features does not contain orig_num_vars which have been erased.
         else:
@@ -2361,8 +2355,8 @@ def Auto_ViML(train, target, test='', sample_submission='', hyper_param='RS', fe
                     from sklearn.calibration import CalibratedClassifierCV
                     model = CalibratedClassifierCV(model, method=method, cv=n_splits)
                     if not perform_scaling_flag:
-                        X_ful = X_train.append(X_cv)
-                        y_ful = y_train.append(y_cv)
+                        X_ful = pd.concat([X_train, X_cv], ignore_index=True)
+                        y_ful = pd.concat([y_train, y_cv], ignore_index=True)
                     else:
                         X_ful = np.r_[X_train, X_cv]
                         y_ful = np.r_[y_train, y_cv]
@@ -2646,7 +2640,7 @@ def Auto_ViML(train, target, test='', sample_submission='', hyper_param='RS', fe
         print('Training model on complete Train data and Predicting using given Test Data...')
     ################        I M P O R T A N T: C O M B I N I N G  D A T A ######################
     #### This is Second time: we combine train and CV into Train and Test Sets #################
-    train = part_train.append(part_cv)
+    train = pd.concat([part_train, part_cv], ignore_index=True)
     important_features = [x for x in list(train) if x not in target]
     ############################################################################################
     if model_label == 'Single_Label':
@@ -2665,6 +2659,7 @@ def Auto_ViML(train, target, test='', sample_submission='', hyper_param='RS', fe
             except:
                 pass
         ########################## BINNING SECOND TIME  ###############################
+        new_num_vars = train[important_features].select_dtypes(include=[np.float64,np.float32,np.float16]).columns.tolist()
         ## Now we re-use the saved_num_vars which contained a list of num_vars for binning now!
         ###### Once again we do Entropy Binning on the Full Train Data Set !!
         ########################## BINNING SECOND TIME  ###############################
@@ -2677,9 +2672,8 @@ def Auto_ViML(train, target, test='', sample_submission='', hyper_param='RS', fe
             #### When we Bin the second first time, we set the entropy_binning flag to True so
             ####    that all numeric variables that are binned are removed. This way, only bins remain.
             train, num_vars, important_features, test = add_entropy_binning(train, each_target,
-                                                                            saved_num_vars, important_features, test,
-                                                                            modeltype, entropy_binning=True,
-                                                                            verbose=verbose)
+                                                  saved_num_vars, important_features, test,
+                                                  modeltype,  entropy_binning=True,verbose=verbose)
             #### In saved_num_vars we send in all the continuous_vars but we bin only the top few vars.
             ###  Those that are binned are removed from saved_num_vars and the remaining become num_vars
             ### Our job is to find the names of those original numeric variables which were binned.
@@ -4822,10 +4816,12 @@ def training_with_SMOTE(X_df, y_df, target, eval_set, model_input, Boosting_Flag
             ### For classification problems we are going to use SPE from now on
             if modeltype == 'Binary_Classification':
                 ### For Binary class, SPE model is better ############
-                spe = SelfPacedEnsembleClassifier(estimator=model_copy, n_jobs=-1, soft_resample_flag=False)
+                #spe = SelfPacedEnsembleClassifier(estimator=model_copy, n_jobs=-1, soft_resample_flag=False)
+                spe = LogisticRegression()
             else:
                 ## For multi-class OnevsRest model is better  ###########
-                spe = SelfPacedEnsembleClassifier(estimator=model_copy, n_jobs=-1, soft_resample_flag=False)
+                #spe = SelfPacedEnsembleClassifier(estimator=model_copy, n_jobs=-1, soft_resample_flag=False)
+                spe = LogisticRegression()
                 spe = OneVsRestClassifier(estimator=spe)
             print('Training Imbalanced model. This will take time...')
             spe.fit(X_df, y_df)
@@ -5418,6 +5414,7 @@ def plot_dfplot(dfplot, plot_title=""):
 
 
 ###############################################################################
+import pdb
 def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_test,
                        modeltype, entropy_binning,verbose=0):
     """
@@ -5453,7 +5450,8 @@ def add_entropy_binning(temp_train, targ, num_vars, important_features, temp_tes
     ###   This is an Awesome Entropy Based Binning Method for Continuous Variables ###########
     from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
     if modeltype == 'Regression':
-        clf = DecisionTreeRegressor(criterion='mse',min_samples_leaf=2,
+        ### default is 'mse'  in old version and 'squared error' in new version - hence leave criterion out
+        clf = DecisionTreeRegressor(min_samples_leaf=2,
                                     max_depth=max_depth,
                                     random_state=seed)
     else:

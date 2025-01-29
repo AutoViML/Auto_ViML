@@ -34,7 +34,7 @@ def remove_highly_correlated_vars_fast(df, corr_limit=0.70):
     cor_matrix = df.corr().abs().astype(np.float16)
     # Selecting upper triangle of correlation matrix
     upper_tri = cor_matrix.where(np.triu(np.ones(cor_matrix.shape),
-                                         k=1).astype(np.bool))
+                                         k=1).astype(bool))
     # Finding index of feature columns with correlation greater than 0.95
     to_drop = [column for column in upper_tri.columns if any(upper_tri[column] > corr_limit)]
     print()

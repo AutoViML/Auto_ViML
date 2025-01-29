@@ -134,11 +134,11 @@ def Transform_KM_Features(training_data, training_labels, test_data, km_max=0):
     except:
         target_range = 5.0
     kmf = KMeansFeaturizer(k=k_max, target_scale=target_range, random_state=seed)
-    kmf_hint = kmf.fit(training_data, training_labels)
+    kmf_hint = kmf.fit(training_data.values, training_labels.values)
     ### Just return it with the cluster column => no need to return the data frame ###
-    training_cluster_features = kmf_hint.transform(training_data)
-    test_cluster_features = kmf_hint.transform(test_data)
-    npx = np.c_[training_data, training_labels.values]
+    training_cluster_features = kmf_hint.transform(training_data.values)
+    test_cluster_features = kmf_hint.transform(test_data.values)
+    npx = np.c_[training_data.values, training_labels.values]
     training_with_cluster = np.c_[npx, training_cluster_features]
     test_with_cluster = np.c_[test_data, test_cluster_features]
     ### We are going to just return the cluster values ######

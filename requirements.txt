@@ -1,7 +1,7 @@
 numpy<2
 pandas>=2.0
 ipython
-scipy<=1.11.4
+scipy==1.11.4
 matplotlib>3.7.4
 beautifulsoup4
 emoji
@@ -19,3 +19,4 @@ shap>=0.36.0
 scikit-learn>=0.24,<=1.5.2
 lightgbm>=3.0.0
 networx
+pandas-dq>=1.29

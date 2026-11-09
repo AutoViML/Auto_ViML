@@ -7,7 +7,7 @@ setuptools.setup(
     name="autoviml",
     version="0.2.02",
     author="Ram Seshadri",
-    # author_email="author@example.com",
+    # author_email="aryan@aryan.com",
     description="Automatically Build Variant Interpretable ML models fast - now with CatBoost!",
     long_description=long_description,
     long_description_content_type="text/markdown",
